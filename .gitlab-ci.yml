@@ -1,0 +1,20 @@
+# Yui CI — runs on the shared shell-executor runner on CT 135.
+# Native unit tests only. ESP32 build is too slow (~40 s + first-run toolchain
+# download) and contributes little signal beyond the local pre-push check, so
+# we keep CI tight to keep PR feedback fast.
+
+stages:
+  - test
+
+variables:
+  PATH: "/root/.platformio/penv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+test:native:
+  stage: test
+  script:
+    - pio --version
+    - pio test -e native --without-uploading --without-testing-on-target
+  cache:
+    key: pio-native
+    paths:
+      - .pio/
