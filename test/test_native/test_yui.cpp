@@ -828,6 +828,72 @@ void test_mic_app_silent_input_yields_zero_rms() {
   TEST_ASSERT_EQUAL_FLOAT(0.f, app.rms());
 }
 
+void test_mic_app_sine_at_1khz_lands_in_expected_band() {
+  // 16 kHz sample rate, 256-pt FFT → 62.5 Hz/bin. 1 kHz = bin 16, which is
+  // band 4 (bins 16..32).
+  Fixture f;
+  FakeMic mic;
+  mic.push_sine(1000.f, 16000.f, 16000, MicApp::kFrame);
+  MicApp app{mic};
+  app.on_enter(f.hal);
+  app.tick(0);
+  // Band 4 should be the strongest.
+  int peak_band = 0;
+  for (int b = 1; b < MicApp::kBands; ++b) {
+    if (app.band(b) > app.band(peak_band)) peak_band = b;
+  }
+  TEST_ASSERT_EQUAL_INT(4, peak_band);
+  TEST_ASSERT_GREATER_THAN_INT(20, app.band(4));
+}
+
+void test_mic_app_sine_at_300hz_lands_in_low_band() {
+  // 300 Hz → bin ~5, which is band 2 (bins 4..8).
+  Fixture f;
+  FakeMic mic;
+  mic.push_sine(300.f, 16000.f, 16000, MicApp::kFrame);
+  MicApp app{mic};
+  app.on_enter(f.hal);
+  app.tick(0);
+  int peak_band = 0;
+  for (int b = 1; b < MicApp::kBands; ++b) {
+    if (app.band(b) > app.band(peak_band)) peak_band = b;
+  }
+  TEST_ASSERT_EQUAL_INT(2, peak_band);
+}
+
+// ───── FFT ──────────────────────────────────────────────────────────────────
+
+void test_fft_dc_input_concentrates_in_bin_zero() {
+  constexpr size_t N = 16;
+  float re[N], im[N] = {0};
+  for (size_t i = 0; i < N; ++i) re[i] = 1.f;
+  yui::dsp::fft_radix2(re, im, N);
+  // bin 0 magnitude should be N (sum of inputs); other bins ~0.
+  TEST_ASSERT_FLOAT_WITHIN(1e-3f, static_cast<float>(N), re[0]);
+  for (size_t k = 1; k < N; ++k) {
+    const float mag = std::sqrt(re[k] * re[k] + im[k] * im[k]);
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, 0.f, mag);
+  }
+}
+
+void test_fft_single_bin_sine() {
+  // sin(2π * k * n / N) with k=2 → magnitude peak at bin 2 (and N-2).
+  constexpr size_t N = 32;
+  constexpr size_t k_target = 2;
+  constexpr float kPi = 3.14159265358979323846f;
+  float re[N], im[N] = {0};
+  for (size_t n = 0; n < N; ++n)
+    re[n] = std::sin(2.f * kPi * k_target * n / N);
+  yui::dsp::fft_radix2(re, im, N);
+  size_t peak_bin = 0;
+  float  peak_mag = 0.f;
+  for (size_t k = 1; k < N / 2; ++k) {
+    const float mag = std::sqrt(re[k] * re[k] + im[k] * im[k]);
+    if (mag > peak_mag) { peak_mag = mag; peak_bin = k; }
+  }
+  TEST_ASSERT_EQUAL_size_t(k_target, peak_bin);
+}
+
 void test_mic_app_loud_input_yields_high_rms() {
   Fixture f;
   FakeMic mic;
@@ -1061,6 +1127,10 @@ int main(int, char**) {
   RUN_TEST(test_ir_app_arrow_keys_change_selection);
   RUN_TEST(test_mic_app_silent_input_yields_zero_rms);
   RUN_TEST(test_mic_app_loud_input_yields_high_rms);
+  RUN_TEST(test_mic_app_sine_at_1khz_lands_in_expected_band);
+  RUN_TEST(test_mic_app_sine_at_300hz_lands_in_low_band);
+  RUN_TEST(test_fft_dc_input_concentrates_in_bin_zero);
+  RUN_TEST(test_fft_single_bin_sine);
   RUN_TEST(test_adv_decode_pos_keycode_1_is_tab_row1_col0);
   RUN_TEST(test_adv_make_event_letter_unshifted);
   RUN_TEST(test_adv_make_event_letter_shifted);

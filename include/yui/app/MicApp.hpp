@@ -1,8 +1,10 @@
 #pragma once
-// VU meter + 8-bar log envelope visualizer. Pulls a frame of samples each
-// tick, computes RMS for the meter and a coarse 8-band envelope (no FFT
-// yet — plain windowed-energy split for v0.0). Pure HAL, native-testable.
+// VU meter + 8-bar log-spaced spectrum visualizer. Pulls a frame of
+// samples each tick, computes RMS for the VU meter and a Hann-windowed
+// 256-pt FFT for the spectrum bands. Assumes 16 kHz sample rate (see
+// Esp32Mic::kSampleRate); bins are log-grouped to roughly span 60 Hz – 8 kHz.
 #include "yui/app/App.hpp"
+#include "yui/dsp/Fft.hpp"
 #include "yui/hal/IMic.hpp"
 #include "yui/types.hpp"
 #include <algorithm>
@@ -44,20 +46,13 @@ public:
     rms_  = 0.7f * rms_  + 0.3f * new_rms;
     peak_ = std::max(peak_ * 0.95f, pk / 32767.0f);
 
-    // Coarse 8-band envelope: split frame into kBands chunks, RMS each.
-    const size_t per = n / kBands;
-    if (per > 0) {
-      for (int b = 0; b < kBands; ++b) {
-        double s = 0.0;
-        for (size_t i = 0; i < per; ++i) {
-          const int v = buf[b * per + i];
-          s += v * v;
-        }
-        const float r = static_cast<float>(std::sqrt(s / per)) / 32767.0f;
-        bands_[b] = static_cast<int>(r * 100.f);
-      }
-    }
+    // 8-band log-spaced spectrum via Hann-windowed radix-2 FFT.
+    if (n == kFrame) compute_spectrum_(buf);
   }
+
+  // Bin ranges chosen for 16 kHz sample rate, 256-pt FFT (62.5 Hz/bin).
+  // [start, end) over the 0..N/2 magnitude bins.
+  static constexpr int kBandBins[kBands + 1] = {1, 2, 4, 8, 16, 32, 64, 96, 128};
 
   void render(IDisplay& d) override {
     d.clear(kWhite);
@@ -78,7 +73,7 @@ public:
     const int gap    = 2;
     const int bw     = (d.width() - 16 - (kBands - 1) * gap) / kBands;
     for (int b = 0; b < kBands; ++b) {
-      const int v = std::min(100, std::max(0, bands_[b]));
+      const int v = std::min(100, std::max(0, bands_[b] / 5));  // raw is unclamped log intensity
       const int h = band_h * v / 100;
       const int x = 8 + b * (bw + gap);
       d.fill_rect({x, band_y + (band_h - h), bw, h}, kJapanRed);
@@ -95,6 +90,29 @@ public:
   int   band(int i) const { return bands_[i]; }
 
 private:
+  void compute_spectrum_(const int16_t* buf) {
+    float re[kFrame];
+    float im[kFrame] = {0.f};
+    for (size_t i = 0; i < kFrame; ++i) re[i] = static_cast<float>(buf[i]) / 32768.f;
+    dsp::hann_window(re, kFrame);
+    dsp::fft_radix2(re, im, kFrame);
+    // Magnitudes for first half (positive frequencies).
+    float mags[kFrame / 2];
+    for (size_t k = 0; k < kFrame / 2; ++k) {
+      mags[k] = std::sqrt(re[k] * re[k] + im[k] * im[k]);
+    }
+    // Store unclamped intensities so the peak band is unambiguous even when
+    // the visualizer would saturate; the renderer clamps for the bar height.
+    for (int b = 0; b < kBands; ++b) {
+      float peak = 0.f;
+      const int lo = kBandBins[b];
+      const int hi = kBandBins[b + 1];
+      for (int k = lo; k < hi; ++k) if (mags[k] > peak) peak = mags[k];
+      const float scaled = std::log10(1.f + 9.f * peak) * 200.f;
+      bands_[b] = static_cast<int>(std::max(0.f, scaled));
+    }
+  }
+
   IMic& mic_;
   float rms_  = 0.f;
   float peak_ = 0.f;
