@@ -9,6 +9,7 @@ public:
   explicit AboutApp(const char* version) : version_(version) {}
 
   const char* name() const override { return "About"; }
+  Category    category() const override { return Category::System; }
 
   void render(IDisplay& d) override {
     d.clear(kWhite);

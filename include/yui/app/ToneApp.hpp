@@ -47,6 +47,7 @@ class ToneApp : public App {
 public:
   explicit ToneApp(ISpeaker& spk) : spk_(spk), menu_(presets::kCount) {}
   const char* name() const override { return "Tone Player"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& /*hal*/) override {
     spk_.init();

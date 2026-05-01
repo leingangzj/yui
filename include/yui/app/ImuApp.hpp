@@ -13,6 +13,7 @@ class ImuApp : public App {
 public:
   explicit ImuApp(IImu& imu) : imu_(imu) {}
   const char* name() const override { return "IMU Toys"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& /*hal*/) override { imu_.init(); }
 

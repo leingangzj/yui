@@ -21,6 +21,7 @@ public:
 
   explicit MetronomeApp(ISpeaker& spk) : spk_(spk) {}
   const char* name() const override { return "Metronome"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& /*hal*/) override {
     spk_.init();

@@ -19,6 +19,7 @@ public:
   static constexpr uint32_t kStepMs     = kStepMsBase;
 
   const char* name() const override { return "Snake"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& hal) override {
     last_ms_ = 0;

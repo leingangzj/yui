@@ -14,6 +14,7 @@ class SysinfoApp : public App {
 public:
   explicit SysinfoApp(SysProbe probe) : probe_(std::move(probe)) {}
   const char* name() const override { return "Sysinfo"; }
+  Category    category() const override { return Category::System; }
 
   void render(IDisplay& d) override {
     d.clear(kWhite);

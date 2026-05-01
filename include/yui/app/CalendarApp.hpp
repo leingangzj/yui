@@ -13,6 +13,7 @@ public:
   CalendarApp() : selected_{2026, 5, 1}, today_{2026, 5, 1} {}
   void set_today(date::Date t) { today_ = t; selected_ = t; }
   const char* name() const override { return "Calendar"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& /*hal*/) override {
     selected_ = today_;

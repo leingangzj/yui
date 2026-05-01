@@ -19,6 +19,7 @@ public:
   static constexpr int kBoardY = 18;
 
   const char* name() const override { return "Life"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& hal) override {
     paused_   = false;

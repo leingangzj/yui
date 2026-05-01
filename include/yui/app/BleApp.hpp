@@ -15,6 +15,7 @@ public:
   explicit BleApp(INet& net) : net_(net), menu_(0) {}
 
   const char* name() const override { return "BLE"; }
+  Category    category() const override { return Category::Bluetooth; }
 
   void on_enter(Hal& hal) override {
     hal_   = &hal;

@@ -22,6 +22,7 @@ public:
 
   explicit DrawApp(IFs& fs) : fs_(fs) {}
   const char* name() const override { return "Draw"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& /*hal*/) override {
     fs_.init();

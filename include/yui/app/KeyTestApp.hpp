@@ -13,6 +13,7 @@ public:
   static constexpr size_t kHistory = 8;
 
   const char* name() const override { return "Key Test"; }
+  Category    category() const override { return Category::System; }
 
   void on_enter(Hal& /*hal*/) override {
     count_ = 0;

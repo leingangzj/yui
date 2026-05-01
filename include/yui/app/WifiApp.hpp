@@ -41,6 +41,7 @@ public:
       : net_(net), store_(store), menu_(0) {}
 
   const char* name() const override { return "WiFi"; }
+  Category    category() const override { return Category::WiFi; }
 
   void on_enter(Hal& hal) override {
     hal_       = &hal;

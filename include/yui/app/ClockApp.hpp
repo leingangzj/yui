@@ -40,6 +40,7 @@ public:
   }
 
   const char* name() const override { return "Clock"; }
+  Category    category() const override { return Category::System; }
 
   void on_enter(Hal& hal) override {
     hal_     = &hal;

@@ -28,6 +28,7 @@ public:
 
   explicit TodoApp(IFs& fs) : fs_(fs), menu_(0) {}
   const char* name() const override { return "Todo"; }
+  Category    category() const override { return Category::Fun; }
 
   void on_enter(Hal& /*hal*/) override {
     fs_.init();
