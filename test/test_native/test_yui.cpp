@@ -2783,6 +2783,157 @@ void test_ax25_constants() {
   TEST_ASSERT_EQUAL_HEX8(0xF0, ax25::kPidNoLayer3);
 }
 
+// ───── AX.25 parser — hand-crafted test vectors ────────────────────────────
+//
+// Test frames built per AX.25 v2.2: each address byte has its 7-bit
+// ASCII left-shifted by 1; byte-6 is HRRSSSS<E> where E = end-of-list.
+// SSID byte for "no digis, no SSID, not last" = 0_11_0000_0 = 0x60.
+// SSID byte for "last addr, no SSID" = 0_11_0000_1 = 0x61.
+
+namespace {
+
+// "K1ABC>APRS:!4903.50N/07201.75W>Test"  (no digipath)
+// Layout: dst APRS-0 (last=0), src K1ABC-0 (last=1), ctrl 03, pid F0, info.
+const uint8_t kSimplePosFrame[] = {
+  // dst "APRS  "-0  (last bit 0)
+  'A'<<1, 'P'<<1, 'R'<<1, 'S'<<1, ' '<<1, ' '<<1, 0x60,
+  // src "K1ABC "-0  (last bit 1)
+  'K'<<1, '1'<<1, 'A'<<1, 'B'<<1, 'C'<<1, ' '<<1, 0x61,
+  // control + pid
+  0x03, 0xF0,
+  // info
+  '!','4','9','0','3','.','5','0','N','/','0','7','2','0','1','.','7','5','W','>',
+  'T','e','s','t',
+};
+
+// "K1ABC-9>APRS,WIDE1-1:=4903.50N/07201.75W>"
+// Has one digi WIDE1-1 (last=1).
+// SSID for K1ABC-9 (not last, ssid 9): 0_11_1001_0 = 0x72.
+// SSID for WIDE1-1 (last, ssid 1, h=0): 0_11_0001_1 = 0x63.
+const uint8_t kDigipathFrame[] = {
+  'A'<<1, 'P'<<1, 'R'<<1, 'S'<<1, ' '<<1, ' '<<1, 0x60,
+  'K'<<1, '1'<<1, 'A'<<1, 'B'<<1, 'C'<<1, ' '<<1, 0x72,        // K1ABC-9, not last
+  'W'<<1, 'I'<<1, 'D'<<1, 'E'<<1, '1'<<1, ' '<<1, 0x63,        // WIDE1-1, last
+  0x03, 0xF0,
+  '=','4','9','0','3','.','5','0','N','/','0','7','2','0','1','.','7','5','W','>',
+};
+
+// Status-only frame: "K1ABC>APRS:>Battery low"
+const uint8_t kStatusFrame[] = {
+  'A'<<1, 'P'<<1, 'R'<<1, 'S'<<1, ' '<<1, ' '<<1, 0x60,
+  'K'<<1, '1'<<1, 'A'<<1, 'B'<<1, 'C'<<1, ' '<<1, 0x61,
+  0x03, 0xF0,
+  '>','B','a','t','t','e','r','y',' ','l','o','w',
+};
+
+}  // namespace
+
+void test_ax25_parse_minimal_position_frame() {
+  ax25::Frame f;
+  TEST_ASSERT_TRUE(ax25::parse(kSimplePosFrame, sizeof(kSimplePosFrame), f));
+  TEST_ASSERT_EQUAL_STRING("APRS",  f.dst.call);
+  TEST_ASSERT_EQUAL_STRING("K1ABC", f.src.call);
+  TEST_ASSERT_EQUAL_UINT8(0, f.dst.ssid);
+  TEST_ASSERT_EQUAL_UINT8(0, f.src.ssid);
+  TEST_ASSERT_TRUE(f.src.last);
+  TEST_ASSERT_FALSE(f.dst.last);
+  TEST_ASSERT_EQUAL_UINT8(0, f.digi_count);
+  TEST_ASSERT_EQUAL_HEX8(0x03, f.control);
+  TEST_ASSERT_EQUAL_HEX8(0xF0, f.pid);
+  TEST_ASSERT_EQUAL_size_t(24u, f.info_len);
+  TEST_ASSERT_EQUAL_HEX8('!', f.info[0]);
+}
+
+void test_ax25_parse_with_digipath() {
+  ax25::Frame f;
+  TEST_ASSERT_TRUE(ax25::parse(kDigipathFrame, sizeof(kDigipathFrame), f));
+  TEST_ASSERT_EQUAL_STRING("K1ABC", f.src.call);
+  TEST_ASSERT_EQUAL_UINT8(9, f.src.ssid);
+  TEST_ASSERT_FALSE(f.src.last);
+  TEST_ASSERT_EQUAL_UINT8(1, f.digi_count);
+  TEST_ASSERT_EQUAL_STRING("WIDE1", f.digis[0].call);
+  TEST_ASSERT_EQUAL_UINT8(1, f.digis[0].ssid);
+  TEST_ASSERT_TRUE(f.digis[0].last);
+  TEST_ASSERT_FALSE(f.digis[0].repeated);  // H-bit = 0
+}
+
+void test_ax25_parse_rejects_truncated() {
+  ax25::Frame f;
+  // Only 10 bytes — not enough for two addresses + ctrl + pid.
+  const uint8_t bad[] = {0x82, 0xA0, 0xA4, 0xA6, 0x40, 0x40, 0x60, 0x96, 0x62, 0x82};
+  TEST_ASSERT_FALSE(ax25::parse(bad, sizeof(bad), f));
+}
+
+void test_ax25_parse_rejects_dst_marked_last() {
+  ax25::Frame f;
+  uint8_t bad[sizeof(kSimplePosFrame)];
+  std::memcpy(bad, kSimplePosFrame, sizeof(bad));
+  bad[6] |= 0x01;  // set dst.last — invalid (src must follow)
+  TEST_ASSERT_FALSE(ax25::parse(bad, sizeof(bad), f));
+}
+
+// ───── APRS position parser ────────────────────────────────────────────────
+
+void test_aprs_parse_position_no_timestamp() {
+  ax25::Frame f;
+  ax25::parse(kSimplePosFrame, sizeof(kSimplePosFrame), f);
+  aprs::Position p;
+  TEST_ASSERT_TRUE(aprs::parse_position(f.info, f.info_len, p));
+  TEST_ASSERT_DOUBLE_WITHIN(0.001, 49.0583, p.lat_deg);
+  TEST_ASSERT_DOUBLE_WITHIN(0.001, -72.0292, p.lon_deg);
+  TEST_ASSERT_EQUAL_INT('/', p.symbol_table);
+  TEST_ASSERT_EQUAL_INT('>', p.symbol_code);   // car icon
+  TEST_ASSERT_EQUAL_STRING("Test", p.comment);
+}
+
+void test_aprs_parse_position_with_msg_dti() {
+  ax25::Frame f;
+  ax25::parse(kDigipathFrame, sizeof(kDigipathFrame), f);
+  aprs::Position p;
+  TEST_ASSERT_TRUE(aprs::parse_position(f.info, f.info_len, p));
+  TEST_ASSERT_DOUBLE_WITHIN(0.001, 49.0583, p.lat_deg);
+  TEST_ASSERT_DOUBLE_WITHIN(0.001, -72.0292, p.lon_deg);
+}
+
+void test_aprs_parse_position_rejects_status_dti() {
+  const uint8_t info[] = {'>', 'h', 'i'};
+  aprs::Position p;
+  TEST_ASSERT_FALSE(aprs::parse_position(info, sizeof(info), p));
+}
+
+void test_aprs_parse_position_rejects_compressed() {
+  // Compressed format starts with sym table char, not a digit.
+  const uint8_t info[] = {'!', '/', '5', 'L', '!', '!', '<', '*', 'e', '7', '>', '7', 'P'};
+  aprs::Position p;
+  TEST_ASSERT_FALSE(aprs::parse_position(info, sizeof(info), p));
+}
+
+void test_aprs_parse_position_signs_southern_western() {
+  // !3340.50S/15812.00E  → -33.675°, 158.2°
+  const uint8_t info[] = {
+    '!','3','3','4','0','.','5','0','S','/',
+    '1','5','8','1','2','.','0','0','E','>',
+  };
+  aprs::Position p;
+  TEST_ASSERT_TRUE(aprs::parse_position(info, sizeof(info), p));
+  TEST_ASSERT_DOUBLE_WITHIN(0.01, -33.675, p.lat_deg);
+  TEST_ASSERT_DOUBLE_WITHIN(0.01, 158.2,   p.lon_deg);
+}
+
+void test_aprs_parse_status() {
+  ax25::Frame f;
+  ax25::parse(kStatusFrame, sizeof(kStatusFrame), f);
+  char text[40] = {0};
+  TEST_ASSERT_TRUE(aprs::parse_status(f.info, f.info_len, text, sizeof(text)));
+  TEST_ASSERT_EQUAL_STRING("Battery low", text);
+}
+
+void test_aprs_parse_status_rejects_position_dti() {
+  const uint8_t info[] = {'!', '4', '9', '0', '3'};
+  char text[16];
+  TEST_ASSERT_FALSE(aprs::parse_status(info, sizeof(info), text, sizeof(text)));
+}
+
 void test_pineapple_client_unauthenticated_until_login() {
   FakeHttp h;
   pineapple::Client c{h};
@@ -3017,6 +3168,17 @@ int main(int, char**) {
   RUN_TEST(test_pcap_format_handshake_path);
   RUN_TEST(test_aprs_dti_lookup);
   RUN_TEST(test_ax25_constants);
+  RUN_TEST(test_ax25_parse_minimal_position_frame);
+  RUN_TEST(test_ax25_parse_with_digipath);
+  RUN_TEST(test_ax25_parse_rejects_truncated);
+  RUN_TEST(test_ax25_parse_rejects_dst_marked_last);
+  RUN_TEST(test_aprs_parse_position_no_timestamp);
+  RUN_TEST(test_aprs_parse_position_with_msg_dti);
+  RUN_TEST(test_aprs_parse_position_rejects_status_dti);
+  RUN_TEST(test_aprs_parse_position_rejects_compressed);
+  RUN_TEST(test_aprs_parse_position_signs_southern_western);
+  RUN_TEST(test_aprs_parse_status);
+  RUN_TEST(test_aprs_parse_status_rejects_position_dti);
   RUN_TEST(test_pineapple_client_unauthenticated_until_login);
   return UNITY_END();
 }
