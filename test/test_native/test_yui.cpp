@@ -49,6 +49,8 @@
 #include "yui/app/AprsApp.hpp"
 #include "yui/app/KenwoodApp.hpp"
 #include "yui/app/GpsApp.hpp"
+#include "yui/app/PineappleApp.hpp"
+#include "yui/app/PineappleReconApp.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
 #include "yui/app/PomodoroApp.hpp"
@@ -3414,9 +3416,302 @@ void test_pineapple_client_unauthenticated_until_login() {
   FakeHttp h;
   pineapple::Client c{h};
   TEST_ASSERT_FALSE(c.authenticated());
-  // Stub: login returns false and leaves us unauthenticated.
+  // No canned response → login returns false.
   TEST_ASSERT_FALSE(c.login("172.16.42.1", 1471, "root", "hak5"));
   TEST_ASSERT_FALSE(c.authenticated());
+}
+
+void test_pineapple_client_login_extracts_token() {
+  FakeHttp h;
+  h.register_response("POST", "http://172.16.42.1:1471/api/login",
+                      200, "{\"token\":\"AAA.BBB.CCC\"}");
+  pineapple::Client c{h};
+  TEST_ASSERT_TRUE(c.login("172.16.42.1", 1471, "root", "hak5"));
+  TEST_ASSERT_TRUE(c.authenticated());
+  // last_body holds what we sent
+  TEST_ASSERT_TRUE(h.last_body().find("\"username\":\"root\"") !=
+                   std::string::npos);
+}
+
+void test_pineapple_client_login_persists_creds_to_storage() {
+  FakeHttp h;
+  FakeStorage st;
+  h.register_response("POST", "http://10.0.0.5:1471/api/login",
+                      200, "{\"token\":\"abc\"}");
+  pineapple::Client c{h, &st};
+  TEST_ASSERT_TRUE(c.login("10.0.0.5", 1471, "root", "secret"));
+  char back[40] = {0};
+  TEST_ASSERT_TRUE(st.get_str("pa.host", back, sizeof(back)));
+  TEST_ASSERT_EQUAL_STRING("10.0.0.5", back);
+}
+
+void test_pineapple_client_login_failure_keeps_unauthenticated() {
+  FakeHttp h;
+  h.register_response("POST", "http://172.16.42.1:1471/api/login",
+                      403, "{\"error\":\"bad creds\"}");
+  pineapple::Client c{h};
+  TEST_ASSERT_FALSE(c.login("172.16.42.1", 1471, "root", "wrong"));
+  TEST_ASSERT_FALSE(c.authenticated());
+}
+
+void test_pineapple_dashboard_cards_parses_status() {
+  FakeHttp h;
+  h.register_response("POST", "http://172.16.42.1:1471/api/login",
+                      200, "{\"token\":\"T\"}");
+  h.register_response("GET", "http://172.16.42.1:1471/api/dashboard/cards",
+                      200,
+    "{\"systemStatus\":{\"cpuUsage\":42,\"memoryUsage\":33,"
+    "\"temperature\":58},\"clientsConnected\":\"7\","
+    "\"totalSSIDs\":\"123\"}");
+  pineapple::Client c{h};
+  c.login("172.16.42.1", 1471, "root", "x");
+  pineapple::Cards out;
+  TEST_ASSERT_TRUE(c.dashboard_cards(out));
+  TEST_ASSERT_EQUAL_INT(42,  out.cpu_pct);
+  TEST_ASSERT_EQUAL_INT(33,  out.mem_pct);
+  TEST_ASSERT_EQUAL_INT(58,  out.temp_c);
+  TEST_ASSERT_EQUAL_INT(7,   out.clients_connected);
+  TEST_ASSERT_EQUAL_INT(123, out.total_ssids);
+}
+
+void test_pineapple_recon_start_returns_scan_id() {
+  FakeHttp h;
+  h.register_response("POST", "http://h:1471/api/login",
+                      200, "{\"token\":\"T\"}");
+  h.register_response("POST", "http://h:1471/api/recon/start",
+                      200, "{\"scanRunning\":true,\"scanID\":42}");
+  pineapple::Client c{h};
+  c.login("h", 1471, "u", "p");
+  int sid = 0;
+  TEST_ASSERT_TRUE(c.recon_start(true, 30, "2.4ghz", sid));
+  TEST_ASSERT_EQUAL_INT(42, sid);
+  TEST_ASSERT_TRUE(h.last_body().find("\"band\":\"2.4ghz\"") !=
+                   std::string::npos);
+}
+
+void test_pineapple_recon_status_polls_progress() {
+  FakeHttp h;
+  h.register_response("POST", "http://h:1471/api/login",
+                      200, "{\"token\":\"T\"}");
+  h.register_response("GET", "http://h:1471/api/recon/status",
+                      200,
+    "{\"scanRunning\":true,\"scanPercent\":75,\"scanID\":42}");
+  pineapple::Client c{h};
+  c.login("h", 1471, "u", "p");
+  int sid = 0; bool running = false; int pct = 0;
+  TEST_ASSERT_TRUE(c.recon_status(sid, running, pct));
+  TEST_ASSERT_EQUAL_INT(42, sid);
+  TEST_ASSERT_TRUE(running);
+  TEST_ASSERT_EQUAL_INT(75, pct);
+}
+
+void test_pineapple_401_triggers_relogin_and_retries() {
+  FakeHttp h;
+  h.register_response("POST", "http://h:1471/api/login",
+                      200, "{\"token\":\"T1\"}");
+  pineapple::Client c{h};
+  c.login("h", 1471, "u", "p");
+  // First GET returns 401 — the client should relogin (which will use
+  // the same canned 200 login response) and retry the GET. Without a
+  // success response for the GET (we don't register one), the retry
+  // path will also fail — we assert the relogin attempt happened by
+  // checking total HTTP calls.
+  h.register_response("GET", "http://h:1471/api/dashboard/cards",
+                      401, "{\"error\":\"expired\"}");
+  pineapple::Cards out;
+  c.dashboard_cards(out);
+  // Calls: 1 login, 1 GET (401), 1 relogin, 1 GET retry = 4
+  TEST_ASSERT_EQUAL_INT(4, h.calls());
+}
+
+// ───── JsonValue extractor unit tests ──────────────────────────────────────
+
+void test_json_find_string_simple() {
+  const char* src = "{\"token\":\"abc.def\"}";
+  char out[16] = {0};
+  TEST_ASSERT_TRUE(json::find_string(src, "token", out, sizeof(out)));
+  TEST_ASSERT_EQUAL_STRING("abc.def", out);
+}
+
+void test_json_find_string_missing_key_returns_false() {
+  const char* src = "{\"foo\":1}";
+  char out[16] = {0};
+  TEST_ASSERT_FALSE(json::find_string(src, "bar", out, sizeof(out)));
+}
+
+void test_json_find_int_unquoted_and_quoted() {
+  const char* a = "{\"x\":42}";
+  int v = 0;
+  TEST_ASSERT_TRUE(json::find_int(a, "x", &v));
+  TEST_ASSERT_EQUAL_INT(42, v);
+  // Pineapple sometimes returns "7" as a string.
+  const char* b = "{\"clientsConnected\":\"7\"}";
+  TEST_ASSERT_TRUE(json::find_int(b, "clientsConnected", &v));
+  TEST_ASSERT_EQUAL_INT(7, v);
+}
+
+void test_json_find_bool_true_false() {
+  bool v = false;
+  TEST_ASSERT_TRUE(json::find_bool("{\"r\":true}",  "r", &v));
+  TEST_ASSERT_TRUE(v);
+  TEST_ASSERT_TRUE(json::find_bool("{\"r\":false}", "r", &v));
+  TEST_ASSERT_FALSE(v);
+}
+
+// ───── PineappleApp / PineappleReconApp ───────────────────────────────────
+
+namespace {
+
+void seed_pineapple_creds(FakeStorage& st) {
+  st.put_str("pa.host", "pa.local");
+  st.put_int("pa.port", 1471);
+  st.put_str("pa.user", "root");
+  st.put_str("pa.pass", "hak5");
+}
+
+void register_login_ok(FakeHttp& h, const char* host = "pa.local") {
+  char url[80];
+  std::snprintf(url, sizeof(url), "http://%s:1471/api/login", host);
+  h.register_response("POST", url, 200, "{\"token\":\"T\"}");
+}
+
+}  // namespace
+
+void test_pineapple_app_no_creds_renders_hint() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  PineappleApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.last_ok());
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
+void test_pineapple_app_logs_in_and_fetches_cards() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("GET",
+      "http://pa.local:1471/api/dashboard/cards",
+      200,
+      "{\"systemStatus\":{\"cpuUsage\":12,\"memoryUsage\":34,"
+      "\"temperature\":50},\"clientsConnected\":\"3\","
+      "\"totalSSIDs\":\"99\"}");
+  PineappleApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.last_ok());
+  TEST_ASSERT_EQUAL_INT(12, app.cards().cpu_pct);
+  TEST_ASSERT_EQUAL_INT(99, app.cards().total_ssids);
+}
+
+void test_pineapple_app_login_failure_marks_error() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  // No login response registered → login fails
+  PineappleApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.last_ok());
+  TEST_ASSERT_FALSE(app.client().authenticated());
+}
+
+void test_pineapple_app_tab_re_fetches() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("GET",
+      "http://pa.local:1471/api/dashboard/cards",
+      200, "{\"systemStatus\":{\"cpuUsage\":1}}");
+  PineappleApp app{h, st};
+  app.on_enter(f.hal);
+  const int calls_before = h.calls();
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(h.calls() > calls_before);
+}
+
+void test_recon_app_starts_in_idle() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  PineappleReconApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Idle);
+}
+
+void test_recon_app_enter_starts_scan() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("POST",
+      "http://pa.local:1471/api/recon/start",
+      200, "{\"scanRunning\":true,\"scanID\":7}");
+  PineappleReconApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Scanning);
+  TEST_ASSERT_EQUAL_INT(7, app.scan_id());
+}
+
+void test_recon_app_tick_polls_and_completes() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("POST",
+      "http://pa.local:1471/api/recon/start",
+      200, "{\"scanRunning\":true,\"scanID\":7}");
+  h.register_response("GET",
+      "http://pa.local:1471/api/recon/status",
+      200, "{\"scanRunning\":false,\"scanPercent\":100,\"scanID\":7}");
+  PineappleReconApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.tick(0);
+  app.tick(2000);  // past poll interval
+  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Done);
+  TEST_ASSERT_EQUAL_INT(100, app.percent());
+}
+
+void test_recon_app_login_failure_yields_error_state() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  // No login response → login fails
+  PineappleReconApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Error);
+}
+
+void test_recon_app_done_state_enter_rescans() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("POST",
+      "http://pa.local:1471/api/recon/start",
+      200, "{\"scanRunning\":true,\"scanID\":1}");
+  h.register_response("GET",
+      "http://pa.local:1471/api/recon/status",
+      200, "{\"scanRunning\":false,\"scanPercent\":100,\"scanID\":1}");
+  PineappleReconApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.tick(0); app.tick(2000);
+  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Done);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Scanning);
 }
 
 // ───── Runner ───────────────────────────────────────────────────────────────
@@ -3687,5 +3982,25 @@ int main(int, char**) {
   RUN_TEST(test_gps_app_caps_at_max_points);
   RUN_TEST(test_gps_app_tab_stop_writes_gpx_to_fs);
   RUN_TEST(test_pineapple_client_unauthenticated_until_login);
+  RUN_TEST(test_pineapple_client_login_extracts_token);
+  RUN_TEST(test_pineapple_client_login_persists_creds_to_storage);
+  RUN_TEST(test_pineapple_client_login_failure_keeps_unauthenticated);
+  RUN_TEST(test_pineapple_dashboard_cards_parses_status);
+  RUN_TEST(test_pineapple_recon_start_returns_scan_id);
+  RUN_TEST(test_pineapple_recon_status_polls_progress);
+  RUN_TEST(test_pineapple_401_triggers_relogin_and_retries);
+  RUN_TEST(test_json_find_string_simple);
+  RUN_TEST(test_json_find_string_missing_key_returns_false);
+  RUN_TEST(test_json_find_int_unquoted_and_quoted);
+  RUN_TEST(test_json_find_bool_true_false);
+  RUN_TEST(test_pineapple_app_no_creds_renders_hint);
+  RUN_TEST(test_pineapple_app_logs_in_and_fetches_cards);
+  RUN_TEST(test_pineapple_app_login_failure_marks_error);
+  RUN_TEST(test_pineapple_app_tab_re_fetches);
+  RUN_TEST(test_recon_app_starts_in_idle);
+  RUN_TEST(test_recon_app_enter_starts_scan);
+  RUN_TEST(test_recon_app_tick_polls_and_completes);
+  RUN_TEST(test_recon_app_login_failure_yields_error_state);
+  RUN_TEST(test_recon_app_done_state_enter_rescans);
   return UNITY_END();
 }

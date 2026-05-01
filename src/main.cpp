@@ -33,6 +33,8 @@
 #include "yui/app/AprsApp.hpp"
 #include "yui/app/KenwoodApp.hpp"
 #include "yui/app/GpsApp.hpp"
+#include "yui/app/PineappleApp.hpp"
+#include "yui/app/PineappleReconApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -46,6 +48,7 @@
 #include "hal/esp32/Esp32Storage.hpp"
 #include "hal/esp32/Esp32RadioLink.hpp"
 #include "hal/esp32/Esp32Gnss.hpp"
+#include "hal/esp32/Esp32Http.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <cstring>
@@ -68,6 +71,7 @@ yui::Esp32Speaker spk_;
 yui::Esp32Storage   store_;
 yui::Esp32RadioLink radio_;   // BT-Classic SPP to TH-D75 (stub until v0.2)
 yui::Esp32Gnss      gnss_;    // GPS feed via radio_ NMEA (stub until v0.2)
+yui::Esp32Http      http_;    // HTTPClient wrapper for Pineapple REST
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
 yui::SysProbe make_sys_probe() {
@@ -110,6 +114,8 @@ yui::TodoApp     todo_app{fs_};
 yui::AprsApp     aprs_app{radio_};
 yui::KenwoodApp  kenwood_app{radio_, &store_};
 yui::GpsApp      gps_app{gnss_, fs_};
+yui::PineappleApp        pa_app{http_, store_};
+yui::PineappleReconApp   pa_recon_app{http_, store_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -150,6 +156,8 @@ void setup() {
   registry.add(&gps_app);
   // WIFI category
   registry.add(&wifi_app);
+  registry.add(&pa_app);
+  registry.add(&pa_recon_app);
   registry.add(&ble_app);
   registry.add(&ir_app);
   registry.add(&imu_app);
