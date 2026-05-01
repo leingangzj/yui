@@ -43,8 +43,8 @@ public:
       case Key::Backspace: backspace_(); return;
       case Key::Enter:     insert_('\n'); return;
       case Key::Space:     insert_(' '); return;
-      case Key::Left:      move_left_(); return;
-      case Key::Right:     move_right_(); return;
+      case Key::Left:      if (k.fn) move_home_(); else move_left_();  return;
+      case Key::Right:     if (k.fn) move_end_();  else move_right_(); return;
       case Key::Up:        move_up_(); return;
       case Key::Down:      move_down_(); return;
       case Key::Tab:       save_(); return;
@@ -170,6 +170,17 @@ private:
     --cur_;
     buf_[len_] = '\0';
     dirty_ = true;
+    target_col_ = current_col_();
+  }
+  void move_home_() {
+    const size_t line = current_line_();
+    cur_ = line_start_offset_(line);
+    target_col_ = 0;
+  }
+  void move_end_() {
+    const size_t line = current_line_();
+    const size_t s    = line_start_offset_(line);
+    cur_ = s + line_length_(s);
     target_col_ = current_col_();
   }
   void move_left_() {

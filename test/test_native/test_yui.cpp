@@ -45,6 +45,7 @@
 #include "yui/game/LifeEngine.hpp"
 #include "yui/app/DrawApp.hpp"
 #include "yui/app/CalendarApp.hpp"
+#include "yui/app/TodoApp.hpp"
 #include "yui/util/Date.hpp"
 #include <cstring>
 
@@ -802,6 +803,45 @@ void test_notes_up_down_preserve_target_column() {
   TEST_ASSERT_EQUAL_size_t(5u, app.cursor_col());
 }
 
+void test_notes_fn_left_jumps_to_line_start() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char;
+  for (char c : "hello") if (c) { k.ch = c; app.on_key(k); }
+  TEST_ASSERT_EQUAL_size_t(5u, app.cursor());
+  KeyEvent fl{};
+  fl.down = true; fl.key = Key::Left; fl.fn = true;
+  app.on_key(fl);
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_col());
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+}
+
+void test_notes_fn_right_jumps_to_line_end() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char;
+  for (char c : "abc") if (c) { k.ch = c; app.on_key(k); }
+  app.on_key(press(Key::Enter));
+  for (char c : "xyz") if (c) { k.ch = c; app.on_key(k); }
+  // cursor on line 1, col 3.
+  app.on_key(press(Key::Up));    // → line 0, col ≤3 (target_col=3, line len=3)
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_line());
+  TEST_ASSERT_EQUAL_size_t(3u, app.cursor_col());
+  app.on_key(press(Key::Left));   // back to col 2
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor_col());
+  KeyEvent fr{};
+  fr.down = true; fr.key = Key::Right; fr.fn = true;
+  app.on_key(fr);
+  TEST_ASSERT_EQUAL_size_t(3u, app.cursor_col());
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_line());  // didn't fall through
+}
+
 void test_notes_save_and_reload() {
   Fixture f;
   FakeFs fs;
@@ -1263,6 +1303,102 @@ void test_tone_app_backspace_stops() {
   app.on_key(press(Key::Backspace));
   TEST_ASSERT_FALSE(app.playing());
   TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
+}
+
+// ───── TodoApp ──────────────────────────────────────────────────────────────
+
+namespace {
+void type_string(TodoApp& app, const char* s) {
+  KeyEvent k{}; k.down = true; k.key = Key::Char;
+  for (const char* p = s; *p; ++p) {
+    if (*p == ' ') { app.on_key(press(Key::Space)); continue; }
+    k.ch = *p;
+    app.on_key(k);
+  }
+}
+}
+
+void test_todo_starts_empty() {
+  Fixture f;
+  FakeFs fs;
+  TodoApp app{fs};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.count());
+}
+
+void test_todo_tab_starts_edit_then_enter_adds() {
+  Fixture f;
+  FakeFs fs;
+  TodoApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::Editing);
+  type_string(app, "milk");
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::List);
+  TEST_ASSERT_EQUAL_size_t(1u, app.count());
+  TEST_ASSERT_EQUAL_STRING("milk", app.text(0));
+  TEST_ASSERT_FALSE(app.done(0));
+}
+
+void test_todo_space_toggles_done() {
+  Fixture f;
+  FakeFs fs;
+  TodoApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  type_string(app, "x");
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_FALSE(app.done(0));
+  app.on_key(press(Key::Space));
+  TEST_ASSERT_TRUE(app.done(0));
+  app.on_key(press(Key::Space));
+  TEST_ASSERT_FALSE(app.done(0));
+}
+
+void test_todo_backspace_deletes_selected() {
+  Fixture f;
+  FakeFs fs;
+  TodoApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab)); type_string(app, "a"); app.on_key(press(Key::Enter));
+  app.on_key(press(Key::Tab)); type_string(app, "b"); app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_size_t(2u, app.count());
+  app.on_key(press(Key::Backspace));   // delete first item ("a", cursor 0)
+  TEST_ASSERT_EQUAL_size_t(1u, app.count());
+  TEST_ASSERT_EQUAL_STRING("b", app.text(0));
+}
+
+void test_todo_persists_across_instances() {
+  Fixture f;
+  FakeFs fs;
+  {
+    TodoApp app{fs};
+    app.on_enter(f.hal);
+    app.on_key(press(Key::Tab)); type_string(app, "buy beans"); app.on_key(press(Key::Enter));
+    app.on_key(press(Key::Tab)); type_string(app, "ship yui"); app.on_key(press(Key::Enter));
+    app.on_key(press(Key::Down));
+    app.on_key(press(Key::Space));     // mark "ship yui" done
+  }
+  TodoApp app2{fs};
+  app2.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(2u, app2.count());
+  TEST_ASSERT_EQUAL_STRING("buy beans", app2.text(0));
+  TEST_ASSERT_FALSE(app2.done(0));
+  TEST_ASSERT_EQUAL_STRING("ship yui", app2.text(1));
+  TEST_ASSERT_TRUE(app2.done(1));
+}
+
+void test_todo_edit_backspace_aborts_when_buffer_empty() {
+  Fixture f;
+  FakeFs fs;
+  TodoApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::Editing);
+  app.on_key(press(Key::Backspace));   // empty buffer → abort
+  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::List);
+  TEST_ASSERT_EQUAL_size_t(0u, app.count());
 }
 
 // ───── Date helpers + CalendarApp ───────────────────────────────────────────
@@ -1809,6 +1945,8 @@ int main(int, char**) {
   RUN_TEST(test_notes_insert_mid_buffer);
   RUN_TEST(test_notes_backspace_mid_buffer);
   RUN_TEST(test_notes_up_down_preserve_target_column);
+  RUN_TEST(test_notes_fn_left_jumps_to_line_start);
+  RUN_TEST(test_notes_fn_right_jumps_to_line_end);
   RUN_TEST(test_notes_save_and_reload);
   RUN_TEST(test_files_lists_root);
   RUN_TEST(test_files_enter_descends_into_dir);
@@ -1844,6 +1982,12 @@ int main(int, char**) {
   RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
   RUN_TEST(test_tone_app_advances_through_preset);
   RUN_TEST(test_tone_app_backspace_stops);
+  RUN_TEST(test_todo_starts_empty);
+  RUN_TEST(test_todo_tab_starts_edit_then_enter_adds);
+  RUN_TEST(test_todo_space_toggles_done);
+  RUN_TEST(test_todo_backspace_deletes_selected);
+  RUN_TEST(test_todo_persists_across_instances);
+  RUN_TEST(test_todo_edit_backspace_aborts_when_buffer_empty);
   RUN_TEST(test_date_leap_year);
   RUN_TEST(test_date_days_in_month);
   RUN_TEST(test_date_day_of_week_known_dates);

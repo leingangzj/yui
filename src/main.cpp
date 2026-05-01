@@ -29,6 +29,7 @@
 #include "yui/app/LifeApp.hpp"
 #include "yui/app/DrawApp.hpp"
 #include "yui/app/CalendarApp.hpp"
+#include "yui/app/TodoApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -96,6 +97,7 @@ yui::MetronomeApp metronome_app{spk_};
 yui::LifeApp     life_app;
 yui::DrawApp     draw_app{fs_};
 yui::CalendarApp calendar_app;
+yui::TodoApp     todo_app{fs_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -113,6 +115,7 @@ void setup() {
   registry.add(&ir_app);
   registry.add(&imu_app);
   registry.add(&notes_app);
+  registry.add(&todo_app);
   registry.add(&files_app);
   registry.add(&calc_app);
   registry.add(&mic_app);
