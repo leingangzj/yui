@@ -44,6 +44,8 @@
 #include "yui/app/LifeApp.hpp"
 #include "yui/game/LifeEngine.hpp"
 #include "yui/app/DrawApp.hpp"
+#include "yui/app/CalendarApp.hpp"
+#include "yui/util/Date.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1201,6 +1203,77 @@ void test_tone_app_backspace_stops() {
   TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
 }
 
+// ───── Date helpers + CalendarApp ───────────────────────────────────────────
+
+void test_date_leap_year() {
+  TEST_ASSERT_TRUE(yui::date::is_leap(2024));
+  TEST_ASSERT_FALSE(yui::date::is_leap(2025));
+  TEST_ASSERT_FALSE(yui::date::is_leap(1900));
+  TEST_ASSERT_TRUE(yui::date::is_leap(2000));
+}
+
+void test_date_days_in_month() {
+  TEST_ASSERT_EQUAL_INT(31, yui::date::days_in_month(2026, 1));
+  TEST_ASSERT_EQUAL_INT(28, yui::date::days_in_month(2026, 2));
+  TEST_ASSERT_EQUAL_INT(29, yui::date::days_in_month(2024, 2));
+  TEST_ASSERT_EQUAL_INT(30, yui::date::days_in_month(2026, 4));
+}
+
+void test_date_day_of_week_known_dates() {
+  // 2026-05-01 is a Friday (= 5 in Sun=0..Sat=6).
+  TEST_ASSERT_EQUAL_INT(5, yui::date::day_of_week(2026, 5, 1));
+  // 2000-01-01 was a Saturday.
+  TEST_ASSERT_EQUAL_INT(6, yui::date::day_of_week(2000, 1, 1));
+}
+
+void test_date_add_days_crosses_month() {
+  auto d = yui::date::add_days({2026, 1, 31}, 1);
+  TEST_ASSERT_EQUAL_INT(2026, d.y);
+  TEST_ASSERT_EQUAL_INT(2,    d.m);
+  TEST_ASSERT_EQUAL_INT(1,    d.d);
+}
+
+void test_date_add_days_crosses_year_back() {
+  auto d = yui::date::add_days({2026, 1, 1}, -1);
+  TEST_ASSERT_EQUAL_INT(2025, d.y);
+  TEST_ASSERT_EQUAL_INT(12,   d.m);
+  TEST_ASSERT_EQUAL_INT(31,   d.d);
+}
+
+void test_date_add_months_clamps_day() {
+  // Jan 31 + 1 month → Feb 28 (non-leap).
+  auto d = yui::date::add_months({2026, 1, 31}, 1);
+  TEST_ASSERT_EQUAL_INT(2,  d.m);
+  TEST_ASSERT_EQUAL_INT(28, d.d);
+}
+
+void test_calendar_app_arrow_keys_navigate() {
+  Fixture f;
+  CalendarApp app;
+  app.set_today({2026, 5, 1});
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Right));
+  TEST_ASSERT_EQUAL_INT(2, app.selected().d);
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_INT(9, app.selected().d);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_EQUAL_INT(6, app.selected().m);
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_EQUAL_INT(5, app.selected().m);
+}
+
+void test_calendar_app_enter_jumps_to_today() {
+  Fixture f;
+  CalendarApp app;
+  app.set_today({2026, 5, 1});
+  app.on_enter(f.hal);
+  for (int i = 0; i < 30; ++i) app.on_key(press(Key::Right));
+  TEST_ASSERT_NOT_EQUAL(1, app.selected().d);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_INT(1, app.selected().d);
+  TEST_ASSERT_EQUAL_INT(5, app.selected().m);
+}
+
 // ───── DrawApp ──────────────────────────────────────────────────────────────
 
 void test_draw_starts_blank_with_centered_cursor() {
@@ -1703,6 +1776,14 @@ int main(int, char**) {
   RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
   RUN_TEST(test_tone_app_advances_through_preset);
   RUN_TEST(test_tone_app_backspace_stops);
+  RUN_TEST(test_date_leap_year);
+  RUN_TEST(test_date_days_in_month);
+  RUN_TEST(test_date_day_of_week_known_dates);
+  RUN_TEST(test_date_add_days_crosses_month);
+  RUN_TEST(test_date_add_days_crosses_year_back);
+  RUN_TEST(test_date_add_months_clamps_day);
+  RUN_TEST(test_calendar_app_arrow_keys_navigate);
+  RUN_TEST(test_calendar_app_enter_jumps_to_today);
   RUN_TEST(test_draw_starts_blank_with_centered_cursor);
   RUN_TEST(test_draw_arrows_move_cursor_with_clamp);
   RUN_TEST(test_draw_enter_toggles_cell);

@@ -28,6 +28,7 @@
 #include "yui/app/MetronomeApp.hpp"
 #include "yui/app/LifeApp.hpp"
 #include "yui/app/DrawApp.hpp"
+#include "yui/app/CalendarApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -94,6 +95,7 @@ yui::PomodoroApp pomodoro_app{spk_};
 yui::MetronomeApp metronome_app{spk_};
 yui::LifeApp     life_app;
 yui::DrawApp     draw_app{fs_};
+yui::CalendarApp calendar_app;
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -121,6 +123,7 @@ void setup() {
   registry.add(&snake_app);
   registry.add(&life_app);
   registry.add(&draw_app);
+  registry.add(&calendar_app);
   registry.add(&keytest_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
