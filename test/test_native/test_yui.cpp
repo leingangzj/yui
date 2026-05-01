@@ -32,6 +32,8 @@
 #include "yui/app/SettingsApp.hpp"
 #include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
+#include "yui/app/SnakeApp.hpp"
+#include "yui/game/SnakeEngine.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include "../../src/hal/native/NativeStorage.hpp"
 #include <cstring>
@@ -772,6 +774,34 @@ void test_files_no_dotdot_at_root() {
   }
 }
 
+void test_files_enter_on_file_opens_viewer() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.put_file("/note.txt", "hello world");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == FilesApp::Mode::List);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.mode() == FilesApp::Mode::View);
+  TEST_ASSERT_EQUAL_STRING("/note.txt", app.view_path());
+  TEST_ASSERT_EQUAL_size_t(11u, app.view_len());
+  TEST_ASSERT_EQUAL_STRING_LEN("hello world", app.view_buf(), 11);
+}
+
+void test_files_view_backspace_returns_to_list() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.put_file("/a.txt", "x");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));        // open viewer
+  TEST_ASSERT_TRUE(app.mode() == FilesApp::Mode::View);
+  app.on_key(press(Key::Backspace));    // back
+  TEST_ASSERT_TRUE(app.mode() == FilesApp::Mode::List);
+}
+
 void test_files_pop_restores_cursor() {
   Fixture f;
   FakeFs fs;
@@ -1045,6 +1075,100 @@ void test_clock_backspace_resets() {
   TEST_ASSERT_FALSE(app.running());
 }
 
+// ───── SnakeEngine + SnakeApp ───────────────────────────────────────────────
+
+void test_snake_starts_running_with_length_3() {
+  SnakeEngine s;
+  s.reset(42);
+  TEST_ASSERT_TRUE(s.state() == SnakeEngine::State::Running);
+  TEST_ASSERT_EQUAL_size_t(3u, s.length());
+}
+
+void test_snake_step_moves_head_in_direction() {
+  SnakeEngine s;
+  s.reset(42);
+  const auto h0 = s.head();
+  s.step();
+  const auto h1 = s.head();
+  TEST_ASSERT_EQUAL_INT(h0.x + 1, h1.x);  // default dir is Right
+  TEST_ASSERT_EQUAL_INT(h0.y, h1.y);
+}
+
+void test_snake_wall_collision_ends_game() {
+  SnakeEngine s;
+  s.reset(1);
+  // Run right until we hit the wall.
+  for (int i = 0; i < SnakeEngine::kCols + 5; ++i) s.step();
+  TEST_ASSERT_TRUE(s.state() == SnakeEngine::State::GameOver);
+}
+
+void test_snake_reverse_turn_is_ignored() {
+  SnakeEngine s;
+  s.reset(1);
+  // Default Right; try to U-turn Left.
+  s.turn(SnakeEngine::Dir::Left);
+  s.step();
+  // Head should still have moved Right (dir unchanged).
+  TEST_ASSERT_TRUE(s.dir() == SnakeEngine::Dir::Right);
+  TEST_ASSERT_TRUE(s.state() == SnakeEngine::State::Running);
+}
+
+void test_snake_perpendicular_turn_works() {
+  SnakeEngine s;
+  s.reset(1);
+  s.turn(SnakeEngine::Dir::Up);
+  s.step();
+  TEST_ASSERT_TRUE(s.dir() == SnakeEngine::Dir::Up);
+}
+
+void test_snake_eating_food_grows_snake() {
+  SnakeEngine s;
+  s.reset(1);
+  // Find food by stepping (deterministic seed); when we first see length grow,
+  // the previous head must equal the food position.
+  const size_t initial = s.length();
+  for (int i = 0; i < 200; ++i) {
+    // Steer toward food in a primitive way: orthogonal hop.
+    const auto h = s.head();
+    const auto f = s.food();
+    if (f.x > h.x)      s.turn(SnakeEngine::Dir::Right);
+    else if (f.x < h.x) s.turn(SnakeEngine::Dir::Left);
+    else if (f.y > h.y) s.turn(SnakeEngine::Dir::Down);
+    else if (f.y < h.y) s.turn(SnakeEngine::Dir::Up);
+    s.step();
+    if (s.state() != SnakeEngine::State::Running) break;
+    if (s.length() > initial) {
+      TEST_ASSERT_EQUAL_INT(1, s.score());
+      return;
+    }
+  }
+  TEST_FAIL_MESSAGE("snake never ate food in 200 steps");
+}
+
+void test_snake_app_arrow_keys_steer() {
+  Fixture f;
+  SnakeApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Up));
+  // dir doesn't commit until step(); confirm via head movement instead.
+  const auto h0 = app.engine().head();
+  app.engine().step();
+  const auto h1 = app.engine().head();
+  TEST_ASSERT_EQUAL_INT(h0.y - 1, h1.y);
+  TEST_ASSERT_EQUAL_INT(h0.x, h1.x);
+}
+
+void test_snake_app_tick_advances_engine_after_step_ms() {
+  Fixture f;
+  SnakeApp app;
+  app.on_enter(f.hal);
+  const auto h0 = app.engine().head();
+  app.tick(0);
+  app.tick(SnakeApp::kStepMs + 1);
+  const auto h1 = app.engine().head();
+  TEST_ASSERT_TRUE(h0.x != h1.x || h0.y != h1.y);
+}
+
 // ───── SysinfoApp ───────────────────────────────────────────────────────────
 
 void test_sysinfo_renders_header_red() {
@@ -1123,6 +1247,8 @@ int main(int, char**) {
   RUN_TEST(test_files_dotdot_at_subdir_pops_to_parent);
   RUN_TEST(test_files_no_dotdot_at_root);
   RUN_TEST(test_files_pop_restores_cursor);
+  RUN_TEST(test_files_enter_on_file_opens_viewer);
+  RUN_TEST(test_files_view_backspace_returns_to_list);
   RUN_TEST(test_ir_app_sends_nec_on_enter);
   RUN_TEST(test_ir_app_arrow_keys_change_selection);
   RUN_TEST(test_mic_app_silent_input_yields_zero_rms);
@@ -1144,6 +1270,14 @@ int main(int, char**) {
   RUN_TEST(test_clock_tab_switches_modes);
   RUN_TEST(test_clock_timer_up_down_adjusts_target);
   RUN_TEST(test_clock_backspace_resets);
+  RUN_TEST(test_snake_starts_running_with_length_3);
+  RUN_TEST(test_snake_step_moves_head_in_direction);
+  RUN_TEST(test_snake_wall_collision_ends_game);
+  RUN_TEST(test_snake_reverse_turn_is_ignored);
+  RUN_TEST(test_snake_perpendicular_turn_works);
+  RUN_TEST(test_snake_eating_food_grows_snake);
+  RUN_TEST(test_snake_app_arrow_keys_steer);
+  RUN_TEST(test_snake_app_tick_advances_engine_after_step_ms);
   RUN_TEST(test_sysinfo_renders_header_red);
   return UNITY_END();
 }
