@@ -41,6 +41,8 @@
 #include "yui/app/ToneApp.hpp"
 #include "yui/app/PomodoroApp.hpp"
 #include "yui/app/MetronomeApp.hpp"
+#include "yui/app/LifeApp.hpp"
+#include "yui/game/LifeEngine.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1169,6 +1171,80 @@ void test_tone_app_backspace_stops() {
   TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
 }
 
+// ───── LifeEngine + LifeApp ─────────────────────────────────────────────────
+
+void test_life_blinker_oscillates_period_2() {
+  LifeEngine e;
+  e.seed(LifeEngine::Seed::Blinker, 1);
+  // After clear+seed, expect a horizontal blinker around the center.
+  const int cx = LifeEngine::kCols / 2;
+  const int cy = LifeEngine::kRows / 2;
+  TEST_ASSERT_TRUE(e.alive(cx - 1, cy));
+  TEST_ASSERT_TRUE(e.alive(cx,     cy));
+  TEST_ASSERT_TRUE(e.alive(cx + 1, cy));
+  e.step();
+  // Should now be vertical.
+  TEST_ASSERT_TRUE(e.alive(cx, cy - 1));
+  TEST_ASSERT_TRUE(e.alive(cx, cy));
+  TEST_ASSERT_TRUE(e.alive(cx, cy + 1));
+  TEST_ASSERT_FALSE(e.alive(cx - 1, cy));
+  e.step();
+  // Back to horizontal.
+  TEST_ASSERT_TRUE(e.alive(cx - 1, cy));
+  TEST_ASSERT_TRUE(e.alive(cx + 1, cy));
+}
+
+void test_life_glider_translates_after_4_steps() {
+  LifeEngine e;
+  e.seed(LifeEngine::Seed::Glider, 1);
+  const size_t pop0 = e.population();
+  for (int i = 0; i < 4; ++i) e.step();
+  TEST_ASSERT_EQUAL_size_t(pop0, e.population());  // glider preserves cells
+  TEST_ASSERT_EQUAL_size_t(5u, e.population());
+}
+
+void test_life_clear_zeros_grid() {
+  LifeEngine e;
+  e.seed(LifeEngine::Seed::Glider, 1);
+  TEST_ASSERT_GREATER_THAN_size_t(0u, e.population());
+  e.clear();
+  TEST_ASSERT_EQUAL_size_t(0u, e.population());
+}
+
+void test_life_app_enter_pauses() {
+  Fixture f;
+  LifeApp app;
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.paused());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.paused());
+  // Tick during pause should not advance generation.
+  const auto g0 = app.engine().generation();
+  app.tick(0);
+  app.tick(1000);
+  TEST_ASSERT_EQUAL_UINT32(g0, app.engine().generation());
+}
+
+void test_life_app_right_single_steps() {
+  Fixture f;
+  LifeApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));  // pause
+  const auto g0 = app.engine().generation();
+  app.on_key(press(Key::Right));
+  TEST_ASSERT_EQUAL_UINT32(g0 + 1, app.engine().generation());
+}
+
+void test_life_app_backspace_clears() {
+  Fixture f;
+  LifeApp app;
+  app.on_enter(f.hal);
+  TEST_ASSERT_GREATER_THAN_size_t(0u, app.engine().population());
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_EQUAL_size_t(0u, app.engine().population());
+  TEST_ASSERT_TRUE(app.paused());
+}
+
 // ───── PomodoroApp ──────────────────────────────────────────────────────────
 
 void test_pomodoro_starts_idle_in_work_phase() {
@@ -1521,6 +1597,12 @@ int main(int, char**) {
   RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
   RUN_TEST(test_tone_app_advances_through_preset);
   RUN_TEST(test_tone_app_backspace_stops);
+  RUN_TEST(test_life_blinker_oscillates_period_2);
+  RUN_TEST(test_life_glider_translates_after_4_steps);
+  RUN_TEST(test_life_clear_zeros_grid);
+  RUN_TEST(test_life_app_enter_pauses);
+  RUN_TEST(test_life_app_right_single_steps);
+  RUN_TEST(test_life_app_backspace_clears);
   RUN_TEST(test_pomodoro_starts_idle_in_work_phase);
   RUN_TEST(test_pomodoro_enter_starts_running);
   RUN_TEST(test_pomodoro_work_phase_completes_and_chimes);
