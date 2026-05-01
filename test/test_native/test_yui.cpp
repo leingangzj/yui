@@ -33,6 +33,7 @@
 #include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
 #include "yui/app/SnakeApp.hpp"
+#include "yui/app/KeyTestApp.hpp"
 #include "yui/game/SnakeEngine.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include "../../src/hal/native/NativeStorage.hpp"
@@ -1075,6 +1076,45 @@ void test_clock_backspace_resets() {
   TEST_ASSERT_FALSE(app.running());
 }
 
+// ───── KeyTestApp ───────────────────────────────────────────────────────────
+
+void test_keytest_records_events() {
+  Fixture f;
+  KeyTestApp app;
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.count());
+  KeyEvent k{}; k.down = true; k.key = Key::Char; k.ch = 'q';
+  app.on_key(k);
+  TEST_ASSERT_EQUAL_size_t(1u, app.count());
+  TEST_ASSERT_EQUAL_CHAR('q', app.newest().ch);
+}
+
+void test_keytest_ring_buffer_caps_history() {
+  Fixture f;
+  KeyTestApp app;
+  app.on_enter(f.hal);
+  KeyEvent k{}; k.down = true; k.key = Key::Char;
+  for (int i = 0; i < 20; ++i) { k.ch = 'a' + (i % 26); app.on_key(k); }
+  TEST_ASSERT_EQUAL_size_t(KeyTestApp::kHistory, app.count());
+}
+
+// ───── FilesApp hex toggle ──────────────────────────────────────────────────
+
+void test_files_view_tab_toggles_hex() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.put_file("/note.txt", "abcd");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));        // open viewer
+  TEST_ASSERT_FALSE(app.hex());
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.hex());
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_FALSE(app.hex());
+}
+
 // ───── SnakeEngine + SnakeApp ───────────────────────────────────────────────
 
 void test_snake_starts_running_with_length_3() {
@@ -1270,6 +1310,9 @@ int main(int, char**) {
   RUN_TEST(test_clock_tab_switches_modes);
   RUN_TEST(test_clock_timer_up_down_adjusts_target);
   RUN_TEST(test_clock_backspace_resets);
+  RUN_TEST(test_keytest_records_events);
+  RUN_TEST(test_keytest_ring_buffer_caps_history);
+  RUN_TEST(test_files_view_tab_toggles_hex);
   RUN_TEST(test_snake_starts_running_with_length_3);
   RUN_TEST(test_snake_step_moves_head_in_direction);
   RUN_TEST(test_snake_wall_collision_ends_game);

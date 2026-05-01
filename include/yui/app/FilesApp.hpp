@@ -42,6 +42,7 @@ public:
     if (mode_ == Mode::View) {
       switch (k.key) {
         case Key::Backspace: mode_ = Mode::List; break;
+        case Key::Tab:       hex_ = !hex_; view_top_ = 0; break;
         case Key::Up:        if (view_top_ > 0) --view_top_; break;
         case Key::Down:      ++view_top_; break;  // clamped by render
         default: break;
@@ -108,6 +109,7 @@ public:
   const FsEntry& at(size_t i) const { return entries_[i]; }
   size_t depth() const { return depth_; }
   Mode mode() const { return mode_; }
+  bool hex() const { return hex_; }
   const char* view_path() const { return view_path_; }
   size_t view_len() const { return view_len_; }
   const char* view_buf() const { return view_buf_; }
@@ -179,15 +181,17 @@ private:
     const int n = fs_.read_all(view_path_, view_buf_, kViewBytes);
     view_len_ = (n < 0) ? 0 : static_cast<size_t>(n);
     view_top_ = 0;
+    hex_      = false;
     mode_     = Mode::View;
   }
 
   void render_view_(IDisplay& d) {
     if (view_len_ == 0) {
       d.draw_text(8, 40, "(empty)", kJapanRedDark, kWhite);
-      d.draw_text(8, d.height() - 14, "Bksp=back", kJapanRedDark, kWhite);
+      d.draw_text(8, d.height() - 14, "Bksp=back  Tab=hex", kJapanRedDark, kWhite);
       return;
     }
+    if (hex_) { render_hex_(d); return; }
     // Walk lines (split on '\n', cap each line at kViewCols), render
     // [view_top_, view_top_ + kViewLines).
     size_t line_idx = 0, i = 0;
@@ -213,7 +217,38 @@ private:
     if (line_idx <= view_top_ && view_top_ > 0) {
       view_top_ = (line_idx == 0) ? 0 : line_idx - 1;
     }
-    d.draw_text(d.width() - 60, d.height() - 14, "Bksp=back", kJapanRedDark, kWhite);
+    d.draw_text(d.width() - 90, d.height() - 14, "Bksp=back Tab=hex", kJapanRedDark, kWhite);
+  }
+
+  void render_hex_(IDisplay& d) {
+    constexpr int kBytesPerRow = 8;
+    const size_t total_rows = (view_len_ + kBytesPerRow - 1) / kBytesPerRow;
+    if (view_top_ >= total_rows) view_top_ = total_rows ? total_rows - 1 : 0;
+    for (int row = 0; row < kViewLines; ++row) {
+      const size_t r = view_top_ + row;
+      if (r >= total_rows) break;
+      const size_t off = r * kBytesPerRow;
+      char line[40];
+      int n = std::snprintf(line, sizeof(line), "%04zx ", off);
+      for (int b = 0; b < kBytesPerRow; ++b) {
+        if (off + b < view_len_) {
+          n += std::snprintf(line + n, sizeof(line) - n, "%02x ",
+                             static_cast<unsigned char>(view_buf_[off + b]));
+        } else {
+          n += std::snprintf(line + n, sizeof(line) - n, "   ");
+        }
+      }
+      // ASCII gutter.
+      n += std::snprintf(line + n, sizeof(line) - n, " ");
+      for (int b = 0; b < kBytesPerRow && off + b < view_len_; ++b) {
+        const char c = view_buf_[off + b];
+        line[n++] = (c >= 0x20 && c < 0x7F) ? c : '.';
+      }
+      line[n] = '\0';
+      const int y = 22 + row * 12;
+      d.draw_text(4, y, line, kBlack, kWhite);
+    }
+    d.draw_text(d.width() - 95, d.height() - 14, "Bksp=back Tab=text", kJapanRedDark, kWhite);
   }
 
   IFs&    fs_;
@@ -228,6 +263,7 @@ private:
   char    view_buf_[kViewBytes + 1] = {0};
   size_t  view_len_                 = 0;
   size_t  view_top_                 = 0;
+  bool    hex_                      = false;
 };
 
 }  // namespace yui

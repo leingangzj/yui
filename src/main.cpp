@@ -22,6 +22,7 @@
 #include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
 #include "yui/app/SnakeApp.hpp"
+#include "yui/app/KeyTestApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -80,6 +81,7 @@ yui::SettingsApp settings_app{store_};
 yui::ClockApp    clock_app;
 yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 yui::SnakeApp    snake_app;
+yui::KeyTestApp  keytest_app;
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -102,6 +104,7 @@ void setup() {
   registry.add(&mic_app);
   registry.add(&clock_app);
   registry.add(&snake_app);
+  registry.add(&keytest_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
   registry.add(&about_app);
