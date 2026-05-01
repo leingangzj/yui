@@ -31,6 +31,8 @@
 #include "yui/app/CalendarApp.hpp"
 #include "yui/app/TodoApp.hpp"
 #include "yui/app/AprsApp.hpp"
+#include "yui/app/KenwoodApp.hpp"
+#include "yui/app/GpsApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -43,6 +45,7 @@
 #include "hal/esp32/Esp32Speaker.hpp"
 #include "hal/esp32/Esp32Storage.hpp"
 #include "hal/esp32/Esp32RadioLink.hpp"
+#include "hal/esp32/Esp32Gnss.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <cstring>
@@ -64,6 +67,7 @@ yui::Esp32Mic     mic_;
 yui::Esp32Speaker spk_;
 yui::Esp32Storage   store_;
 yui::Esp32RadioLink radio_;   // BT-Classic SPP to TH-D75 (stub until v0.2)
+yui::Esp32Gnss      gnss_;    // GPS feed via radio_ NMEA (stub until v0.2)
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
 yui::SysProbe make_sys_probe() {
@@ -104,6 +108,8 @@ yui::DrawApp     draw_app{fs_};
 yui::CalendarApp calendar_app;
 yui::TodoApp     todo_app{fs_};
 yui::AprsApp     aprs_app{radio_};
+yui::KenwoodApp  kenwood_app{radio_, &store_};
+yui::GpsApp      gps_app{gnss_, fs_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -138,7 +144,11 @@ void setup() {
     net_.ntp_sync(saved_ntp, saved_tz);
   }
 
-  registry.add(&aprs_app);   // RADIO category — first v0.2 Track A app
+  // RADIO category (v0.2 Track A)
+  registry.add(&kenwood_app);
+  registry.add(&aprs_app);
+  registry.add(&gps_app);
+  // WIFI category
   registry.add(&wifi_app);
   registry.add(&ble_app);
   registry.add(&ir_app);

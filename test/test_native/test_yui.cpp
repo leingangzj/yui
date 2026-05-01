@@ -47,6 +47,8 @@
 #include "yui/proto/Pineapple.hpp"
 #include "yui/proto/Kiss.hpp"
 #include "yui/app/AprsApp.hpp"
+#include "yui/app/KenwoodApp.hpp"
+#include "yui/app/GpsApp.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
 #include "yui/app/PomodoroApp.hpp"
@@ -3208,6 +3210,155 @@ void test_aprs_app_render_listening_when_empty() {
   TEST_ASSERT_TRUE(f.display.last_text().find("Listening") != std::string::npos);
 }
 
+// ───── KenwoodApp (Track A admin/status) ──────────────────────────────────
+
+void test_kenwood_app_shows_idle_when_disconnected() {
+  Fixture f;
+  FakeRadioLink r;
+  KenwoodApp app{r};
+  app.on_enter(f.hal);
+  app.render(f.display);
+  // Last drawn text is the bottom hint; just confirm header is red.
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+  TEST_ASSERT_EQUAL_STRING("", app.id_text());
+}
+
+void test_kenwood_app_refresh_queries_id_freq_mode() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("ID",   "ID TH-D75A");
+  r.register_reply("FQ 0", "FQ 0,0146520000");
+  r.register_reply("MD 0", "MD 0,0");
+  KenwoodApp app{r};
+  app.on_enter(f.hal);   // refresh runs from on_enter
+  TEST_ASSERT_EQUAL_STRING("ID TH-D75A",       app.id_text());
+  TEST_ASSERT_EQUAL_STRING("FQ 0,0146520000",  app.freq_text());
+  TEST_ASSERT_EQUAL_STRING("MD 0,0",           app.mode_text());
+}
+
+void test_kenwood_app_enter_re_refreshes() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("ID", "ID FIRST");
+  KenwoodApp app{r};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_STRING("ID FIRST", app.id_text());
+  r.register_reply("ID", "ID SECOND");
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_STRING("ID SECOND", app.id_text());
+}
+
+void test_kenwood_app_tab_uses_stored_mac() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeStorage  st;
+  st.put_str("radio.mac", "AA:BB:CC:DD:EE:FF");
+  KenwoodApp app{r, &st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(0, r.connects());
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_EQUAL_INT(1, r.connects());
+  TEST_ASSERT_EQUAL_STRING("AA:BB:CC:DD:EE:FF", r.last_mac().c_str());
+}
+
+void test_kenwood_app_tab_no_op_without_stored_mac() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeStorage  st;
+  KenwoodApp app{r, &st};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_EQUAL_INT(0, r.connects());
+}
+
+// ───── GpsApp (Track A — IGnss consumer + GPX exporter) ───────────────────
+
+void test_gps_app_shows_no_data_when_gnss_silent() {
+  Fixture f;
+  FakeGnss g;
+  FakeFs   fs;
+  GpsApp app{g, fs};
+  app.on_enter(f.hal);
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
+void test_gps_app_records_points_at_interval() {
+  Fixture f;
+  FakeGnss g;
+  GnssFix fix; fix.valid = true;
+  fix.lat_deg = 49.0; fix.lon_deg = -72.0; fix.altitude_m = 100;
+  fix.epoch_seconds = 1735689600ULL;
+  g.set_fix(fix);
+  FakeFs fs;
+  GpsApp app{g, fs};
+  app.on_enter(f.hal);
+  // Press Tab to start recording
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.recording());
+  // tick before interval — no point
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(1u, app.point_count());  // first tick records
+  // Advance by less than interval — should NOT record
+  app.tick(1000);
+  TEST_ASSERT_EQUAL_size_t(1u, app.point_count());
+  // Advance past interval — records
+  app.tick(7000);
+  TEST_ASSERT_EQUAL_size_t(2u, app.point_count());
+}
+
+void test_gps_app_skips_invalid_fixes() {
+  Fixture f;
+  FakeGnss g;
+  // valid stays false
+  FakeFs fs;
+  GpsApp app{g, fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.tick(0);
+  app.tick(10000);
+  TEST_ASSERT_EQUAL_size_t(0u, app.point_count());
+}
+
+void test_gps_app_caps_at_max_points() {
+  Fixture f;
+  FakeGnss g;
+  GnssFix fix; fix.valid = true; fix.lat_deg = 0; fix.lon_deg = 0;
+  fix.epoch_seconds = 1;
+  g.set_fix(fix);
+  FakeFs fs;
+  GpsApp app{g, fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  // Force GpsApp::kMaxPoints+5 ticks past the interval each time.
+  for (size_t i = 0; i < GpsApp::kMaxPoints + 5; ++i) {
+    app.tick(static_cast<uint32_t>((i + 1) * 6000));
+  }
+  TEST_ASSERT_EQUAL_size_t(GpsApp::kMaxPoints, app.point_count());
+}
+
+void test_gps_app_tab_stop_writes_gpx_to_fs() {
+  Fixture f;
+  FakeGnss g;
+  GnssFix fix; fix.valid = true;
+  fix.lat_deg = 49.0583; fix.lon_deg = -72.0292; fix.altitude_m = 50;
+  fix.epoch_seconds = 1735689600ULL;
+  g.set_fix(fix);
+  FakeFs fs;
+  GpsApp app{g, fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));   // start
+  app.tick(0);
+  app.tick(7000);                 // 2 points
+  app.on_key(press(Key::Tab));   // stop → flush
+  TEST_ASSERT_TRUE(app.last_save_ok());
+  TEST_ASSERT_FALSE(app.recording());
+  // FakeFs received a write for the expected path
+  TEST_ASSERT_TRUE(fs.exists("/yui-tracks/1735689600.gpx"));
+}
+
 void test_aprs_app_evicts_oldest_when_full() {
   Fixture f;
   FakeRadioLink r;
@@ -3525,6 +3676,16 @@ int main(int, char**) {
   RUN_TEST(test_aprs_app_render_header_red);
   RUN_TEST(test_aprs_app_render_listening_when_empty);
   RUN_TEST(test_aprs_app_evicts_oldest_when_full);
+  RUN_TEST(test_kenwood_app_shows_idle_when_disconnected);
+  RUN_TEST(test_kenwood_app_refresh_queries_id_freq_mode);
+  RUN_TEST(test_kenwood_app_enter_re_refreshes);
+  RUN_TEST(test_kenwood_app_tab_uses_stored_mac);
+  RUN_TEST(test_kenwood_app_tab_no_op_without_stored_mac);
+  RUN_TEST(test_gps_app_shows_no_data_when_gnss_silent);
+  RUN_TEST(test_gps_app_records_points_at_interval);
+  RUN_TEST(test_gps_app_skips_invalid_fixes);
+  RUN_TEST(test_gps_app_caps_at_max_points);
+  RUN_TEST(test_gps_app_tab_stop_writes_gpx_to_fs);
   RUN_TEST(test_pineapple_client_unauthenticated_until_login);
   return UNITY_END();
 }
