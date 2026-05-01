@@ -3,6 +3,7 @@
 #include "yui/app/App.hpp"
 #include "yui/hal/IStorage.hpp"
 #include "yui/util/TzPresets.hpp"
+#include "yui/util/NtpPresets.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
 #include <cstring>
@@ -35,6 +36,12 @@ public:
       std::strncpy(tz_buf, "UTC0", sizeof(tz_buf) - 1);
     }
     tz_idx_ = tz_index_of(tz_buf);
+
+    char ntp_buf[40] = {0};
+    if (!store_.get_str("clock.ntp", ntp_buf, sizeof(ntp_buf)) || ntp_buf[0] == 0) {
+      std::strncpy(ntp_buf, "pool.ntp.org", sizeof(ntp_buf) - 1);
+    }
+    ntp_idx_ = ntp_index_of(ntp_buf);
     cursor_ = 0;
   }
 
@@ -54,6 +61,8 @@ public:
     char line[40];
     size_t tz_n = 0;
     const TzPreset* presets = tz_presets(tz_n);
+    size_t ntp_n = 0;
+    const NtpPreset* ntps = ntp_presets(ntp_n);
     for (int i = 0; i < kRowCount; ++i) {
       const int y = 22 + i * 16;
       const bool sel = (i == cursor_);
@@ -70,6 +79,10 @@ public:
                         presets[tz_idx_].label);
           break;
         case 2:
+          std::snprintf(line, sizeof(line), "NTP server   %.12s",
+                        ntps[ntp_idx_].label);
+          break;
+        case 3:
           std::snprintf(line, sizeof(line), "Theme        Hinomaru");
           break;
         default:
@@ -87,13 +100,18 @@ public:
   int    brightness() const { return brightness_; }
   int    cursor()     const { return cursor_; }
   size_t tz_index()   const { return tz_idx_; }
+  size_t ntp_index()  const { return ntp_idx_; }
   const char* tz_posix() const {
     size_t n = 0;
     return tz_presets(n)[tz_idx_].posix;
   }
+  const char* ntp_host() const {
+    size_t n = 0;
+    return ntp_presets(n)[ntp_idx_].host;
+  }
 
 private:
-  static constexpr int kRowCount = 3;
+  static constexpr int kRowCount = 4;
 
   void step_(int delta) {
     if (cursor_ == 0) {
@@ -105,12 +123,20 @@ private:
     if (cursor_ == 1) {
       size_t n = 0;
       const TzPreset* p = tz_presets(n);
-      // Cycle with wrap so Left at 0 lands on the last preset.
       const int next = (static_cast<int>(tz_idx_) + delta +
                         static_cast<int>(n)) % static_cast<int>(n);
       tz_idx_ = static_cast<size_t>(next);
       store_.put_str("clock.tz", p[tz_idx_].posix);
       apply_tz_native_(p[tz_idx_].posix);
+      return;
+    }
+    if (cursor_ == 2) {
+      size_t n = 0;
+      const NtpPreset* p = ntp_presets(n);
+      const int next = (static_cast<int>(ntp_idx_) + delta +
+                        static_cast<int>(n)) % static_cast<int>(n);
+      ntp_idx_ = static_cast<size_t>(next);
+      store_.put_str("clock.ntp", p[ntp_idx_].host);
       return;
     }
   }
@@ -130,6 +156,7 @@ private:
   int       brightness_ = 80;
   int       cursor_     = 0;
   size_t    tz_idx_     = 0;
+  size_t    ntp_idx_    = 0;
 };
 
 }  // namespace yui

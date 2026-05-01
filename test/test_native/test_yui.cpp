@@ -48,6 +48,7 @@
 #include "yui/app/TodoApp.hpp"
 #include "yui/util/Date.hpp"
 #include "yui/util/TzPresets.hpp"
+#include "yui/util/NtpPresets.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1537,6 +1538,62 @@ void test_clock_picks_up_tz_from_storage_on_enter() {
   TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
 }
 
+void test_settings_default_ntp_is_pool() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.ntp_index());
+  TEST_ASSERT_EQUAL_STRING("pool.ntp.org", app.ntp_host());
+}
+
+void test_settings_ntp_right_cycles_and_persists() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Down));   // brightness → tz
+  app.on_key(press(Key::Down));   // tz → ntp
+  app.on_key(press(Key::Right));  // pool → Cloudflare
+  TEST_ASSERT_EQUAL_size_t(1u, app.ntp_index());
+  TEST_ASSERT_EQUAL_STRING("time.cloudflare.com", app.ntp_host());
+  char back[40] = {0};
+  TEST_ASSERT_TRUE(store.get_str("clock.ntp", back, sizeof(back)));
+  TEST_ASSERT_EQUAL_STRING("time.cloudflare.com", back);
+}
+
+void test_settings_ntp_loads_persisted_value() {
+  Fixture f;
+  FakeStorage store;
+  store.put_str("clock.ntp", "time.google.com");
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(ntp_index_of("time.google.com"), app.ntp_index());
+}
+
+void test_clock_ntp_resync_uses_storage_ntp_server() {
+  Fixture f;
+  FakeStorage store;
+  store.put_str("clock.tz",  "UTC0");
+  store.put_str("clock.ntp", "time.google.com");
+  FakeNet net;
+  net.simulate_wifi_connected();
+  ClockApp app{&net, "pool.ntp.org", "UTC0", &store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
+  TEST_ASSERT_EQUAL_STRING("time.google.com", net.last_ntp_server());
+}
+
+void test_ntp_presets_index_of_known_value() {
+  TEST_ASSERT_EQUAL_size_t(0u, ntp_index_of("pool.ntp.org"));
+  TEST_ASSERT_TRUE(ntp_index_of("time.google.com") > 0u);
+  TEST_ASSERT_EQUAL_size_t(0u, ntp_index_of("not-a-server"));
+  TEST_ASSERT_EQUAL_size_t(0u, ntp_index_of(nullptr));
+}
+
 void test_clock_ntp_resync_uses_storage_tz() {
   Fixture f;
   FakeStorage store;
@@ -2522,6 +2579,11 @@ int main(int, char**) {
   RUN_TEST(test_clock_picks_up_tz_from_storage_on_enter);
   RUN_TEST(test_clock_ntp_resync_uses_storage_tz);
   RUN_TEST(test_tz_presets_index_of_known_value);
+  RUN_TEST(test_settings_default_ntp_is_pool);
+  RUN_TEST(test_settings_ntp_right_cycles_and_persists);
+  RUN_TEST(test_settings_ntp_loads_persisted_value);
+  RUN_TEST(test_clock_ntp_resync_uses_storage_ntp_server);
+  RUN_TEST(test_ntp_presets_index_of_known_value);
   RUN_TEST(test_clock_starts_in_stopwatch_mode);
   RUN_TEST(test_clock_enter_toggles_running);
   RUN_TEST(test_clock_tick_advances_elapsed_when_running);

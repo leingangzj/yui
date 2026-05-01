@@ -119,8 +119,11 @@ void setup() {
   char saved_ssid[33] = {0};
   char saved_pass[65] = {0};
   char saved_tz[40]   = "UTC0";
-  store_.get_str("clock.tz", saved_tz, sizeof(saved_tz));
-  if (saved_tz[0] == 0) std::strcpy(saved_tz, "UTC0");
+  char saved_ntp[40]  = "pool.ntp.org";
+  store_.get_str("clock.tz",  saved_tz,  sizeof(saved_tz));
+  store_.get_str("clock.ntp", saved_ntp, sizeof(saved_ntp));
+  if (saved_tz[0]  == 0) std::strcpy(saved_tz,  "UTC0");
+  if (saved_ntp[0] == 0) std::strcpy(saved_ntp, "pool.ntp.org");
   if (store_.get_str("wifi.ssid", saved_ssid, sizeof(saved_ssid)) &&
       saved_ssid[0] != 0) {
     store_.get_str("wifi.pass", saved_pass, sizeof(saved_pass));
@@ -128,7 +131,7 @@ void setup() {
     net_.wifi_connect(saved_ssid, saved_pass);
     // ntp_sync is also called once association completes — but configTzTime
     // is safe to call before connect; SNTP retries internally once IP is up.
-    net_.ntp_sync("pool.ntp.org", saved_tz);
+    net_.ntp_sync(saved_ntp, saved_tz);
   }
 
   registry.add(&wifi_app);

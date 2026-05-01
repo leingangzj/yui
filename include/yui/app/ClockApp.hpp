@@ -31,7 +31,10 @@ public:
                     const char* ntp_server = "pool.ntp.org",
                     const char* tz         = "UTC0",
                     IStorage* store        = nullptr)
-      : net_(net), ntp_server_(ntp_server), store_(store) {
+      : net_(net), store_(store) {
+    std::strncpy(ntp_buf_, ntp_server ? ntp_server : "pool.ntp.org",
+                 sizeof(ntp_buf_) - 1);
+    ntp_buf_[sizeof(ntp_buf_) - 1] = 0;
     std::strncpy(tz_buf_, tz ? tz : "UTC0", sizeof(tz_buf_) - 1);
     tz_buf_[sizeof(tz_buf_) - 1] = 0;
   }
@@ -51,6 +54,11 @@ public:
       if (store_->get_str("clock.tz", buf, sizeof(buf)) && buf[0] != 0) {
         std::strncpy(tz_buf_, buf, sizeof(tz_buf_) - 1);
         tz_buf_[sizeof(tz_buf_) - 1] = 0;
+      }
+      char nbuf[40] = {0};
+      if (store_->get_str("clock.ntp", nbuf, sizeof(nbuf)) && nbuf[0] != 0) {
+        std::strncpy(ntp_buf_, nbuf, sizeof(ntp_buf_) - 1);
+        ntp_buf_[sizeof(ntp_buf_) - 1] = 0;
       }
     }
 #if !defined(YUI_TARGET_CARDPUTER_ADV)
@@ -78,7 +86,7 @@ public:
     if (mode_ == Mode::TimeOfDay) {
       if (k.key == Key::Enter && net_ && hal_) {
         // Best-effort: requires WiFi already up. Result shows next render.
-        net_->ntp_sync(ntp_server_, tz_buf_);
+        net_->ntp_sync(ntp_buf_, tz_buf_);
       }
       return;
     }
@@ -176,9 +184,9 @@ private:
 
   Hal*        hal_        = nullptr;
   INet*       net_        = nullptr;
-  const char* ntp_server_ = "pool.ntp.org";
   IStorage*   store_      = nullptr;
-  char        tz_buf_[40] = "UTC0";
+  char        ntp_buf_[40] = "pool.ntp.org";
+  char        tz_buf_[40]  = "UTC0";
   Mode        mode_       = Mode::Stopwatch;
   bool        running_    = false;
   uint32_t    elapsed_    = 0;
