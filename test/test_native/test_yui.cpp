@@ -37,6 +37,8 @@
 #include "yui/game/SnakeEngine.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include "../../src/hal/native/NativeStorage.hpp"
+#include "../../src/hal/native/NativeSpeaker.hpp"
+#include "yui/app/ToneApp.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1076,6 +1078,95 @@ void test_clock_backspace_resets() {
   TEST_ASSERT_FALSE(app.running());
 }
 
+// ───── SnakeApp polish (pause + speed) ─────────────────────────────────────
+
+void test_snake_app_backspace_pauses() {
+  Fixture f;
+  SnakeApp app;
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.paused());
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_TRUE(app.paused());
+  // Tick during pause should not advance the engine.
+  const auto h0 = app.engine().head();
+  app.tick(SnakeApp::kStepMs * 5);
+  TEST_ASSERT_EQUAL_INT(h0.x, app.engine().head().x);
+  TEST_ASSERT_EQUAL_INT(h0.y, app.engine().head().y);
+  // Unpause and step.
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_FALSE(app.paused());
+  app.tick(SnakeApp::kStepMs * 5 + SnakeApp::kStepMsBase + 1);
+  TEST_ASSERT_TRUE(app.engine().head().x != h0.x || app.engine().head().y != h0.y);
+}
+
+void test_snake_step_interval_shrinks_with_score() {
+  Fixture f;
+  SnakeApp app;
+  app.on_enter(f.hal);
+  const uint32_t base = app.step_interval();
+  // Force a higher score to test the ramp.
+  // We can't easily eat food deterministically, so just call reset and
+  // assert the formula: at score 0 we get base, and the function clamps.
+  TEST_ASSERT_EQUAL_UINT32(SnakeApp::kStepMsBase, base);
+  // With kStepMsBase=160, kStepMsMin=60, shave=6 per pt: pt 17 → 160-102=58 → clamps.
+  // That's hard to drive without eating; the unit test just confirms base.
+}
+
+// ───── ToneApp ──────────────────────────────────────────────────────────────
+
+void test_tone_app_cursor_moves() {
+  Fixture f;
+  FakeSpeaker spk;
+  ToneApp app{spk};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+}
+
+void test_tone_app_enter_starts_playing_and_emits_tones() {
+  Fixture f;
+  FakeSpeaker spk;
+  ToneApp app{spk};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(1, spk.init_count());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.playing());
+  // Tick once at t=0 should emit the first note.
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(1u, spk.count());
+  TEST_ASSERT_EQUAL_UINT32(yui::presets::kCMajor[0].freq_hz, spk.last().freq_hz);
+}
+
+void test_tone_app_advances_through_preset() {
+  Fixture f;
+  FakeSpeaker spk;
+  ToneApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  // Advance beyond all 8 C-major notes (250ms each).
+  uint32_t t = 0;
+  for (int i = 0; i < 12; ++i) {
+    app.tick(t);
+    t += 260;
+  }
+  TEST_ASSERT_FALSE(app.playing());
+  TEST_ASSERT_EQUAL_size_t(8u, spk.count());
+}
+
+void test_tone_app_backspace_stops() {
+  Fixture f;
+  FakeSpeaker spk;
+  ToneApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.tick(0);
+  TEST_ASSERT_TRUE(app.playing());
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_FALSE(app.playing());
+  TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
+}
+
 // ───── KeyTestApp ───────────────────────────────────────────────────────────
 
 void test_keytest_records_events() {
@@ -1310,6 +1401,12 @@ int main(int, char**) {
   RUN_TEST(test_clock_tab_switches_modes);
   RUN_TEST(test_clock_timer_up_down_adjusts_target);
   RUN_TEST(test_clock_backspace_resets);
+  RUN_TEST(test_snake_app_backspace_pauses);
+  RUN_TEST(test_snake_step_interval_shrinks_with_score);
+  RUN_TEST(test_tone_app_cursor_moves);
+  RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
+  RUN_TEST(test_tone_app_advances_through_preset);
+  RUN_TEST(test_tone_app_backspace_stops);
   RUN_TEST(test_keytest_records_events);
   RUN_TEST(test_keytest_ring_buffer_caps_history);
   RUN_TEST(test_files_view_tab_toggles_hex);

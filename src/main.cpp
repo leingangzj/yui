@@ -23,6 +23,7 @@
 #include "yui/app/SysinfoApp.hpp"
 #include "yui/app/SnakeApp.hpp"
 #include "yui/app/KeyTestApp.hpp"
+#include "yui/app/ToneApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -32,6 +33,7 @@
 #include "hal/esp32/Esp32Fs.hpp"
 #include "hal/esp32/Esp32Ir.hpp"
 #include "hal/esp32/Esp32Mic.hpp"
+#include "hal/esp32/Esp32Speaker.hpp"
 #include "hal/esp32/Esp32Storage.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
@@ -50,6 +52,7 @@ yui::Esp32Imu     imu_;
 yui::Esp32Fs      fs_;
 yui::Esp32Ir      ir_;
 yui::Esp32Mic     mic_;
+yui::Esp32Speaker spk_;
 yui::Esp32Storage store_;
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
@@ -82,6 +85,7 @@ yui::ClockApp    clock_app;
 yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 yui::SnakeApp    snake_app;
 yui::KeyTestApp  keytest_app;
+yui::ToneApp     tone_app{spk_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -102,6 +106,7 @@ void setup() {
   registry.add(&files_app);
   registry.add(&calc_app);
   registry.add(&mic_app);
+  registry.add(&tone_app);
   registry.add(&clock_app);
   registry.add(&snake_app);
   registry.add(&keytest_app);
