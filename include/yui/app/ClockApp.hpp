@@ -6,10 +6,16 @@
 //   Up/Dn  : (timer mode) adjust target ±10 s
 #include "yui/app/App.hpp"
 #include "yui/hal/INet.hpp"
+#include "yui/hal/IStorage.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
+#include <cstring>
 #include <algorithm>
 #include <ctime>
+
+#if !defined(YUI_TARGET_CARDPUTER_ADV)
+#include <cstdlib>  // setenv on native so localtime_r honors TZ
+#endif
 
 namespace yui {
 
@@ -23,8 +29,12 @@ public:
   ClockApp() = default;
   explicit ClockApp(INet* net,
                     const char* ntp_server = "pool.ntp.org",
-                    const char* tz         = "UTC0")
-      : net_(net), ntp_server_(ntp_server), tz_(tz) {}
+                    const char* tz         = "UTC0",
+                    IStorage* store        = nullptr)
+      : net_(net), ntp_server_(ntp_server), store_(store) {
+    std::strncpy(tz_buf_, tz ? tz : "UTC0", sizeof(tz_buf_) - 1);
+    tz_buf_[sizeof(tz_buf_) - 1] = 0;
+  }
 
   const char* name() const override { return "Clock"; }
 
@@ -35,6 +45,18 @@ public:
     elapsed_ = 0;
     target_  = 60'000;  // 1 min default for timer
     last_now_ = hal.clock.millis();
+    // Pick up any TZ change made in Settings since the last open.
+    if (store_) {
+      char buf[40] = {0};
+      if (store_->get_str("clock.tz", buf, sizeof(buf)) && buf[0] != 0) {
+        std::strncpy(tz_buf_, buf, sizeof(tz_buf_) - 1);
+        tz_buf_[sizeof(tz_buf_) - 1] = 0;
+      }
+    }
+#if !defined(YUI_TARGET_CARDPUTER_ADV)
+    ::setenv("TZ", tz_buf_, /*overwrite=*/1);
+    ::tzset();
+#endif
   }
 
   void tick(uint32_t now_ms) override {
@@ -56,7 +78,7 @@ public:
     if (mode_ == Mode::TimeOfDay) {
       if (k.key == Key::Enter && net_ && hal_) {
         // Best-effort: requires WiFi already up. Result shows next render.
-        net_->ntp_sync(ntp_server_, tz_);
+        net_->ntp_sync(ntp_server_, tz_buf_);
       }
       return;
     }
@@ -155,7 +177,8 @@ private:
   Hal*        hal_        = nullptr;
   INet*       net_        = nullptr;
   const char* ntp_server_ = "pool.ntp.org";
-  const char* tz_         = "UTC0";
+  IStorage*   store_      = nullptr;
+  char        tz_buf_[40] = "UTC0";
   Mode        mode_       = Mode::Stopwatch;
   bool        running_    = false;
   uint32_t    elapsed_    = 0;

@@ -1,10 +1,17 @@
 #pragma once
-// Settings — brightness + (later) volume, theme, etc. Persists via IStorage.
+// Settings — brightness, theme, timezone. Persists via IStorage.
 #include "yui/app/App.hpp"
 #include "yui/hal/IStorage.hpp"
+#include "yui/util/TzPresets.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
+#include <cstring>
 #include <algorithm>
+
+#if !defined(YUI_TARGET_CARDPUTER_ADV)
+#include <cstdlib>  // setenv on native
+#include <ctime>    // tzset
+#endif
 
 namespace yui {
 
@@ -22,6 +29,12 @@ public:
     int32_t v = 80;
     store_.get_int("brightness", v, 80);
     brightness_ = std::clamp(static_cast<int>(v), kBrightMin, kBrightMax);
+
+    char tz_buf[40] = {0};
+    if (!store_.get_str("clock.tz", tz_buf, sizeof(tz_buf)) || tz_buf[0] == 0) {
+      std::strncpy(tz_buf, "UTC0", sizeof(tz_buf) - 1);
+    }
+    tz_idx_ = tz_index_of(tz_buf);
     cursor_ = 0;
   }
 
@@ -39,6 +52,8 @@ public:
     d.draw_text(8, 4, "Settings", kWhite, kJapanRed);
 
     char line[40];
+    size_t tz_n = 0;
+    const TzPreset* presets = tz_presets(tz_n);
     for (int i = 0; i < kRowCount; ++i) {
       const int y = 22 + i * 16;
       const bool sel = (i == cursor_);
@@ -51,6 +66,10 @@ public:
           std::snprintf(line, sizeof(line), "Brightness   %3d%%", brightness_);
           break;
         case 1:
+          std::snprintf(line, sizeof(line), "Timezone     %.12s",
+                        presets[tz_idx_].label);
+          break;
+        case 2:
           std::snprintf(line, sizeof(line), "Theme        Hinomaru");
           break;
         default:
@@ -65,21 +84,52 @@ public:
   }
 
   // Test hooks
-  int  brightness() const { return brightness_; }
-  int  cursor() const { return cursor_; }
+  int    brightness() const { return brightness_; }
+  int    cursor()     const { return cursor_; }
+  size_t tz_index()   const { return tz_idx_; }
+  const char* tz_posix() const {
+    size_t n = 0;
+    return tz_presets(n)[tz_idx_].posix;
+  }
 
 private:
-  static constexpr int kRowCount = 2;
+  static constexpr int kRowCount = 3;
 
   void step_(int delta) {
-    if (cursor_ != 0) return;  // only Brightness adjustable for v0.0
-    brightness_ = std::clamp(brightness_ + delta * kBrightStep, kBrightMin, kBrightMax);
-    store_.put_int("brightness", brightness_);
+    if (cursor_ == 0) {
+      brightness_ = std::clamp(brightness_ + delta * kBrightStep,
+                               kBrightMin, kBrightMax);
+      store_.put_int("brightness", brightness_);
+      return;
+    }
+    if (cursor_ == 1) {
+      size_t n = 0;
+      const TzPreset* p = tz_presets(n);
+      // Cycle with wrap so Left at 0 lands on the last preset.
+      const int next = (static_cast<int>(tz_idx_) + delta +
+                        static_cast<int>(n)) % static_cast<int>(n);
+      tz_idx_ = static_cast<size_t>(next);
+      store_.put_str("clock.tz", p[tz_idx_].posix);
+      apply_tz_native_(p[tz_idx_].posix);
+      return;
+    }
+  }
+
+  static void apply_tz_native_(const char* posix) {
+#if !defined(YUI_TARGET_CARDPUTER_ADV)
+    if (posix) {
+      ::setenv("TZ", posix, /*overwrite=*/1);
+      ::tzset();
+    }
+#else
+    (void)posix;  // ESP32 path: ClockApp re-applies via configTzTime on resync.
+#endif
   }
 
   IStorage& store_;
   int       brightness_ = 80;
   int       cursor_     = 0;
+  size_t    tz_idx_     = 0;
 };
 
 }  // namespace yui

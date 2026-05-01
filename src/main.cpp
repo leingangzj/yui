@@ -43,6 +43,7 @@
 #include "hal/esp32/Esp32Storage.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
+#include <cstring>
 
 namespace {
 constexpr const char* kVersion = "v0.0.1-dev";
@@ -87,7 +88,7 @@ yui::FilesApp    files_app{fs_};
 yui::IrRemoteApp ir_app{ir_};
 yui::MicApp      mic_app{mic_};
 yui::SettingsApp settings_app{store_};
-yui::ClockApp    clock_app{&net_};
+yui::ClockApp    clock_app{&net_, "pool.ntp.org", "UTC0", &store_};
 yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 yui::SnakeApp    snake_app;
 yui::KeyTestApp  keytest_app;
@@ -116,6 +117,9 @@ void setup() {
   store_.init();
   char saved_ssid[33] = {0};
   char saved_pass[65] = {0};
+  char saved_tz[40]   = "UTC0";
+  store_.get_str("clock.tz", saved_tz, sizeof(saved_tz));
+  if (saved_tz[0] == 0) std::strcpy(saved_tz, "UTC0");
   if (store_.get_str("wifi.ssid", saved_ssid, sizeof(saved_ssid)) &&
       saved_ssid[0] != 0) {
     store_.get_str("wifi.pass", saved_pass, sizeof(saved_pass));
@@ -123,7 +127,7 @@ void setup() {
     net_.wifi_connect(saved_ssid, saved_pass);
     // ntp_sync is also called once association completes — but configTzTime
     // is safe to call before connect; SNTP retries internally once IP is up.
-    net_.ntp_sync("pool.ntp.org", "UTC0");
+    net_.ntp_sync("pool.ntp.org", saved_tz);
   }
 
   registry.add(&wifi_app);

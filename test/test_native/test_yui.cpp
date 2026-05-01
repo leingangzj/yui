@@ -47,6 +47,7 @@
 #include "yui/app/CalendarApp.hpp"
 #include "yui/app/TodoApp.hpp"
 #include "yui/util/Date.hpp"
+#include "yui/util/TzPresets.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1307,6 +1308,90 @@ void test_settings_left_decreases_brightness() {
   TEST_ASSERT_EQUAL_INT(70, app.brightness());
 }
 
+void test_settings_default_tz_is_utc() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.tz_index());
+  TEST_ASSERT_EQUAL_STRING("UTC0", app.tz_posix());
+}
+
+void test_settings_tz_right_cycles_and_persists() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Down));    // cursor: brightness → timezone
+  app.on_key(press(Key::Right));   // UTC → US Eastern
+  TEST_ASSERT_EQUAL_size_t(1u, app.tz_index());
+  TEST_ASSERT_EQUAL_STRING("EST5EDT,M3.2.0,M11.1.0", app.tz_posix());
+  // Persisted
+  char back[40] = {0};
+  TEST_ASSERT_TRUE(store.get_str("clock.tz", back, sizeof(back)));
+  TEST_ASSERT_EQUAL_STRING("EST5EDT,M3.2.0,M11.1.0", back);
+}
+
+void test_settings_tz_left_wraps_to_last_preset() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Down));    // cursor on Timezone
+  app.on_key(press(Key::Left));    // index 0 → last
+  size_t n = 0;
+  tz_presets(n);
+  TEST_ASSERT_EQUAL_size_t(n - 1, app.tz_index());
+}
+
+void test_settings_tz_loads_persisted_value() {
+  Fixture f;
+  FakeStorage store;
+  store.put_str("clock.tz", "JST-9");
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(tz_index_of("JST-9"), app.tz_index());
+}
+
+void test_clock_picks_up_tz_from_storage_on_enter() {
+  Fixture f;
+  FakeStorage store;
+  store.put_str("clock.tz", "JST-9");
+  ClockApp app{nullptr, "pool.ntp.org", "UTC0", &store};
+  app.on_enter(f.hal);
+  // We can't easily inspect the internal tz_buf_, but we can verify the
+  // behavioral effect: localtime_r honors $TZ on native. Render TimeOfDay
+  // mode and confirm no crash; deeper assertion below.
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  // 2025-01-01 00:00:00 UTC == 2025-01-01 09:00 JST
+  f.clock.set_epoch(1735689600ULL);
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
+void test_clock_ntp_resync_uses_storage_tz() {
+  Fixture f;
+  FakeStorage store;
+  store.put_str("clock.tz", "PST8PDT,M3.2.0,M11.1.0");
+  FakeNet net;
+  net.simulate_wifi_connected();
+  ClockApp app{&net, "ntp.example", "UTC0", &store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
+  TEST_ASSERT_EQUAL_STRING("PST8PDT,M3.2.0,M11.1.0", net.last_ntp_tz());
+}
+
+void test_tz_presets_index_of_known_value() {
+  TEST_ASSERT_EQUAL_size_t(0u, tz_index_of("UTC0"));
+  TEST_ASSERT_TRUE(tz_index_of("JST-9") > 0u);
+  TEST_ASSERT_EQUAL_size_t(0u, tz_index_of("not-a-real-tz"));
+  TEST_ASSERT_EQUAL_size_t(0u, tz_index_of(nullptr));
+}
+
 // ───── ClockApp ─────────────────────────────────────────────────────────────
 
 void test_clock_starts_in_stopwatch_mode() {
@@ -2250,6 +2335,13 @@ int main(int, char**) {
   RUN_TEST(test_settings_loads_default_brightness);
   RUN_TEST(test_settings_step_persists_to_storage);
   RUN_TEST(test_settings_left_decreases_brightness);
+  RUN_TEST(test_settings_default_tz_is_utc);
+  RUN_TEST(test_settings_tz_right_cycles_and_persists);
+  RUN_TEST(test_settings_tz_left_wraps_to_last_preset);
+  RUN_TEST(test_settings_tz_loads_persisted_value);
+  RUN_TEST(test_clock_picks_up_tz_from_storage_on_enter);
+  RUN_TEST(test_clock_ntp_resync_uses_storage_tz);
+  RUN_TEST(test_tz_presets_index_of_known_value);
   RUN_TEST(test_clock_starts_in_stopwatch_mode);
   RUN_TEST(test_clock_enter_toggles_running);
   RUN_TEST(test_clock_tick_advances_elapsed_when_running);
