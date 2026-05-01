@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Yui — splash preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #1a1a1a;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        color: #ddd;
+      }
+      .stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+      }
+      .device {
+        /* Cardputer aspect: 240x135 → render at 4× = 960×540 for clarity. */
+        width: 960px;
+        height: 540px;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        box-shadow:
+          0 0 0 12px #2c2c2c,
+          0 0 0 16px #444,
+          0 14px 40px rgba(0, 0, 0, 0.5);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .meta {
+        font-size: 13px;
+        opacity: 0.7;
+        display: flex;
+        gap: 24px;
+      }
+      .meta b {
+        color: #fff;
+        opacity: 1;
+      }
+      button {
+        background: #333;
+        color: #ddd;
+        border: 1px solid #555;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #444;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <canvas class="device" width="240" height="135"></canvas>
+      <div class="meta">
+        <span>Cardputer ADV · <b>240×135</b></span>
+        <span>Frame <b id="frame">0</b></span>
+        <span>t = <b id="t">0</b> ms</span>
+        <button id="toggle">Pause</button>
+        <button id="reset">Reset</button>
+      </div>
+    </div>
+
+    <script>
+      // ─── Mirror of include/yui/gfx/Braille.hpp ─────────────────────────────────
+      const DX = [0, 0, 0, 1, 1, 1, 0, 1];
+      const DY = [0, 1, 2, 0, 1, 2, 3, 3];
+
+      function brailleDots(ch) {
+        const cp = ch.codePointAt(0);
+        if (cp < 0x2800 || cp > 0x28ff) return 0;
+        return cp - 0x2800;
+      }
+
+      // ─── Mirror of src/splash.hpp constants ────────────────────────────────────
+      const SPLASH_SCALE = 2;
+      const SHIMMER_STEP_MS = 28;
+      const SHIMMER_WIDTH = 3;
+
+      const COLOR_WHITE = "#ffffff";
+      const COLOR_JAPAN_RED = "#bc002d";
+      const COLOR_JAPAN_RED_B = "#ff4060";
+      const COLOR_JAPAN_RED_D = "#780000";
+
+      // ─── Embedded art (kept in sync with assets/koi.brl) ───────────────────────
+      const KOI_ART = `\
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣶⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢠⣶⣿⣿⣿⣿⣿⣿⣿⣶⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⡿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣆⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⡅⠀⣸⣿⣿⣿⠿⠟⠛⠿⣿⠆⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣿⣿⣿⣿⣿⣿⠟⠁⣠⣶⣶⣦⣤⣤⣾⣷⣄⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠛⠛⠉⣁⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇
+⠀⠀⠀⠀⠀⣀⠀⠀⠀⣴⣿⣿⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠋⠀
+⢠⣤⣄⡀⣼⣿⣧⠀⠸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⠀⠀⠀
+⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⣩⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀
+⠀⠈⠻⢿⣿⣿⣿⣶⣶⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠈⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⠋⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠉⠛⠛⠿⠿⠿⠿⠟⠛⠛⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+`;
+
+      const ART_LINES = KOI_ART.replace(/\r/g, "")
+        .split("\n")
+        .filter((l) => l.length > 0);
+      const ART_ROWS = ART_LINES.length;
+      const ART_COLS = [...ART_LINES[0]].length;
+      const DOTS_W = ART_COLS * 2;
+      const DOTS_H = ART_ROWS * 4;
+
+      const canvas = document.querySelector(".device");
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+
+      function colorFor(dx, hlLead) {
+        const delta = hlLead - dx;
+        if (delta >= 0 && delta < SHIMMER_WIDTH) return COLOR_JAPAN_RED_B;
+        return COLOR_JAPAN_RED;
+      }
+
+      function drawText(text, x, y, color) {
+        // M5GFX default font ≈ 6×8 glyphs. Approximate with 8px monospace.
+        ctx.fillStyle = color;
+        ctx.font = "bold 10px ui-monospace, Menlo, monospace";
+        ctx.textBaseline = "top";
+        ctx.fillText(text, x, y);
+      }
+
+      function renderFrame(elapsedMs) {
+        // Background
+        ctx.fillStyle = COLOR_WHITE;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Centering math (mirrors splash.hpp)
+        const artWpx = DOTS_W * SPLASH_SCALE;
+        const artHpx = DOTS_H * SPLASH_SCALE;
+        const x0 = ((canvas.width - artWpx) / 2) | 0;
+        const y0 = 6;
+
+        const sweepSpan = DOTS_W + SHIMMER_WIDTH;
+        const hlLead = Math.floor(elapsedMs / SHIMMER_STEP_MS) % sweepSpan;
+
+        for (let row = 0; row < ART_ROWS; ++row) {
+          const chars = [...ART_LINES[row]];
+          for (let col = 0; col < ART_COLS; ++col) {
+            const dots = brailleDots(chars[col]);
+            if (!dots) continue;
+            for (let b = 0; b < 8; ++b) {
+              if (!(dots & (1 << b))) continue;
+              const dx = col * 2 + DX[b];
+              const dy = row * 4 + DY[b];
+              ctx.fillStyle = colorFor(dx, hlLead);
+              ctx.fillRect(
+                x0 + dx * SPLASH_SCALE,
+                y0 + dy * SPLASH_SCALE,
+                SPLASH_SCALE,
+                SPLASH_SCALE,
+              );
+            }
+          }
+        }
+
+        // Wordmark + version
+        const textY = y0 + artHpx + 2;
+        drawText("Yui", (canvas.width / 2 - 9) | 0, textY, COLOR_JAPAN_RED);
+        drawText(
+          "v0.0.1-dev",
+          (canvas.width / 2 - 30) | 0,
+          textY + 12,
+          COLOR_JAPAN_RED_D,
+        );
+      }
+
+      // ─── Animation loop ────────────────────────────────────────────────────────
+      let running = true;
+      let startTs = performance.now();
+      let lastT = 0;
+      let frame = 0;
+
+      const frameLabel = document.getElementById("frame");
+      const tLabel = document.getElementById("t");
+      const toggleBtn = document.getElementById("toggle");
+      const resetBtn = document.getElementById("reset");
+
+      toggleBtn.addEventListener("click", () => {
+        running = !running;
+        toggleBtn.textContent = running ? "Pause" : "Play";
+        if (running) startTs = performance.now() - lastT;
+      });
+      resetBtn.addEventListener("click", () => {
+        startTs = performance.now();
+        lastT = 0;
+        frame = 0;
+      });
+
+      function tick(now) {
+        if (running) {
+          lastT = now - startTs;
+          frame++;
+        }
+        renderFrame(lastT);
+        frameLabel.textContent = frame.toString();
+        tLabel.textContent = lastT.toFixed(0);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

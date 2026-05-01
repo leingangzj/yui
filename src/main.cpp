@@ -4,7 +4,12 @@
 #if defined(YUI_TARGET_CARDPUTER_ADV)
 
 #include <M5Unified.h>
-#include "splash.hpp"
+#include "yui/shell/Splash.hpp"
+#include "yui/shell/Shell.hpp"
+#include "yui/app/AppRegistry.hpp"
+#include "yui/app/Launcher.hpp"
+#include "yui/app/AboutApp.hpp"
+#include "yui/app/StubApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -13,12 +18,25 @@
 namespace {
 constexpr const char* kVersion = "v0.0.1-dev";
 
-yui::Esp32Display display;
-yui::Esp32Clock   clock;
-yui::SerialLog    log;
+yui::Esp32Display  display;
+yui::Esp32Clock    clock_;
+yui::SerialLog     log_;
 yui::Esp32Keyboard keyboard;
+yui::Hal           hal{display, keyboard, clock_, log_};
 
-uint32_t splash_start_ms = 0;
+yui::AppRegistry registry;
+yui::AboutApp    about_app{kVersion};
+yui::StubApp     wifi_app{"WiFi"};
+yui::StubApp     ble_app{"BLE"};
+yui::StubApp     ir_app{"IR Remote"};
+yui::StubApp     imu_app{"IMU Toys"};
+yui::StubApp     notes_app{"Notes"};
+yui::StubApp     files_app{"Files"};
+yui::StubApp     calc_app{"Calculator"};
+yui::StubApp     mic_app{"Mic Visualizer"};
+
+yui::Launcher* launcher_ptr = nullptr;
+yui::Shell*    shell_ptr    = nullptr;
 }  // namespace
 
 void setup() {
@@ -26,15 +44,27 @@ void setup() {
   M5.begin(cfg);
   M5.Display.setRotation(1);
 
-  log.info("Yui boot");
-  splash_start_ms = clock.millis();
+  log_.info("Yui boot");
+
+  registry.add(&wifi_app);
+  registry.add(&ble_app);
+  registry.add(&ir_app);
+  registry.add(&imu_app);
+  registry.add(&notes_app);
+  registry.add(&files_app);
+  registry.add(&calc_app);
+  registry.add(&mic_app);
+  registry.add(&about_app);
+
+  static yui::Launcher launcher{registry};
+  static yui::Shell    shell{hal, launcher, kVersion};
+  launcher_ptr = &launcher;
+  shell_ptr    = &shell;
+  shell.start();
 }
 
 void loop() {
-  // v0.0: splash animates forever. v0.1 will hand off to the launcher
-  // after a press / timeout.
-  uint32_t elapsed = clock.millis() - splash_start_ms;
-  yui::render_splash(display, kVersion, elapsed);
+  shell_ptr->tick();
   delay(33);  // ~30 FPS
 }
 
