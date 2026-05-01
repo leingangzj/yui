@@ -18,6 +18,9 @@
 #include "yui/app/FilesApp.hpp"
 #include "yui/app/IrRemoteApp.hpp"
 #include "yui/app/MicApp.hpp"
+#include "yui/app/SettingsApp.hpp"
+#include "yui/app/ClockApp.hpp"
+#include "yui/app/SysinfoApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -27,6 +30,9 @@
 #include "hal/esp32/Esp32Fs.hpp"
 #include "hal/esp32/Esp32Ir.hpp"
 #include "hal/esp32/Esp32Mic.hpp"
+#include "hal/esp32/Esp32Storage.hpp"
+#include <WiFi.h>
+#include <esp_system.h>
 
 namespace {
 constexpr const char* kVersion = "v0.0.1-dev";
@@ -37,11 +43,27 @@ yui::SerialLog     log_;
 yui::Esp32Keyboard keyboard;
 yui::Hal           hal{display, keyboard, clock_, log_};
 
-yui::Esp32Net    net_;
-yui::Esp32Imu    imu_;
-yui::Esp32Fs     fs_;
-yui::Esp32Ir     ir_;
-yui::Esp32Mic    mic_;
+yui::Esp32Net     net_;
+yui::Esp32Imu     imu_;
+yui::Esp32Fs      fs_;
+yui::Esp32Ir      ir_;
+yui::Esp32Mic     mic_;
+yui::Esp32Storage store_;
+
+// Sysinfo probes pull from M5/ESP/WiFi globals.
+yui::SysProbe make_sys_probe() {
+  yui::SysProbe p;
+  p.battery_pct      = []() -> int { return M5.Power.getBatteryLevel(); };
+  p.free_heap_bytes  = []() -> uint32_t { return ESP.getFreeHeap(); };
+  p.uptime_ms        = []() -> uint32_t { return millis(); };
+  p.ip_or_empty      = []() -> const char* {
+    static String s;
+    s = WiFi.isConnected() ? WiFi.localIP().toString() : String();
+    return s.c_str();
+  };
+  p.wifi_rssi        = []() -> int { return WiFi.isConnected() ? WiFi.RSSI() : 0; };
+  return p;
+}
 
 yui::AppRegistry registry;
 yui::AboutApp    about_app{kVersion};
@@ -53,6 +75,9 @@ yui::NotesApp    notes_app{fs_};
 yui::FilesApp    files_app{fs_};
 yui::IrRemoteApp ir_app{ir_};
 yui::MicApp      mic_app{mic_};
+yui::SettingsApp settings_app{store_};
+yui::ClockApp    clock_app;
+yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -73,6 +98,9 @@ void setup() {
   registry.add(&files_app);
   registry.add(&calc_app);
   registry.add(&mic_app);
+  registry.add(&clock_app);
+  registry.add(&sysinfo_app);
+  registry.add(&settings_app);
   registry.add(&about_app);
 
   static yui::Launcher launcher{registry};

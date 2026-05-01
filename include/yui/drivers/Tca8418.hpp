@@ -29,11 +29,19 @@ public:
 
   explicit Tca8418(m5::I2C_Class& i2c) : i2c_(i2c) {}
 
-  bool init() {
-    if (!i2c_.writeRegister8(kI2cAddr, REG_KP_GPIO_1, 0xFF, kI2cFreq)) return false;
-    if (!i2c_.writeRegister8(kI2cAddr, REG_KP_GPIO_2, 0xFF, kI2cFreq)) return false;
-    if (!i2c_.writeRegister8(kI2cAddr, REG_KP_GPIO_3, 0xFF, kI2cFreq)) return false;
-    if (!i2c_.writeRegister8(kI2cAddr, REG_CFG,       0x01, kI2cFreq)) return false;
+  bool init() { return init_matrix(8, 10); }  // legacy: all rows + cols
+
+  // Configure rows 0..(rows-1) and cols 0..(cols-1) as keypad pins.
+  // The Cardputer ADV uses 7 rows × 8 cols (the docs publish a 4×14
+  // *logical* matrix, but the hardware multiplexes it to 7×8).
+  bool init_matrix(int rows, int cols) {
+    if (rows < 0 || rows > 8 || cols < 0 || cols > 10) return false;
+    const uint8_t row_mask = static_cast<uint8_t>((rows == 8) ? 0xFF : ((1u << rows) - 1));
+    const uint16_t col_mask = static_cast<uint16_t>((cols == 10) ? 0x3FF : ((1u << cols) - 1));
+    if (!i2c_.writeRegister8(kI2cAddr, REG_KP_GPIO_1, row_mask,                kI2cFreq)) return false;
+    if (!i2c_.writeRegister8(kI2cAddr, REG_KP_GPIO_2, col_mask & 0xFF,         kI2cFreq)) return false;
+    if (!i2c_.writeRegister8(kI2cAddr, REG_KP_GPIO_3, (col_mask >> 8) & 0x03,  kI2cFreq)) return false;
+    if (!i2c_.writeRegister8(kI2cAddr, REG_CFG,       0x01,                    kI2cFreq)) return false;
     return true;
   }
 

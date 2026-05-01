@@ -2,23 +2,30 @@
 #if defined(YUI_TARGET_CARDPUTER_ADV)
 
 #include "yui/hal/IIr.hpp"
-#include <Arduino.h>
+#include "yui/config/pins.hpp"
+#include <IRsend.h>
 
 namespace yui {
 
-// v0.0 placeholder. The Arduino-ESP32 release shipped with this PIO
-// platform-espressif32 doesn't expose the new RMT TX API (driver/rmt_tx.h);
-// we'll wire either IRremoteESP8266 or the legacy `driver/rmt.h` once we
-// flash to real hardware and can confirm the IR LED GPIO + carrier path.
-//
-// For now: count "sends" so the app's UI shows "blast!" feedback, but
-// nothing actually radiates. App logic is fully exercised via FakeIr in
-// native tests.
+// NEC IR transmit on the ADV's IR LED (GPIO 44). Backed by IRremoteESP8266.
 class Esp32Ir : public IIr {
 public:
-  bool init() override { return true; }
+  Esp32Ir() : ir_(pins::kIrTx) {}
 
-  bool send_nec(uint16_t /*addr*/, uint16_t /*cmd*/, uint16_t /*carrier*/) override {
+  bool init() override {
+    if (inited_) return true;
+    ir_.begin();
+    inited_ = true;
+    return true;
+  }
+
+  bool send_nec(uint16_t addr, uint16_t cmd, uint16_t /*carrier_khz*/) override {
+    if (!init()) return false;
+    // IRsend::sendNEC takes the full 32-bit code: addr16 | cmd16. We let the
+    // caller pre-build whichever NEC variant they need; here we follow the
+    // common "addr (16) << 16 | cmd (16)" convention.
+    const uint64_t data = (static_cast<uint64_t>(addr) << 16) | cmd;
+    ir_.sendNEC(data, 32);
     ++count_;
     return true;
   }
@@ -26,7 +33,9 @@ public:
   uint32_t sent_count() const override { return count_; }
 
 private:
-  uint32_t count_ = 0;
+  IRsend   ir_;
+  bool     inited_ = false;
+  uint32_t count_  = 0;
 };
 
 }  // namespace yui

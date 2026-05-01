@@ -55,69 +55,115 @@ The official M5 docs use the generic ESP-IDF board. There is no dedicated
 2026-05; we override pins via build flags rather than relying on a board pin
 map.
 
-## Pin Map (working draft — confirm against silkscreen on first power-up)
+## Pin Map
 
-> ⚠️ **Verify these against the Cardputer ADV schematic before relying on
-> them.** The base-Cardputer pin map circulating online does not match the ADV
-> in several places (TCA8418 keyboard, ES8311 audio routing, EXT-14 vs EXT-9).
+Sourced from M5Stack's official Cardputer-ADV docs. Values are baked into
+`include/yui/config/pins.hpp` for use from C++.
 
-### Internal I²C (kbd controller, IMU, audio codec)
+### Internal I²C (TCA8418 kbd · BMI270 IMU · ES8311 codec)
 
-| Signal    | GPIO | Notes                             |
-| --------- | ---- | --------------------------------- |
-| `INT_SDA` | TBD  | Shared by TCA8418, BMI270, ES8311 |
-| `INT_SCL` | TBD  |                                   |
+| Signal    | GPIO   |
+| --------- | ------ |
+| `INT_SDA` | GPIO 8 |
+| `INT_SCL` | GPIO 9 |
 
-### Display SPI
+I²C addresses: TCA8418 = `0x34`, BMI270 = `0x68`, ES8311 = `0x18`.
 
-| Signal     | GPIO | Notes         |
-| ---------- | ---- | ------------- |
-| `LCD_MOSI` | TBD  |               |
-| `LCD_SCK`  | TBD  |               |
-| `LCD_DC`   | TBD  |               |
-| `LCD_RST`  | TBD  |               |
-| `LCD_CS`   | TBD  |               |
-| `LCD_BL`   | TBD  | Backlight PWM |
+### Display SPI (ST7789V2, 240×135)
+
+| Signal     | GPIO    |
+| ---------- | ------- |
+| `LCD_MOSI` | GPIO 35 |
+| `LCD_SCK`  | GPIO 36 |
+| `LCD_CS`   | GPIO 37 |
+| `LCD_DC`   | GPIO 34 |
+| `LCD_RST`  | GPIO 33 |
+| `LCD_BL`   | GPIO 38 |
 
 ### microSD SPI
 
-| Signal                                     | GPIO | Notes                          |
-| ------------------------------------------ | ---- | ------------------------------ |
-| `SD_MOSI` / `SD_MISO` / `SD_SCK` / `SD_CS` | TBD  | Likely shares bus with display |
+| Signal    | GPIO    |
+| --------- | ------- |
+| `SD_MOSI` | GPIO 14 |
+| `SD_MISO` | GPIO 39 |
+| `SD_CLK`  | GPIO 40 |
+| `SD_CS`   | GPIO 12 |
 
 ### IR
 
-| Signal  | GPIO | Notes                       |
-| ------- | ---- | --------------------------- |
-| `IR_TX` | TBD  | Single emitter, no receiver |
+| Signal  | GPIO    |
+| ------- | ------- |
+| `IR_TX` | GPIO 44 |
 
-### Mic / Audio
+### Audio (ES8311 codec)
 
-| Signal                                | GPIO | Notes     |
-| ------------------------------------- | ---- | --------- |
-| `MIC_DATA` (PDM or I²S)               | TBD  |           |
-| `I2S_BCLK` / `I2S_LRCLK` / `I2S_DOUT` | TBD  | To ES8311 |
+| Signal             | GPIO    |
+| ------------------ | ------- |
+| `I2S_SCLK`         | GPIO 41 |
+| `I2S_LRCK`         | GPIO 43 |
+| `I2S_DSDIN` (out)  | GPIO 42 |
+| `I2S_ASDOUT` (mic) | GPIO 46 |
 
-### Grove HY2.0-4P (external I²C / UART)
+### Battery ADC
 
-| Pin | Signal                  | GPIO |
-| --- | ----------------------- | ---- |
-| 1   | VCC (5V)                | —    |
-| 2   | GND                     | —    |
-| 3   | `GROVE_SDA` / `UART_TX` | TBD  |
-| 4   | `GROVE_SCL` / `UART_RX` | TBD  |
+| Signal    | GPIO    |
+| --------- | ------- |
+| `BAT_ADC` | GPIO 10 |
 
-### EXT 14-pin expansion
+### Grove HY2.0-4P (external)
 
-Pinout TBD — confirm from official ADV schematic. This bus is what Caps
-(LoRa-1262, etc.) plug into.
+| Pin | Signal      | GPIO   |
+| --- | ----------- | ------ |
+| 1   | VCC (5V)    | —      |
+| 2   | GND         | —      |
+| 3   | `GROVE_SDA` | GPIO 2 |
+| 4   | `GROVE_SCL` | GPIO 1 |
 
----
+### EXT 14-pin (where Caps like LoRa-1262 plug in)
 
-## Open Hardware Tasks
+| Pin | Signal  | GPIO    |
+| --- | ------- | ------- |
+| 1   | RESET   | GPIO 3  |
+| 3   | INT     | GPIO 4  |
+| 5   | BUSY    | GPIO 6  |
+| 7   | SCK     | GPIO 40 |
+| 9   | MOSI    | GPIO 14 |
+| 11  | MISO    | GPIO 39 |
+| 13  | CS      | GPIO 5  |
+| 2   | 5VIN    | —       |
+| 4   | GND     | —       |
+| 6   | 5VOUT   | —       |
+| 8   | I²C_SDA | GPIO 8  |
+| 10  | I²C_SCL | GPIO 9  |
+| 12  | UART_RX | GPIO 13 |
+| 14  | UART_TX | GPIO 15 |
 
-- [ ] Pull the ADV schematic PDF from M5Stack and fill the GPIO column above.
-- [ ] Verify TCA8418 I²C address (typically `0x34`).
-- [ ] Verify BMI270 I²C address (`0x68` or `0x69` depending on SDO strap).
-- [ ] Verify ES8311 I²C address (typically `0x18`).
-- [ ] Confirm whether Grove and EXT-14 share buses with anything internal.
+> ⚠️ **Bus sharing:** the EXT-14 I²C pins are physically the same bus as the
+> internal I²C (GPIO 8/9). Caps must use I²C addresses that don't collide
+> with `0x18`, `0x34`, `0x68`. SD card and EXT-14 share the SPI bus
+> (CLK/MOSI/MISO on 40/14/39); only CS pins differ.
+
+## Keyboard Matrix (TCA8418, 4×14 logical layout)
+
+Per M5's reference, TCA8418 is configured as a 7×8 matrix; their `remap()`
+maps raw `(raw_row, raw_col)` to logical `(row, col)`:
+
+```
+logical_col = raw_row * 2 + (raw_col > 3 ? 1 : 0)
+logical_row = (raw_col + 4) % 4
+```
+
+The logical 4×14 layout (row 0 = top):
+
+```
+Row 0: ` 1 2 3 4 5 6 7 8 9 0 - = del
+Row 1: tab q w e r t y u i o p [ ] \
+Row 2: fn  shift a s d f g h j k l ;(↑) ' enter
+Row 3: ctrl opt alt z x c v b n m ,(←) .(↓) /(→) space
+```
+
+Fn-modified keys (when Fn held):
+
+- Row 0 `` ` `` → `esc`, `del` → `Delete (forward)`
+- Row 2 `;` → `up arrow`
+- Row 3 `,` → `left`, `.` → `down`, `/` → `right`

@@ -29,6 +29,11 @@
 #include "yui/app/FilesApp.hpp"
 #include "yui/app/IrRemoteApp.hpp"
 #include "yui/app/MicApp.hpp"
+#include "yui/app/SettingsApp.hpp"
+#include "yui/app/ClockApp.hpp"
+#include "yui/app/SysinfoApp.hpp"
+#include "yui/drivers/AdvKeymap.hpp"
+#include "../../src/hal/native/NativeStorage.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -704,6 +709,162 @@ void test_mic_app_loud_input_yields_high_rms() {
   TEST_ASSERT_TRUE(app.rms() > 0.1f);
 }
 
+// ───── ADV keymap ───────────────────────────────────────────────────────────
+
+void test_adv_decode_pos_keycode_1_is_tab_row1_col0() {
+  // Keycode 1 → raw_row=0, raw_col=0 → log_col=0, log_row=(0+4)%4=0.
+  // Wait — that maps to row 0 col 0 ("`"). Let me verify: the M5 source uses
+  // `(key.col + 4) % 4` with raw_col=0 → 0. So keycode 1 = row 0, col 0.
+  auto p = adv_decode_pos(1);
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(0, p.row);
+  TEST_ASSERT_EQUAL_INT(0, p.col);
+}
+
+void test_adv_make_event_letter_unshifted() {
+  // Find keycode for 'a' (row 2, col 2). Need raw such that (raw_col+4)%4=2
+  // and raw_row*2 + (raw_col>3?1:0) = 2 → raw_row=1, raw_col=2 →
+  // keycode = 1*10 + 2 + 1 = 13.
+  KeyEvent e{};
+  TEST_ASSERT_TRUE(adv_make_event(13, true, false, false, false, false, e));
+  TEST_ASSERT_EQUAL_CHAR('a', e.ch);
+  TEST_ASSERT_TRUE(e.key == Key::Char);
+  TEST_ASSERT_TRUE(e.down);
+}
+
+void test_adv_make_event_letter_shifted() {
+  KeyEvent e{};
+  TEST_ASSERT_TRUE(adv_make_event(13, true, true, false, false, false, e));
+  TEST_ASSERT_EQUAL_CHAR('A', e.ch);
+}
+
+void test_adv_make_event_fn_modifies_arrow_keys() {
+  // ',' lives at row 3, col 10. Find raw: (raw_col+4)%4=3 → raw_col∈{3,7};
+  // raw_row*2 + (raw_col>3?1:0) = 10 → if raw_col=3: raw_row=5; if raw_col=7:
+  // raw_row=4. Keycode = raw_row*10 + raw_col + 1.
+  // We'll test raw_row=5, raw_col=3 → keycode 54.
+  KeyEvent e{};
+  TEST_ASSERT_TRUE(adv_make_event(54, true, false, true, false, false, e));
+  TEST_ASSERT_TRUE(e.key == Key::Left);
+  TEST_ASSERT_TRUE(e.fn);
+}
+
+// ───── SettingsApp ──────────────────────────────────────────────────────────
+
+void test_settings_loads_default_brightness() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(80, app.brightness());
+}
+
+void test_settings_step_persists_to_storage() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Right));   // 80 → 90
+  app.on_key(press(Key::Right));   // 90 → 100
+  app.on_key(press(Key::Right));   // clamp at 100
+  TEST_ASSERT_EQUAL_INT(100, app.brightness());
+
+  // Re-enter: should reload 100 from storage.
+  SettingsApp app2{store};
+  app2.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(100, app2.brightness());
+}
+
+void test_settings_left_decreases_brightness() {
+  Fixture f;
+  FakeStorage store;
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Left));    // 80 → 70
+  TEST_ASSERT_EQUAL_INT(70, app.brightness());
+}
+
+// ───── ClockApp ─────────────────────────────────────────────────────────────
+
+void test_clock_starts_in_stopwatch_mode() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Stopwatch);
+  TEST_ASSERT_FALSE(app.running());
+}
+
+void test_clock_enter_toggles_running() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.running());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_FALSE(app.running());
+}
+
+void test_clock_tick_advances_elapsed_when_running() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));            // start
+  // First tick at +500ms
+  f.clock.set(500);
+  app.tick(500);
+  TEST_ASSERT_EQUAL_UINT32(500, app.elapsed());
+  // +250 ms more
+  f.clock.set(750);
+  app.tick(750);
+  TEST_ASSERT_EQUAL_UINT32(750, app.elapsed());
+}
+
+void test_clock_tab_switches_modes() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Timer);
+}
+
+void test_clock_timer_up_down_adjusts_target() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  const uint32_t baseline = app.target();
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_UINT32(baseline + 10'000, app.target());
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_UINT32(baseline, app.target());
+}
+
+void test_clock_backspace_resets() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.tick(1000);
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_EQUAL_UINT32(0, app.elapsed());
+  TEST_ASSERT_FALSE(app.running());
+}
+
+// ───── SysinfoApp ───────────────────────────────────────────────────────────
+
+void test_sysinfo_renders_header_red() {
+  Fixture f;
+  SysProbe p;
+  p.battery_pct     = []{ return 73; };
+  p.free_heap_bytes = []{ return 100u * 1024; };
+  p.uptime_ms       = []{ return 12345u; };
+  p.ip_or_empty     = []{ return "192.168.1.42"; };
+  p.wifi_rssi       = []{ return -55; };
+  SysinfoApp app{p};
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
 // ───── Runner ───────────────────────────────────────────────────────────────
 
 
@@ -764,5 +925,19 @@ int main(int, char**) {
   RUN_TEST(test_ir_app_arrow_keys_change_selection);
   RUN_TEST(test_mic_app_silent_input_yields_zero_rms);
   RUN_TEST(test_mic_app_loud_input_yields_high_rms);
+  RUN_TEST(test_adv_decode_pos_keycode_1_is_tab_row1_col0);
+  RUN_TEST(test_adv_make_event_letter_unshifted);
+  RUN_TEST(test_adv_make_event_letter_shifted);
+  RUN_TEST(test_adv_make_event_fn_modifies_arrow_keys);
+  RUN_TEST(test_settings_loads_default_brightness);
+  RUN_TEST(test_settings_step_persists_to_storage);
+  RUN_TEST(test_settings_left_decreases_brightness);
+  RUN_TEST(test_clock_starts_in_stopwatch_mode);
+  RUN_TEST(test_clock_enter_toggles_running);
+  RUN_TEST(test_clock_tick_advances_elapsed_when_running);
+  RUN_TEST(test_clock_tab_switches_modes);
+  RUN_TEST(test_clock_timer_up_down_adjusts_target);
+  RUN_TEST(test_clock_backspace_resets);
+  RUN_TEST(test_sysinfo_renders_header_red);
   return UNITY_END();
 }
