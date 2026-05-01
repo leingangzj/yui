@@ -78,7 +78,7 @@ yui::SysProbe make_sys_probe() {
 
 yui::AppRegistry registry;
 yui::AboutApp    about_app{kVersion};
-yui::WifiApp     wifi_app{net_};
+yui::WifiApp     wifi_app{net_, &store_};
 yui::BleApp      ble_app{net_};
 yui::ImuApp      imu_app{imu_};
 yui::CalculatorApp calc_app;
@@ -109,6 +109,22 @@ void setup() {
   M5.Display.setRotation(1);
 
   log_.info("Yui boot");
+
+  // Boot-time WiFi auto-connect: if a saved SSID exists in NVS, kick off
+  // the join + NTP sync now so ClockApp's TimeOfDay is ready by the time
+  // the user opens it. Errors are silent; WifiApp surfaces re-join.
+  store_.init();
+  char saved_ssid[33] = {0};
+  char saved_pass[65] = {0};
+  if (store_.get_str("wifi.ssid", saved_ssid, sizeof(saved_ssid)) &&
+      saved_ssid[0] != 0) {
+    store_.get_str("wifi.pass", saved_pass, sizeof(saved_pass));
+    log_.info("WiFi auto-connect");
+    net_.wifi_connect(saved_ssid, saved_pass);
+    // ntp_sync is also called once association completes — but configTzTime
+    // is safe to call before connect; SNTP retries internally once IP is up.
+    net_.ntp_sync("pool.ntp.org", "UTC0");
+  }
 
   registry.add(&wifi_app);
   registry.add(&ble_app);

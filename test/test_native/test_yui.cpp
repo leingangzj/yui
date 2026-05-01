@@ -500,7 +500,7 @@ void test_wifi_app_arrow_keys_move_cursor() {
   TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
 }
 
-void test_wifi_app_enter_restarts_scan() {
+void test_wifi_app_tab_restarts_scan() {
   Fixture f;
   FakeNet net;
   net.set_wifi_immediate(true);
@@ -509,8 +509,165 @@ void test_wifi_app_enter_restarts_scan() {
   app.on_enter(f.hal);
   app.tick(0);
   TEST_ASSERT_EQUAL_INT(1, net.wifi_starts());
-  app.on_key(press(Key::Enter));
+  app.on_key(press(Key::Tab));
   TEST_ASSERT_EQUAL_INT(2, net.wifi_starts());
+}
+
+namespace {
+KeyEvent press_char(char c) {
+  KeyEvent e{};
+  e.key = Key::Char;
+  e.ch  = c;
+  e.down = true;
+  return e;
+}
+}
+
+void test_wifi_app_enter_on_secured_opens_pass_editor() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, /*secured=*/true)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::EnterPass);
+  TEST_ASSERT_EQUAL_STRING("HomeNet", app.selected_ssid());
+}
+
+void test_wifi_app_pass_editor_buffers_chars_and_backspace() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, true)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  app.on_key(press_char('a'));
+  app.on_key(press_char('b'));
+  app.on_key(press_char('c'));
+  TEST_ASSERT_EQUAL_STRING("abc", app.pass_buffer());
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_EQUAL_STRING("ab", app.pass_buffer());
+}
+
+void test_wifi_app_pass_esc_returns_to_done() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, true)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  app.on_key(press(Key::Esc));
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Done);
+}
+
+void test_wifi_app_submit_calls_connect_and_persists() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_connect_immediate(false);  // observe Connecting state
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, true)});
+  FakeStorage store;
+  WifiApp app{net, &store};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  app.on_key(press_char('s'));
+  app.on_key(press_char('e'));
+  app.on_key(press_char('c'));
+  app.on_key(press(Key::Enter));  // submit
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Connecting);
+  TEST_ASSERT_EQUAL_INT(1, net.connects());
+  TEST_ASSERT_EQUAL_STRING("HomeNet", net.last_ssid());
+  TEST_ASSERT_EQUAL_STRING("sec",     net.last_pass());
+  char ssid_back[33] = {0};
+  char pass_back[65] = {0};
+  TEST_ASSERT_TRUE(store.get_str("wifi.ssid", ssid_back, sizeof(ssid_back)));
+  TEST_ASSERT_TRUE(store.get_str("wifi.pass", pass_back, sizeof(pass_back)));
+  TEST_ASSERT_EQUAL_STRING("HomeNet", ssid_back);
+  TEST_ASSERT_EQUAL_STRING("sec",     pass_back);
+}
+
+void test_wifi_app_open_network_skips_pass_editor() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("OpenNet", -50, /*secured=*/false)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Connecting ||
+                   app.state() == WifiApp::State::Connected);
+  TEST_ASSERT_EQUAL_INT(1, net.connects());
+}
+
+void test_wifi_app_connecting_advances_to_connected_on_tick() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_connect_immediate(false);
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, true)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  app.on_key(press_char('p'));
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Connecting);
+  net.simulate_wifi_connected();
+  app.tick(100);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Connected);
+}
+
+void test_wifi_app_connecting_advances_to_failed_on_tick() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_connect_immediate(false);
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, true)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  app.on_key(press_char('p'));
+  app.on_key(press(Key::Enter));
+  net.simulate_wifi_failed();
+  app.tick(100);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Failed);
+}
+
+void test_wifi_app_failed_enter_reopens_editor() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_connect_immediate(false);
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("HomeNet", -50, true)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  app.on_key(press_char('p'));
+  app.on_key(press(Key::Enter));
+  net.simulate_wifi_failed();
+  app.tick(0);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::EnterPass);
+}
+
+void test_wifi_app_already_connected_skips_scan() {
+  Fixture f;
+  FakeNet net;
+  net.simulate_wifi_connected();
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Connected);
+  TEST_ASSERT_EQUAL_INT(0, net.wifi_starts());
 }
 
 // ───── BleApp ───────────────────────────────────────────────────────────────
@@ -2035,7 +2192,16 @@ int main(int, char**) {
   RUN_TEST(test_wifi_app_transitions_to_empty_when_no_results);
   RUN_TEST(test_wifi_app_renders_header_red);
   RUN_TEST(test_wifi_app_arrow_keys_move_cursor);
-  RUN_TEST(test_wifi_app_enter_restarts_scan);
+  RUN_TEST(test_wifi_app_tab_restarts_scan);
+  RUN_TEST(test_wifi_app_enter_on_secured_opens_pass_editor);
+  RUN_TEST(test_wifi_app_pass_editor_buffers_chars_and_backspace);
+  RUN_TEST(test_wifi_app_pass_esc_returns_to_done);
+  RUN_TEST(test_wifi_app_submit_calls_connect_and_persists);
+  RUN_TEST(test_wifi_app_open_network_skips_pass_editor);
+  RUN_TEST(test_wifi_app_connecting_advances_to_connected_on_tick);
+  RUN_TEST(test_wifi_app_connecting_advances_to_failed_on_tick);
+  RUN_TEST(test_wifi_app_failed_enter_reopens_editor);
+  RUN_TEST(test_wifi_app_already_connected_skips_scan);
   RUN_TEST(test_ble_app_starts_and_completes);
   RUN_TEST(test_ble_app_arrow_keys_move_cursor);
   RUN_TEST(test_calc_engine_addition);
