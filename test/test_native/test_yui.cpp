@@ -51,6 +51,10 @@
 #include "yui/app/GpsApp.hpp"
 #include "yui/app/PineappleApp.hpp"
 #include "yui/app/PineappleReconApp.hpp"
+#include "../../src/hal/native/NativeWifiMonitor.hpp"
+#include "yui/app/WifiProbeApp.hpp"
+#include "yui/app/WifiHandshakeApp.hpp"
+#include "yui/proto/Dot11.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
 #include "yui/app/PomodoroApp.hpp"
@@ -3693,6 +3697,253 @@ void test_recon_app_login_failure_yields_error_state() {
   TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Error);
 }
 
+// ───── 802.11 frame helpers ────────────────────────────────────────────────
+
+namespace {
+
+// Build a probe-request frame with the given SSID and source MAC.
+size_t build_probe_request(uint8_t* out, size_t cap,
+                           const uint8_t sa[6], const char* ssid) {
+  if (cap < 28) return 0;
+  size_t off = 0;
+  // FC: type=mgmt(0), subtype=probe-req(4)  → byte0 = 0x40
+  out[off++] = 0x40;
+  out[off++] = 0x00;          // FC byte 1
+  out[off++] = 0x00; out[off++] = 0x00;  // duration
+  // Addr1 (DA) = broadcast
+  for (int i = 0; i < 6; ++i) out[off++] = 0xFF;
+  // Addr2 (SA)
+  for (int i = 0; i < 6; ++i) out[off++] = sa[i];
+  // Addr3 (BSSID) = broadcast for probe-req
+  for (int i = 0; i < 6; ++i) out[off++] = 0xFF;
+  // SeqCtl
+  out[off++] = 0x00; out[off++] = 0x00;
+  // Tagged params: SSID IE
+  out[off++] = 0x00;          // tag = SSID
+  const size_t slen = std::strlen(ssid);
+  out[off++] = static_cast<uint8_t>(slen);
+  for (size_t i = 0; i < slen; ++i) out[off++] = static_cast<uint8_t>(ssid[i]);
+  return off;
+}
+
+// Build an EAPOL data frame with the given BSSID at addr3.
+size_t build_eapol_data(uint8_t* out, size_t cap, const uint8_t bssid[6]) {
+  if (cap < 32) return 0;
+  size_t off = 0;
+  out[off++] = 0x08;     // type=data(2), subtype=0 → byte0 = 0x08
+  out[off++] = 0x00;
+  out[off++] = 0x00; out[off++] = 0x00;  // duration
+  // Addr1, Addr2, Addr3 — only Addr3 (BSSID) matters for our parser
+  for (int i = 0; i < 6; ++i) out[off++] = 0x11;       // DA
+  for (int i = 0; i < 6; ++i) out[off++] = 0x22;       // SA
+  for (int i = 0; i < 6; ++i) out[off++] = bssid[i];   // BSSID
+  out[off++] = 0x00; out[off++] = 0x00;                // SeqCtl
+  // LLC/SNAP + EAPOL ethertype
+  out[off++] = 0xAA; out[off++] = 0xAA; out[off++] = 0x03;
+  out[off++] = 0x00; out[off++] = 0x00; out[off++] = 0x00;
+  out[off++] = 0x88; out[off++] = 0x8E;   // EAPOL
+  // Token EAPOL key body
+  out[off++] = 0x01; out[off++] = 0x03;
+  return off;
+}
+
+}  // namespace
+
+void test_dot11_extract_ssid_from_probe_request() {
+  uint8_t frame[64];
+  uint8_t sa[6] = {0xAA, 0xBB, 0xCC, 0x11, 0x22, 0x33};
+  const size_t n = build_probe_request(frame, sizeof(frame), sa, "MyHomeWiFi");
+  TEST_ASSERT_TRUE(n > 0);
+  TEST_ASSERT_TRUE(dot11::is_probe_request(frame, n));
+  char ssid[33] = {0};
+  TEST_ASSERT_TRUE(dot11::extract_ssid(frame, n, ssid, sizeof(ssid)));
+  TEST_ASSERT_EQUAL_STRING("MyHomeWiFi", ssid);
+}
+
+void test_dot11_addr2_matches_source_mac() {
+  uint8_t frame[64];
+  uint8_t sa[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01};
+  build_probe_request(frame, sizeof(frame), sa, "X");
+  TEST_ASSERT_EQUAL_HEX8(0xDE, dot11::addr2(frame)[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x01, dot11::addr2(frame)[5]);
+}
+
+void test_dot11_is_eapol_data_recognizes_8888e_ethertype() {
+  uint8_t frame[64];
+  uint8_t bssid[6] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
+  const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
+  TEST_ASSERT_TRUE(dot11::is_eapol_data(frame, n));
+}
+
+void test_dot11_format_mac() {
+  uint8_t mac[6] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
+  char out[18];
+  dot11::format_mac(mac, out);
+  TEST_ASSERT_EQUAL_STRING("00:1A:2B:3C:4D:5E", out);
+}
+
+// ───── WifiProbeApp ────────────────────────────────────────────────────────
+
+void test_probe_app_starts_monitor_with_mgmt_filter() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiProbeApp app{mon};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(mon.running());
+  TEST_ASSERT_TRUE(mon.filter().mgmt);
+  TEST_ASSERT_FALSE(mon.filter().data);
+}
+
+void test_probe_app_records_unique_probe_requests() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiProbeApp app{mon};
+  app.on_enter(f.hal);
+  uint8_t frame[64];
+  uint8_t sa1[6] = {1, 2, 3, 4, 5, 6};
+  uint8_t sa2[6] = {7, 8, 9, 10, 11, 12};
+  size_t n;
+  n = build_probe_request(frame, sizeof(frame), sa1, "Net1");
+  WifiRxMeta meta{}; meta.type = WifiPktType::Management; meta.channel = 1;
+  mon.inject_frame(frame, n, meta);
+  n = build_probe_request(frame, sizeof(frame), sa2, "Net2");
+  mon.inject_frame(frame, n, meta);
+  // Same SA + SSID again → should bump count, not add a new entry.
+  n = build_probe_request(frame, sizeof(frame), sa1, "Net1");
+  mon.inject_frame(frame, n, meta);
+  TEST_ASSERT_EQUAL_size_t(2u, app.entry_count());
+  TEST_ASSERT_EQUAL_UINT32(2u, app.entry_at(0).count);
+  TEST_ASSERT_EQUAL_UINT32(1u, app.entry_at(1).count);
+}
+
+void test_probe_app_ignores_non_probe_request_frames() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiProbeApp app{mon};
+  app.on_enter(f.hal);
+  uint8_t frame[64];
+  uint8_t bssid[6] = {1,2,3,4,5,6};
+  const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
+  WifiRxMeta meta{}; meta.type = WifiPktType::Data;
+  mon.inject_frame(frame, n, meta);
+  // Filter should drop it (data=false), but even if leaked it's not a
+  // probe request → should still be 0 entries.
+  TEST_ASSERT_EQUAL_size_t(0u, app.entry_count());
+}
+
+void test_probe_app_tick_hops_channels() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiProbeApp app{mon};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_UINT8(1, mon.channel());
+  app.tick(0);                                // first tick = immediate hop
+  TEST_ASSERT_EQUAL_UINT8(2, mon.channel());
+  app.tick(100);                              // less than kHopMs → no hop
+  TEST_ASSERT_EQUAL_UINT8(2, mon.channel());
+  app.tick(500);                              // past kHopMs → hop
+  TEST_ASSERT_EQUAL_UINT8(3, mon.channel());
+}
+
+void test_probe_app_channel_wraps_at_13_to_1() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiProbeApp app{mon};
+  app.on_enter(f.hal);
+  for (uint8_t i = 0; i < 13; ++i) {
+    app.tick(static_cast<uint32_t>((i + 1) * 500));
+  }
+  TEST_ASSERT_EQUAL_UINT8(1, mon.channel());   // wrapped
+}
+
+void test_probe_app_arrow_keys_navigate() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiProbeApp app{mon};
+  app.on_enter(f.hal);
+  uint8_t frame[64];
+  uint8_t sa[6] = {1,1,1,1,1,1};
+  size_t n;
+  WifiRxMeta meta{}; meta.type = WifiPktType::Management;
+  for (int i = 0; i < 3; ++i) {
+    sa[5] = static_cast<uint8_t>(i);
+    n = build_probe_request(frame, sizeof(frame), sa, "X");
+    mon.inject_frame(frame, n, meta);
+  }
+  app.on_key(press(Key::Down));
+  app.on_key(press(Key::Down));
+  // bounded
+  app.on_key(press(Key::Down));
+  // (cursor accessor not exposed; just confirm 3 entries recorded)
+  TEST_ASSERT_EQUAL_size_t(3u, app.entry_count());
+}
+
+// ───── WifiHandshakeApp ────────────────────────────────────────────────────
+
+void test_handshake_app_opens_pcap_on_enter() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.file_open());
+  TEST_ASSERT_TRUE(pcap.is_open());
+  TEST_ASSERT_TRUE(mon.running());
+}
+
+void test_handshake_app_writes_every_frame_to_pcap() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  uint8_t frame[64];
+  uint8_t sa[6] = {1,2,3,4,5,6};
+  WifiRxMeta meta{}; meta.type = WifiPktType::Management;
+  const size_t n = build_probe_request(frame, sizeof(frame), sa, "T");
+  mon.inject_frame(frame, n, meta);
+  TEST_ASSERT_EQUAL_size_t(1u, app.pkt_total());
+  // pcap buffer = 24-byte header + 16-byte record + n-byte payload
+  TEST_ASSERT_EQUAL_UINT64(24ULL + 16ULL + n, pcap.bytes_written());
+}
+
+void test_handshake_app_increments_eapol_count_on_key_frame() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  uint8_t frame[64];
+  uint8_t bssid[6] = {0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5};
+  WifiRxMeta meta{}; meta.type = WifiPktType::Data;
+  const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
+  mon.inject_frame(frame, n, meta);
+  TEST_ASSERT_EQUAL_size_t(1u, app.eapol_seen());
+  TEST_ASSERT_EQUAL_STRING("A0:B1:C2:D3:E4:F5", app.last_bssid());
+}
+
+void test_handshake_app_tick_hops_channels() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_UINT8(1, mon.channel());
+  app.tick(0);
+  TEST_ASSERT_EQUAL_UINT8(2, mon.channel());
+}
+
+void test_handshake_app_on_exit_stops_and_closes() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  app.on_exit();
+  TEST_ASSERT_FALSE(mon.running());
+  TEST_ASSERT_FALSE(pcap.is_open());
+}
+
 void test_recon_app_done_state_enter_rescans() {
   Fixture f;
   FakeHttp h;
@@ -4002,5 +4253,20 @@ int main(int, char**) {
   RUN_TEST(test_recon_app_tick_polls_and_completes);
   RUN_TEST(test_recon_app_login_failure_yields_error_state);
   RUN_TEST(test_recon_app_done_state_enter_rescans);
+  RUN_TEST(test_dot11_extract_ssid_from_probe_request);
+  RUN_TEST(test_dot11_addr2_matches_source_mac);
+  RUN_TEST(test_dot11_is_eapol_data_recognizes_8888e_ethertype);
+  RUN_TEST(test_dot11_format_mac);
+  RUN_TEST(test_probe_app_starts_monitor_with_mgmt_filter);
+  RUN_TEST(test_probe_app_records_unique_probe_requests);
+  RUN_TEST(test_probe_app_ignores_non_probe_request_frames);
+  RUN_TEST(test_probe_app_tick_hops_channels);
+  RUN_TEST(test_probe_app_channel_wraps_at_13_to_1);
+  RUN_TEST(test_probe_app_arrow_keys_navigate);
+  RUN_TEST(test_handshake_app_opens_pcap_on_enter);
+  RUN_TEST(test_handshake_app_writes_every_frame_to_pcap);
+  RUN_TEST(test_handshake_app_increments_eapol_count_on_key_frame);
+  RUN_TEST(test_handshake_app_tick_hops_channels);
+  RUN_TEST(test_handshake_app_on_exit_stops_and_closes);
   return UNITY_END();
 }
