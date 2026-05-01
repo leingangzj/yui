@@ -16,6 +16,13 @@
 #include "../../src/hal/native/NativeKeyboard.hpp"
 #include "../../src/hal/native/NativeClock.hpp"
 #include "../../src/hal/native/NativeLog.hpp"
+#include "../../src/hal/native/NativeNet.hpp"
+#include "../../src/hal/native/NativeImu.hpp"
+#include "yui/app/WifiApp.hpp"
+#include "yui/app/BleApp.hpp"
+#include "yui/app/CalculatorApp.hpp"
+#include "yui/app/ImuApp.hpp"
+#include <cstring>
 
 using yui::Menu;
 using yui::NativeDisplay;
@@ -365,6 +372,208 @@ void test_about_renders_version() {
   TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
 }
 
+// ───── WifiApp ──────────────────────────────────────────────────────────────
+
+namespace {
+WifiAp make_ap(const char* ssid, int8_t rssi, bool secured = false) {
+  WifiAp a{};
+  std::strncpy(a.ssid, ssid, sizeof(a.ssid) - 1);
+  a.rssi    = rssi;
+  a.secured = secured;
+  return a;
+}
+}
+
+void test_wifi_app_starts_scanning() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(false);  // require explicit done
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Scanning);
+  TEST_ASSERT_EQUAL_INT(1, net.wifi_starts());
+}
+
+void test_wifi_app_transitions_to_done_with_results() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(false);
+  net.set_wifi_results({make_ap("AlphaNet", -45, true),
+                        make_ap("BetaNet",  -67)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  net.simulate_wifi_done();
+  app.tick(0);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Done);
+}
+
+void test_wifi_app_transitions_to_empty_when_no_results() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(false);
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  net.simulate_wifi_done();
+  app.tick(0);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Empty);
+}
+
+void test_wifi_app_renders_header_red() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("Net1", -50)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
+void test_wifi_app_arrow_keys_move_cursor() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("A", -50), make_ap("B", -60), make_ap("C", -70)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor());
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+}
+
+void test_wifi_app_enter_restarts_scan() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("A", -50)});
+  WifiApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  TEST_ASSERT_EQUAL_INT(1, net.wifi_starts());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_INT(2, net.wifi_starts());
+}
+
+// ───── BleApp ───────────────────────────────────────────────────────────────
+
+namespace {
+BleDevice make_dev(const char* nm, int8_t rssi) {
+  BleDevice d{};
+  std::strncpy(d.name, nm, sizeof(d.name) - 1);
+  d.rssi = rssi;
+  return d;
+}
+}
+
+void test_ble_app_starts_and_completes() {
+  Fixture f;
+  FakeNet net;
+  net.set_ble_immediate(false);
+  net.set_ble_results({make_dev("Watch", -55), make_dev("Earbud", -72)});
+  BleApp app{net};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.state() == BleApp::State::Scanning);
+  net.simulate_ble_done();
+  app.tick(0);
+  TEST_ASSERT_TRUE(app.state() == BleApp::State::Done);
+}
+
+void test_ble_app_arrow_keys_move_cursor() {
+  Fixture f;
+  FakeNet net;
+  net.set_ble_immediate(true);
+  net.set_ble_results({make_dev("A", -50), make_dev("B", -60)});
+  BleApp app{net};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+}
+
+// ───── CalculatorApp / Engine ───────────────────────────────────────────────
+
+void test_calc_engine_addition() {
+  CalculatorEngine e;
+  e.input_char('2'); e.flush_buffer();
+  e.input_char('3'); e.flush_buffer();
+  e.op('+');
+  TEST_ASSERT_EQUAL_FLOAT(5.0, e.peek(0));
+  TEST_ASSERT_EQUAL_size_t(1u, e.depth());
+}
+
+void test_calc_engine_division_by_zero_errors() {
+  CalculatorEngine e;
+  e.input_char('5'); e.flush_buffer();
+  e.input_char('0'); e.flush_buffer();
+  e.op('/');
+  TEST_ASSERT_TRUE(e.error());
+}
+
+void test_calc_engine_decimal_input() {
+  CalculatorEngine e;
+  e.input_char('1'); e.input_char('.'); e.input_char('5');
+  e.flush_buffer();
+  TEST_ASSERT_EQUAL_FLOAT(1.5, e.peek(0));
+}
+
+void test_calc_engine_dup() {
+  CalculatorEngine e;
+  e.input_char('7'); e.flush_buffer();
+  e.dup();
+  TEST_ASSERT_EQUAL_size_t(2u, e.depth());
+  TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(0));
+  TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(1));
+}
+
+void test_calc_engine_backspace() {
+  CalculatorEngine e;
+  e.input_char('1'); e.input_char('2'); e.input_char('3');
+  e.backspace();
+  TEST_ASSERT_EQUAL_STRING("12", e.buffer());
+}
+
+void test_calc_app_dispatches_digits_and_ops() {
+  Fixture f;
+  CalculatorApp app;
+  app.on_enter(f.hal);
+  // 4 ENTER 6 + → 10
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char; k.ch = '4'; app.on_key(k);
+  app.on_key(press(Key::Enter));
+  k.ch = '6'; app.on_key(k);
+  k.ch = '+'; app.on_key(k);
+  TEST_ASSERT_EQUAL_FLOAT(10.0, app.engine().peek(0));
+}
+
+// ───── ImuApp ───────────────────────────────────────────────────────────────
+
+void test_imu_app_reads_accel_on_tick() {
+  Fixture f;
+  FakeImu imu;
+  imu.set_accel(0.3f, -0.2f, 0.9f);
+  ImuApp app{imu};
+  app.on_enter(f.hal);
+  app.tick(0);
+  AccelXYZ a = app.last_accel();
+  TEST_ASSERT_EQUAL_FLOAT(0.3f,  a.x);
+  TEST_ASSERT_EQUAL_FLOAT(-0.2f, a.y);
+}
+
+void test_imu_app_renders_header_red() {
+  Fixture f;
+  FakeImu imu;
+  ImuApp app{imu};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
 // ───── Runner ───────────────────────────────────────────────────────────────
 
 
@@ -399,5 +608,21 @@ int main(int, char**) {
   RUN_TEST(test_shell_enters_app_on_launcher_enter);
   RUN_TEST(test_shell_esc_returns_to_launcher);
   RUN_TEST(test_about_renders_version);
+  RUN_TEST(test_wifi_app_starts_scanning);
+  RUN_TEST(test_wifi_app_transitions_to_done_with_results);
+  RUN_TEST(test_wifi_app_transitions_to_empty_when_no_results);
+  RUN_TEST(test_wifi_app_renders_header_red);
+  RUN_TEST(test_wifi_app_arrow_keys_move_cursor);
+  RUN_TEST(test_wifi_app_enter_restarts_scan);
+  RUN_TEST(test_ble_app_starts_and_completes);
+  RUN_TEST(test_ble_app_arrow_keys_move_cursor);
+  RUN_TEST(test_calc_engine_addition);
+  RUN_TEST(test_calc_engine_division_by_zero_errors);
+  RUN_TEST(test_calc_engine_decimal_input);
+  RUN_TEST(test_calc_engine_dup);
+  RUN_TEST(test_calc_engine_backspace);
+  RUN_TEST(test_calc_app_dispatches_digits_and_ops);
+  RUN_TEST(test_imu_app_reads_accel_on_tick);
+  RUN_TEST(test_imu_app_renders_header_red);
   return UNITY_END();
 }

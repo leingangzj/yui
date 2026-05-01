@@ -8,7 +8,7 @@ enum class Key : uint16_t {
   Up, Down, Left, Right,
   Enter, Esc, Tab, Backspace, Space,
   Fn, Shift, Ctrl, Alt,
-  // Printable keys: ASCII value as enum
+  Char,   // generic printable — see KeyEvent::ch
 };
 
 struct KeyEvent {
