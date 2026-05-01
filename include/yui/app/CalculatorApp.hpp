@@ -6,7 +6,9 @@
 // Backspace deletes a digit; Enter duplicates X.
 //
 // Unary ops: 'n' = negate, 'q' = sqrt, 's' = swap top two, 'c' = clear all.
-// Trig (radians): 'i' = sin, 'o' = cos, 't' = tan.
+// Trig: 'i' = sin, 'o' = cos, 't' = tan. Default angle mode is radians;
+// 'd' toggles to degrees (the header shows "DEG" when active).
+// Constants: 'g' = push pi, 'e' = push e.
 // Memory register (one slot): 'p' = M-store (top of X), 'r' = M-recall
 // (push memory onto stack), 'k' = M-clear.
 // To enter a negative literal: type the positive number then 'n'. This
@@ -28,6 +30,8 @@ public:
   static constexpr size_t kStackDepth = 4;
   static constexpr size_t kBufSize    = 24;
 
+  enum class AngleMode { Radians, Degrees };
+
   void reset() {
     stack_.fill(0.0);
     sp_ = 0;
@@ -35,6 +39,8 @@ public:
     err_    = false;
     mem_    = 0.0;
     mem_set_ = false;
+    // Angle mode is intentionally preserved across reset — the user's
+    // last preference is sticky.
   }
 
   bool error() const { return err_; }
@@ -118,16 +124,36 @@ public:
     stack_[sp_ - 1] = std::sqrt(v);
   }
 
-  // Trig (radians). Sets err_ if stack is empty.
-  void apply_unary_(double (*f)(double)) {
+  AngleMode angle_mode() const { return angle_; }
+  void toggle_angle_mode() {
+    angle_ = (angle_ == AngleMode::Radians) ? AngleMode::Degrees
+                                            : AngleMode::Radians;
+  }
+  // Trig honors the current angle mode. Sets err_ if stack is empty.
+  void apply_trig_(double (*f)(double)) {
     if (err_) return;
     flush_buffer();
     if (sp_ == 0) { err_ = true; return; }
-    stack_[sp_ - 1] = f(stack_[sp_ - 1]);
+    double x = stack_[sp_ - 1];
+    if (angle_ == AngleMode::Degrees) x *= 0.017453292519943295;  // π/180
+    stack_[sp_ - 1] = f(x);
   }
-  void sin_top() { apply_unary_(static_cast<double(*)(double)>(std::sin)); }
-  void cos_top() { apply_unary_(static_cast<double(*)(double)>(std::cos)); }
-  void tan_top() { apply_unary_(static_cast<double(*)(double)>(std::tan)); }
+  void sin_top() { apply_trig_(static_cast<double(*)(double)>(std::sin)); }
+  void cos_top() { apply_trig_(static_cast<double(*)(double)>(std::cos)); }
+  void tan_top() { apply_trig_(static_cast<double(*)(double)>(std::tan)); }
+
+  // Push a constant onto the stack (after flushing any pending input).
+  void push_const_(double v) {
+    if (err_) return;
+    flush_buffer();
+    if (sp_ >= kStackDepth) {
+      for (size_t i = 1; i < kStackDepth; ++i) stack_[i - 1] = stack_[i];
+      --sp_;
+    }
+    stack_[sp_++] = v;
+  }
+  void push_pi() { push_const_(3.141592653589793); }
+  void push_e()  { push_const_(2.718281828459045); }
 
   // Memory register (single slot).
   void m_store() {
@@ -196,6 +222,7 @@ private:
   bool   err_ = false;
   double mem_     = 0.0;
   bool   mem_set_ = false;
+  AngleMode angle_ = AngleMode::Radians;
 };
 
 class CalculatorApp : public App {
@@ -221,6 +248,9 @@ public:
       case 'i': engine_.sin_top();  return;
       case 'o': engine_.cos_top();  return;
       case 't': engine_.tan_top();  return;
+      case 'd': engine_.toggle_angle_mode(); return;
+      case 'g': engine_.push_pi();  return;
+      case 'e': engine_.push_e();   return;
       case 'p': engine_.m_store();  return;
       case 'r': engine_.m_recall(); return;
       case 'k': engine_.m_clear();  return;
@@ -265,6 +295,8 @@ public:
     std::snprintf(buf_line, sizeof(buf_line), "> %s", engine_.buffer());
     d.draw_text(8, 110, buf_line, kJapanRed, kWhite);
     if (engine_.m_has()) d.draw_text(d.width() - 18, 4, "M", kWhite, kJapanRed);
+    if (engine_.angle_mode() == CalculatorEngine::AngleMode::Degrees)
+      d.draw_text(d.width() - 50, 4, "DEG", kWhite, kJapanRed);
     d.flush();
   }
 

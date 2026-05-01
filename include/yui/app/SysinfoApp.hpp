@@ -6,6 +6,7 @@
 #include "yui/sys/SysProbe.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
+#include <ctime>
 
 namespace yui {
 
@@ -56,6 +57,25 @@ public:
       const int r = probe_.wifi_rssi();
       if (r) std::snprintf(line, sizeof(line), "WiFi RSSI %d", r);
       else   std::snprintf(line, sizeof(line), "WiFi      off");
+      d.draw_text(8, y, line, kBlack, kWhite);
+    }
+    y += 14;
+
+    if (probe_.epoch_seconds) {
+      const uint64_t e = probe_.epoch_seconds();
+      if (e == 0) {
+        std::snprintf(line, sizeof(line), "Time      no NTP sync");
+      } else {
+        const std::time_t t = static_cast<std::time_t>(e);
+        std::tm tm_buf{};
+#if defined(_WIN32)
+        localtime_s(&tm_buf, &t);
+#else
+        localtime_r(&t, &tm_buf);
+#endif
+        std::snprintf(line, sizeof(line), "Time      %02d:%02d:%02d",
+                      tm_buf.tm_hour, tm_buf.tm_min, tm_buf.tm_sec);
+      }
       d.draw_text(8, y, line, kBlack, kWhite);
     }
 

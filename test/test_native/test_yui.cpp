@@ -978,6 +978,84 @@ void test_calc_engine_memory_store_empty_errors() {
   TEST_ASSERT_FALSE(e.m_has());
 }
 
+void test_calc_engine_starts_in_radians_mode() {
+  CalculatorEngine e;
+  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Radians);
+}
+
+void test_calc_engine_toggle_switches_angle_mode() {
+  CalculatorEngine e;
+  e.toggle_angle_mode();
+  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Degrees);
+  e.toggle_angle_mode();
+  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Radians);
+}
+
+void test_calc_engine_sin_90_in_degrees_is_one() {
+  CalculatorEngine e;
+  e.toggle_angle_mode();
+  e.input_char('9'); e.input_char('0'); e.flush_buffer();
+  e.sin_top();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, e.peek(0));
+}
+
+void test_calc_engine_cos_180_in_degrees_is_neg_one() {
+  CalculatorEngine e;
+  e.toggle_angle_mode();
+  e.input_char('1'); e.input_char('8'); e.input_char('0'); e.flush_buffer();
+  e.cos_top();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, e.peek(0));
+}
+
+void test_calc_engine_push_pi_pushes_constant() {
+  CalculatorEngine e;
+  e.push_pi();
+  TEST_ASSERT_EQUAL_size_t(1u, e.depth());
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.141592653589793, e.peek(0));
+}
+
+void test_calc_engine_push_e_pushes_constant() {
+  CalculatorEngine e;
+  e.push_e();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 2.718281828459045, e.peek(0));
+}
+
+void test_calc_engine_push_const_flushes_buffer_first() {
+  CalculatorEngine e;
+  e.input_char('5');
+  e.push_pi();
+  // Both buffer-as-stack-entry and pi should be on stack: depth 2, X = pi.
+  TEST_ASSERT_EQUAL_size_t(2u, e.depth());
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.141592653589793, e.peek(0));
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 5.0, e.peek(1));
+}
+
+void test_calc_engine_reset_preserves_angle_mode() {
+  CalculatorEngine e;
+  e.toggle_angle_mode();
+  e.reset();
+  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Degrees);
+}
+
+void test_calc_app_d_toggles_angle_mode() {
+  Fixture f;
+  CalculatorApp app;
+  app.on_enter(f.hal);
+  KeyEvent k{}; k.down = true; k.key = Key::Char; k.ch = 'd';
+  app.on_key(k);
+  TEST_ASSERT_TRUE(app.engine().angle_mode() ==
+                   CalculatorEngine::AngleMode::Degrees);
+}
+
+void test_calc_app_g_pushes_pi() {
+  Fixture f;
+  CalculatorApp app;
+  app.on_enter(f.hal);
+  KeyEvent k{}; k.down = true; k.key = Key::Char; k.ch = 'g';
+  app.on_key(k);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.141592653589793, app.engine().peek(0));
+}
+
 void test_calc_app_routes_trig_and_memory_keys() {
   Fixture f;
   CalculatorApp app;
@@ -2447,6 +2525,25 @@ void test_snake_app_tick_advances_engine_after_step_ms() {
 
 // ───── SysinfoApp ───────────────────────────────────────────────────────────
 
+void test_sysinfo_renders_time_when_synced() {
+  Fixture f;
+  ::setenv("TZ", "UTC0", 1); ::tzset();
+  SysProbe p;
+  p.epoch_seconds = []() -> uint64_t { return 1735722420ULL; };  // 09:07:00 UTC
+  SysinfoApp app{p};
+  app.render(f.display);
+  TEST_ASSERT_TRUE(f.display.last_text().find("09:07:00") != std::string::npos);
+}
+
+void test_sysinfo_renders_no_sync_message_when_unsynced() {
+  Fixture f;
+  SysProbe p;
+  p.epoch_seconds = []() -> uint64_t { return 0; };
+  SysinfoApp app{p};
+  app.render(f.display);
+  TEST_ASSERT_TRUE(f.display.last_text().find("no NTP") != std::string::npos);
+}
+
 void test_sysinfo_renders_header_red() {
   Fixture f;
   SysProbe p;
@@ -2538,6 +2635,16 @@ int main(int, char**) {
   RUN_TEST(test_calc_engine_memory_clear_zeros_and_unsets);
   RUN_TEST(test_calc_engine_memory_store_empty_errors);
   RUN_TEST(test_calc_app_routes_trig_and_memory_keys);
+  RUN_TEST(test_calc_engine_starts_in_radians_mode);
+  RUN_TEST(test_calc_engine_toggle_switches_angle_mode);
+  RUN_TEST(test_calc_engine_sin_90_in_degrees_is_one);
+  RUN_TEST(test_calc_engine_cos_180_in_degrees_is_neg_one);
+  RUN_TEST(test_calc_engine_push_pi_pushes_constant);
+  RUN_TEST(test_calc_engine_push_e_pushes_constant);
+  RUN_TEST(test_calc_engine_push_const_flushes_buffer_first);
+  RUN_TEST(test_calc_engine_reset_preserves_angle_mode);
+  RUN_TEST(test_calc_app_d_toggles_angle_mode);
+  RUN_TEST(test_calc_app_g_pushes_pi);
   RUN_TEST(test_imu_app_reads_accel_on_tick);
   RUN_TEST(test_imu_app_renders_header_red);
   RUN_TEST(test_notes_starts_empty);
@@ -2653,5 +2760,7 @@ int main(int, char**) {
   RUN_TEST(test_snake_app_arrow_keys_steer);
   RUN_TEST(test_snake_app_tick_advances_engine_after_step_ms);
   RUN_TEST(test_sysinfo_renders_header_red);
+  RUN_TEST(test_sysinfo_renders_time_when_synced);
+  RUN_TEST(test_sysinfo_renders_no_sync_message_when_unsynced);
   return UNITY_END();
 }
