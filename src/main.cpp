@@ -14,12 +14,19 @@
 #include "yui/app/BleApp.hpp"
 #include "yui/app/CalculatorApp.hpp"
 #include "yui/app/ImuApp.hpp"
+#include "yui/app/NotesApp.hpp"
+#include "yui/app/FilesApp.hpp"
+#include "yui/app/IrRemoteApp.hpp"
+#include "yui/app/MicApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
 #include "hal/esp32/Esp32Keyboard.hpp"
 #include "hal/esp32/Esp32Net.hpp"
 #include "hal/esp32/Esp32Imu.hpp"
+#include "hal/esp32/Esp32Fs.hpp"
+#include "hal/esp32/Esp32Ir.hpp"
+#include "hal/esp32/Esp32Mic.hpp"
 
 namespace {
 constexpr const char* kVersion = "v0.0.1-dev";
@@ -32,6 +39,9 @@ yui::Hal           hal{display, keyboard, clock_, log_};
 
 yui::Esp32Net    net_;
 yui::Esp32Imu    imu_;
+yui::Esp32Fs     fs_;
+yui::Esp32Ir     ir_;
+yui::Esp32Mic    mic_;
 
 yui::AppRegistry registry;
 yui::AboutApp    about_app{kVersion};
@@ -39,10 +49,10 @@ yui::WifiApp     wifi_app{net_};
 yui::BleApp      ble_app{net_};
 yui::ImuApp      imu_app{imu_};
 yui::CalculatorApp calc_app;
-yui::StubApp     ir_app{"IR Remote"};
-yui::StubApp     notes_app{"Notes"};
-yui::StubApp     files_app{"Files"};
-yui::StubApp     mic_app{"Mic Visualizer"};
+yui::NotesApp    notes_app{fs_};
+yui::FilesApp    files_app{fs_};
+yui::IrRemoteApp ir_app{ir_};
+yui::MicApp      mic_app{mic_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;

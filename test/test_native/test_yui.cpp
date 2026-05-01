@@ -18,10 +18,17 @@
 #include "../../src/hal/native/NativeLog.hpp"
 #include "../../src/hal/native/NativeNet.hpp"
 #include "../../src/hal/native/NativeImu.hpp"
+#include "../../src/hal/native/NativeFs.hpp"
+#include "../../src/hal/native/NativeIr.hpp"
+#include "../../src/hal/native/NativeMic.hpp"
 #include "yui/app/WifiApp.hpp"
 #include "yui/app/BleApp.hpp"
 #include "yui/app/CalculatorApp.hpp"
 #include "yui/app/ImuApp.hpp"
+#include "yui/app/NotesApp.hpp"
+#include "yui/app/FilesApp.hpp"
+#include "yui/app/IrRemoteApp.hpp"
+#include "yui/app/MicApp.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -574,6 +581,129 @@ void test_imu_app_renders_header_red() {
   TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
 }
 
+// ───── NotesApp ─────────────────────────────────────────────────────────────
+
+void test_notes_starts_empty() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.buffer_len());
+  TEST_ASSERT_FALSE(app.dirty());
+}
+
+void test_notes_typing_marks_dirty() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char; k.ch = 'h'; app.on_key(k);
+  k.ch = 'i'; app.on_key(k);
+  TEST_ASSERT_EQUAL_STRING("hi", app.buffer());
+  TEST_ASSERT_TRUE(app.dirty());
+}
+
+void test_notes_backspace() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char; k.ch = 'a'; app.on_key(k);
+  k.ch = 'b'; app.on_key(k);
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_EQUAL_STRING("a", app.buffer());
+}
+
+void test_notes_save_and_reload() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char; k.ch = 'X'; app.on_key(k);
+  app.on_key(press(Key::Tab));   // save
+  TEST_ASSERT_FALSE(app.dirty());
+  // Re-enter — should reload from fs.
+  NotesApp app2{fs};
+  app2.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_STRING("X", app2.buffer());
+}
+
+// ───── FilesApp ─────────────────────────────────────────────────────────────
+
+void test_files_lists_root() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.mkdir("/photos");
+  fs.put_file("/readme.txt", "hi");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(2u, app.count());
+}
+
+void test_files_enter_descends_into_dir() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.mkdir("/photos");
+  fs.put_file("/photos/cat.jpg", "fake");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  // Cursor at "photos" (sorted before any other entry here).
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_STRING("/photos", app.cwd());
+  TEST_ASSERT_EQUAL_size_t(1u, app.count());
+}
+
+// ───── IrRemoteApp ──────────────────────────────────────────────────────────
+
+void test_ir_app_sends_nec_on_enter() {
+  Fixture f;
+  FakeIr ir;
+  IrRemoteApp app{ir};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_UINT32(1u, ir.sent_count());
+  TEST_ASSERT_EQUAL_HEX16(kNecPresets[0].addr, ir.last_addr());
+}
+
+void test_ir_app_arrow_keys_change_selection() {
+  Fixture f;
+  FakeIr ir;
+  IrRemoteApp app{ir};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Down));
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor());
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+}
+
+// ───── MicApp ───────────────────────────────────────────────────────────────
+
+void test_mic_app_silent_input_yields_zero_rms() {
+  Fixture f;
+  FakeMic mic;
+  mic.push_constant(0, MicApp::kFrame);
+  MicApp app{mic};
+  app.on_enter(f.hal);
+  app.tick(0);
+  TEST_ASSERT_EQUAL_FLOAT(0.f, app.rms());
+}
+
+void test_mic_app_loud_input_yields_high_rms() {
+  Fixture f;
+  FakeMic mic;
+  mic.push_constant(20000, MicApp::kFrame);
+  MicApp app{mic};
+  app.on_enter(f.hal);
+  app.tick(0);
+  TEST_ASSERT_TRUE(app.rms() > 0.1f);
+}
+
 // ───── Runner ───────────────────────────────────────────────────────────────
 
 
@@ -624,5 +754,15 @@ int main(int, char**) {
   RUN_TEST(test_calc_app_dispatches_digits_and_ops);
   RUN_TEST(test_imu_app_reads_accel_on_tick);
   RUN_TEST(test_imu_app_renders_header_red);
+  RUN_TEST(test_notes_starts_empty);
+  RUN_TEST(test_notes_typing_marks_dirty);
+  RUN_TEST(test_notes_backspace);
+  RUN_TEST(test_notes_save_and_reload);
+  RUN_TEST(test_files_lists_root);
+  RUN_TEST(test_files_enter_descends_into_dir);
+  RUN_TEST(test_ir_app_sends_nec_on_enter);
+  RUN_TEST(test_ir_app_arrow_keys_change_selection);
+  RUN_TEST(test_mic_app_silent_input_yields_zero_rms);
+  RUN_TEST(test_mic_app_loud_input_yields_high_rms);
   return UNITY_END();
 }
