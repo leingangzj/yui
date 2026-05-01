@@ -306,6 +306,35 @@ void test_launcher_renders_selected_row_highlighted() {
   TEST_ASSERT_EQUAL_HEX16(kWhite,    f.display.pixel_at(20, row1_y));
 }
 
+void test_launcher_with_sysprobe_renders_status_text() {
+  Fixture f;
+  StubApp a{"A"};
+  f.registry.add(&a);
+  SysProbe p;
+  p.battery_pct = []{ return 73; };
+  p.wifi_rssi   = []{ return -55; };
+  p.uptime_ms   = []{ return 3 * 3600u * 1000u + 21u * 60u * 1000u; };  // 03:21
+  Launcher l{f.registry, p};
+  l.on_enter(f.hal);
+  l.render(f.display);
+  // last_text should be the right-side status string (drawn after "Yui").
+  const std::string& s = f.display.last_text();
+  TEST_ASSERT_TRUE(s.find("73%")   != std::string::npos);
+  TEST_ASSERT_TRUE(s.find("-55")   != std::string::npos);
+  TEST_ASSERT_TRUE(s.find("03:21") != std::string::npos);
+}
+
+void test_launcher_without_sysprobe_skips_status() {
+  Fixture f;
+  StubApp a{"A"};
+  f.registry.add(&a);
+  Launcher l{f.registry};   // no probe
+  l.on_enter(f.hal);
+  l.render(f.display);
+  // Without a probe, status bar isn't drawn — last text drawn is an app row.
+  TEST_ASSERT_EQUAL_STRING("A", f.display.last_text().c_str());
+}
+
 // ───── Shell ────────────────────────────────────────────────────────────────
 
 void test_shell_starts_in_splash() {
@@ -1608,6 +1637,8 @@ int main(int, char**) {
   RUN_TEST(test_launcher_enter_sets_pending_launch);
   RUN_TEST(test_launcher_renders_header_in_red);
   RUN_TEST(test_launcher_renders_selected_row_highlighted);
+  RUN_TEST(test_launcher_with_sysprobe_renders_status_text);
+  RUN_TEST(test_launcher_without_sysprobe_skips_status);
   RUN_TEST(test_shell_starts_in_splash);
   RUN_TEST(test_shell_holds_splash_before_min_time);
   RUN_TEST(test_shell_advances_to_launcher_after_min_time_and_key);

@@ -126,7 +126,7 @@ void setup() {
   registry.add(&settings_app);
   registry.add(&about_app);
 
-  static yui::Launcher launcher{registry};
+  static yui::Launcher launcher{registry, make_sys_probe()};
   static yui::Shell    shell{hal, launcher, kVersion};
   launcher_ptr = &launcher;
   shell_ptr    = &shell;

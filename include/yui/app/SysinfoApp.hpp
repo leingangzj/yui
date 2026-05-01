@@ -3,19 +3,11 @@
 // All readings flow through small probe lambdas so the app is testable
 // without M5/Arduino headers in the native env.
 #include "yui/app/App.hpp"
+#include "yui/sys/SysProbe.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
-#include <functional>
 
 namespace yui {
-
-struct SysProbe {
-  std::function<int()>           battery_pct;       // 0-100, -1 if unknown
-  std::function<uint32_t()>      free_heap_bytes;
-  std::function<uint32_t()>      uptime_ms;
-  std::function<const char*()>   ip_or_empty;
-  std::function<int()>           wifi_rssi;         // dBm, 0 if disconnected
-};
 
 class SysinfoApp : public App {
 public:
