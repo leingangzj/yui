@@ -39,6 +39,8 @@
 #include "../../src/hal/native/NativeStorage.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
+#include "yui/app/PomodoroApp.hpp"
+#include "yui/app/MetronomeApp.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1167,6 +1169,118 @@ void test_tone_app_backspace_stops() {
   TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
 }
 
+// ───── PomodoroApp ──────────────────────────────────────────────────────────
+
+void test_pomodoro_starts_idle_in_work_phase() {
+  Fixture f;
+  FakeSpeaker spk;
+  PomodoroApp app{spk};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.state() == PomodoroApp::State::Idle);
+  TEST_ASSERT_TRUE(app.phase() == PomodoroApp::Phase::Work);
+}
+
+void test_pomodoro_enter_starts_running() {
+  Fixture f;
+  FakeSpeaker spk;
+  PomodoroApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == PomodoroApp::State::Running);
+}
+
+void test_pomodoro_work_phase_completes_and_chimes() {
+  Fixture f;
+  FakeSpeaker spk;
+  PomodoroApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  // First tick at t=0 anchors last_ms_ to 0.
+  app.tick(0);
+  // Jump past 25 minutes (default preset).
+  app.tick(25u * 60u * 1000u + 1u);
+  TEST_ASSERT_TRUE(app.phase() == PomodoroApp::Phase::Break);
+  TEST_ASSERT_EQUAL_UINT(1u, app.completed());
+  TEST_ASSERT_GREATER_THAN_size_t(0u, spk.count());
+}
+
+void test_pomodoro_backspace_resets() {
+  Fixture f;
+  FakeSpeaker spk;
+  PomodoroApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.tick(1000);
+  app.tick(60000);
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_TRUE(app.state() == PomodoroApp::State::Idle);
+  TEST_ASSERT_TRUE(app.phase() == PomodoroApp::Phase::Work);
+  TEST_ASSERT_EQUAL_UINT32(0u, app.elapsed_ms());
+}
+
+void test_pomodoro_tab_cycles_preset_only_when_idle() {
+  Fixture f;
+  FakeSpeaker spk;
+  PomodoroApp app{spk};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.preset());
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_EQUAL_size_t(1u, app.preset());
+  app.on_key(press(Key::Enter));  // start
+  app.on_key(press(Key::Tab));    // ignored while running
+  TEST_ASSERT_EQUAL_size_t(1u, app.preset());
+}
+
+// ───── MetronomeApp ─────────────────────────────────────────────────────────
+
+void test_metronome_default_bpm_100() {
+  Fixture f;
+  FakeSpeaker spk;
+  MetronomeApp app{spk};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(100, app.bpm());
+  TEST_ASSERT_EQUAL_UINT32(600u, app.interval_ms());
+}
+
+void test_metronome_up_down_adjust_bpm_with_clamp() {
+  Fixture f;
+  FakeSpeaker spk;
+  MetronomeApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_INT(104, app.bpm());
+  // Bash down past minimum.
+  for (int i = 0; i < 100; ++i) app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_INT(MetronomeApp::kBpmMin, app.bpm());
+}
+
+void test_metronome_enter_starts_and_clicks() {
+  Fixture f;
+  FakeSpeaker spk;
+  MetronomeApp app{spk};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.running());
+  app.tick(0);  // immediate downbeat
+  TEST_ASSERT_GREATER_THAN_size_t(0u, spk.count());
+  TEST_ASSERT_EQUAL_UINT32(2000u, spk.last().freq_hz);  // downbeat freq
+}
+
+void test_metronome_advances_through_beats_in_4_4() {
+  Fixture f;
+  FakeSpeaker spk;
+  MetronomeApp app{spk};
+  app.on_enter(f.hal);
+  // Default sig is 4/4. Start, then tick across 4 intervals.
+  app.on_key(press(Key::Enter));
+  uint32_t t = 0;
+  for (int i = 0; i < 5; ++i) {
+    app.tick(t);
+    t += app.interval_ms();
+  }
+  TEST_ASSERT_EQUAL_size_t(5u, spk.count());  // 4 beats + the next downbeat
+}
+
 // ───── KeyTestApp ───────────────────────────────────────────────────────────
 
 void test_keytest_records_events() {
@@ -1407,6 +1521,15 @@ int main(int, char**) {
   RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
   RUN_TEST(test_tone_app_advances_through_preset);
   RUN_TEST(test_tone_app_backspace_stops);
+  RUN_TEST(test_pomodoro_starts_idle_in_work_phase);
+  RUN_TEST(test_pomodoro_enter_starts_running);
+  RUN_TEST(test_pomodoro_work_phase_completes_and_chimes);
+  RUN_TEST(test_pomodoro_backspace_resets);
+  RUN_TEST(test_pomodoro_tab_cycles_preset_only_when_idle);
+  RUN_TEST(test_metronome_default_bpm_100);
+  RUN_TEST(test_metronome_up_down_adjust_bpm_with_clamp);
+  RUN_TEST(test_metronome_enter_starts_and_clicks);
+  RUN_TEST(test_metronome_advances_through_beats_in_4_4);
   RUN_TEST(test_keytest_records_events);
   RUN_TEST(test_keytest_ring_buffer_caps_history);
   RUN_TEST(test_files_view_tab_toggles_hex);

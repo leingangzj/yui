@@ -9,7 +9,7 @@ namespace yui {
 // per-Shell instance. Apps are registered at startup before the Shell runs.
 class AppRegistry {
 public:
-  static constexpr std::size_t kMaxApps = 16;
+  static constexpr std::size_t kMaxApps = 24;
 
   bool add(App* app) {
     if (count_ >= kMaxApps || app == nullptr) return false;

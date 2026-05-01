@@ -24,6 +24,8 @@
 #include "yui/app/SnakeApp.hpp"
 #include "yui/app/KeyTestApp.hpp"
 #include "yui/app/ToneApp.hpp"
+#include "yui/app/PomodoroApp.hpp"
+#include "yui/app/MetronomeApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -86,6 +88,8 @@ yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 yui::SnakeApp    snake_app;
 yui::KeyTestApp  keytest_app;
 yui::ToneApp     tone_app{spk_};
+yui::PomodoroApp pomodoro_app{spk_};
+yui::MetronomeApp metronome_app{spk_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -107,6 +111,8 @@ void setup() {
   registry.add(&calc_app);
   registry.add(&mic_app);
   registry.add(&tone_app);
+  registry.add(&metronome_app);
+  registry.add(&pomodoro_app);
   registry.add(&clock_app);
   registry.add(&snake_app);
   registry.add(&keytest_app);
