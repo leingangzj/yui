@@ -583,6 +583,68 @@ void test_calc_engine_dup() {
   TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(1));
 }
 
+void test_calc_engine_subtraction() {
+  CalculatorEngine e;
+  e.input_char('1'); e.input_char('0'); e.flush_buffer();
+  e.input_char('3'); e.flush_buffer();
+  e.op('-');
+  TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(0));
+}
+
+void test_calc_engine_negate_buffer_and_stack() {
+  CalculatorEngine e;
+  // Negate buffer in place.
+  e.input_char('4'); e.input_char('2');
+  e.neg();
+  TEST_ASSERT_EQUAL_STRING("-42", e.buffer());
+  e.neg();
+  TEST_ASSERT_EQUAL_STRING("42", e.buffer());
+  // Negate top of stack when buffer is empty.
+  e.flush_buffer();
+  e.neg();
+  TEST_ASSERT_EQUAL_FLOAT(-42.0, e.peek(0));
+}
+
+void test_calc_engine_sqrt() {
+  CalculatorEngine e;
+  e.input_char('9'); e.flush_buffer();
+  e.sqrt_top();
+  TEST_ASSERT_EQUAL_FLOAT(3.0, e.peek(0));
+}
+
+void test_calc_engine_sqrt_negative_errors() {
+  CalculatorEngine e;
+  e.input_char('4'); e.flush_buffer();
+  e.neg();
+  e.sqrt_top();
+  TEST_ASSERT_TRUE(e.error());
+}
+
+void test_calc_engine_swap() {
+  CalculatorEngine e;
+  e.input_char('1'); e.flush_buffer();
+  e.input_char('2'); e.flush_buffer();
+  TEST_ASSERT_EQUAL_FLOAT(2.0, e.peek(0));
+  TEST_ASSERT_EQUAL_FLOAT(1.0, e.peek(1));
+  e.swap();
+  TEST_ASSERT_EQUAL_FLOAT(1.0, e.peek(0));
+  TEST_ASSERT_EQUAL_FLOAT(2.0, e.peek(1));
+}
+
+void test_calc_app_routes_unary_ops() {
+  Fixture f;
+  CalculatorApp app;
+  app.on_enter(f.hal);
+  KeyEvent k{}; k.down = true; k.key = Key::Char;
+  k.ch = '4'; app.on_key(k); k.ch = '9'; app.on_key(k);
+  k.ch = 'q'; app.on_key(k);   // sqrt(49) = 7
+  TEST_ASSERT_EQUAL_FLOAT(7.0, app.engine().peek(0));
+  k.ch = 'n'; app.on_key(k);   // negate
+  TEST_ASSERT_EQUAL_FLOAT(-7.0, app.engine().peek(0));
+  k.ch = 'c'; app.on_key(k);   // clear
+  TEST_ASSERT_EQUAL_size_t(0u, app.engine().depth());
+}
+
 void test_calc_engine_backspace() {
   CalculatorEngine e;
   e.input_char('1'); e.input_char('2'); e.input_char('3');
@@ -1730,6 +1792,12 @@ int main(int, char**) {
   RUN_TEST(test_calc_engine_division_by_zero_errors);
   RUN_TEST(test_calc_engine_decimal_input);
   RUN_TEST(test_calc_engine_dup);
+  RUN_TEST(test_calc_engine_subtraction);
+  RUN_TEST(test_calc_engine_negate_buffer_and_stack);
+  RUN_TEST(test_calc_engine_sqrt);
+  RUN_TEST(test_calc_engine_sqrt_negative_errors);
+  RUN_TEST(test_calc_engine_swap);
+  RUN_TEST(test_calc_app_routes_unary_ops);
   RUN_TEST(test_calc_engine_backspace);
   RUN_TEST(test_calc_app_dispatches_digits_and_ops);
   RUN_TEST(test_imu_app_reads_accel_on_tick);

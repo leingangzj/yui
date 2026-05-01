@@ -5,11 +5,16 @@
 // Space pushes the buffer onto the stack; +,-,*,/ pop two and push result;
 // Backspace deletes a digit; Enter duplicates X.
 //
+// Unary ops: 'n' = negate, 'q' = sqrt, 's' = swap top two, 'c' = clear all.
+// To enter a negative literal: type the positive number then 'n'. This
+// avoids the parse ambiguity between "negative sign" and "subtract".
+//
 // All pure logic: no HAL inside CalculatorEngine, render() just paints state.
 
 #include "yui/app/App.hpp"
 #include "yui/types.hpp"
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -32,14 +37,14 @@ public:
   double peek(size_t i = 0) const { return (i < sp_) ? stack_[sp_ - 1 - i] : 0.0; }
   const char* buffer() const { return buf_; }
 
-  // Append a single character to the build buffer. Accepts 0-9, '.', '-'.
+  // Append a single character to the build buffer. Accepts 0-9 and '.'.
+  // Unary negate ('n') is the way to enter negative literals.
   void input_char(char c) {
     if (err_) return;
     const size_t n = std::strlen(buf_);
     if (n + 1 >= kBufSize) return;
     if (!is_input_char_(c)) return;
     if (c == '.' && std::strchr(buf_, '.')) return;       // one decimal max
-    if (c == '-' && n != 0)                  return;      // sign only at start
     buf_[n] = c;
     buf_[n + 1] = '\0';
   }
@@ -82,6 +87,42 @@ public:
     }
   }
 
+  // Negate top of stack (or buffer, if a number is being typed).
+  void neg() {
+    if (err_) return;
+    const size_t n = std::strlen(buf_);
+    if (n > 0) {
+      if (buf_[0] == '-') std::memmove(buf_, buf_ + 1, n);     // strip leading '-'
+      else if (n + 1 < kBufSize) {
+        std::memmove(buf_ + 1, buf_, n + 1);
+        buf_[0] = '-';
+      }
+      return;
+    }
+    if (sp_ == 0) return;
+    stack_[sp_ - 1] = -stack_[sp_ - 1];
+  }
+
+  // Square root of top of stack (after flushing any pending input).
+  void sqrt_top() {
+    if (err_) return;
+    flush_buffer();
+    if (sp_ == 0) { err_ = true; return; }
+    const double v = stack_[sp_ - 1];
+    if (v < 0.0) { err_ = true; return; }
+    stack_[sp_ - 1] = std::sqrt(v);
+  }
+
+  // Swap X and Y.
+  void swap() {
+    if (err_) return;
+    flush_buffer();
+    if (sp_ < 2) { err_ = true; return; }
+    const double tmp = stack_[sp_ - 1];
+    stack_[sp_ - 1] = stack_[sp_ - 2];
+    stack_[sp_ - 2] = tmp;
+  }
+
   void op(char which) {
     if (err_) return;
     flush_buffer();
@@ -94,7 +135,12 @@ public:
       case '-': r = a - b; break;
       case '*': r = a * b; break;
       case '/':
-        if (b == 0.0) { err_ = true; return; }
+        if (b == 0.0) {
+          err_ = true;
+          // Restore stack so the user keeps their inputs after clearing the err.
+          stack_[sp_++] = a; stack_[sp_++] = b;
+          return;
+        }
         r = a / b;
         break;
       default: err_ = true; return;
@@ -104,7 +150,7 @@ public:
 
 private:
   static bool is_input_char_(char c) {
-    return (c >= '0' && c <= '9') || c == '.' || c == '-';
+    return (c >= '0' && c <= '9') || c == '.';
   }
 
   std::array<double, kStackDepth> stack_{};
@@ -124,10 +170,15 @@ public:
     if (!k.down) return;
     if (k.ch >= '0' && k.ch <= '9') { engine_.input_char(k.ch); return; }
     switch (k.ch) {
-      case '.': case '-': engine_.input_char(k.ch); return;
+      case '.': engine_.input_char(k.ch); return;
       case '+': engine_.op('+'); return;
+      case '-': engine_.op('-'); return;
       case '*': engine_.op('*'); return;
       case '/': engine_.op('/'); return;
+      case 'n': engine_.neg();      return;
+      case 'q': engine_.sqrt_top(); return;
+      case 's': engine_.swap();     return;
+      case 'c': engine_.reset();    return;
       default: break;
     }
     if (k.key == Key::Backspace) engine_.backspace();
