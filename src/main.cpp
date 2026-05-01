@@ -11,26 +11,31 @@
 #include "hal/esp32/Esp32Keyboard.hpp"
 
 namespace {
-  constexpr const char* kVersion = "v0.0.1-dev";
-}
+constexpr const char* kVersion = "v0.0.1-dev";
+
+yui::Esp32Display display;
+yui::Esp32Clock   clock;
+yui::SerialLog    log;
+yui::Esp32Keyboard keyboard;
+
+uint32_t splash_start_ms = 0;
+}  // namespace
 
 void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
   M5.Display.setRotation(1);
 
-  yui::Esp32Display display;
-  yui::Esp32Clock   clock;
-  yui::SerialLog    log;
-  yui::Esp32Keyboard keyboard;
-
   log.info("Yui boot");
-  yui::render_splash(display, kVersion);
+  splash_start_ms = clock.millis();
 }
 
 void loop() {
-  // TODO: shell event loop — for v0.0 we just sit on the splash
-  delay(50);
+  // v0.0: splash animates forever. v0.1 will hand off to the launcher
+  // after a press / timeout.
+  uint32_t elapsed = clock.millis() - splash_start_ms;
+  yui::render_splash(display, kVersion, elapsed);
+  delay(33);  // ~30 FPS
 }
 
 #endif  // YUI_TARGET_CARDPUTER_ADV

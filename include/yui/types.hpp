@@ -14,6 +14,12 @@ constexpr Color kRed   = 0xF800;
 constexpr Color kGreen = 0x07E0;
 constexpr Color kBlue  = 0x001F;
 
+// Hinomaru — Japanese flag red (#BC002D), plus a brighter highlight tone
+// and a darker shadow tone for shimmer / wordmark accents.
+constexpr Color kJapanRed       = 0xB805;
+constexpr Color kJapanRedBright = 0xF9CB;  // ≈ #FF4060, sweep highlight
+constexpr Color kJapanRedDark   = 0x7800;  // ≈ #780000, shadow / version text
+
 struct Point { int x, y; };
 struct Rect  { int x, y, w, h; };
 
