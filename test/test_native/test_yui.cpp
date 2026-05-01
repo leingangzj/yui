@@ -45,6 +45,8 @@
 #include "yui/proto/Aprs.hpp"
 #include "yui/proto/Pcap.hpp"
 #include "yui/proto/Pineapple.hpp"
+#include "yui/proto/Kiss.hpp"
+#include "yui/app/AprsApp.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
 #include "yui/app/PomodoroApp.hpp"
@@ -2934,6 +2936,329 @@ void test_aprs_parse_status_rejects_position_dti() {
   TEST_ASSERT_FALSE(aprs::parse_status(info, sizeof(info), text, sizeof(text)));
 }
 
+// ───── KISS framing ────────────────────────────────────────────────────────
+
+void test_kiss_encode_simple_payload() {
+  const uint8_t payload[] = {'A', 'B', 'C'};
+  uint8_t out[16];
+  const size_t n = kiss::encode_data(payload, sizeof(payload), out, sizeof(out));
+  TEST_ASSERT_EQUAL_size_t(6u, n);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, out[0]);  // FEND
+  TEST_ASSERT_EQUAL_HEX8(0x00, out[1]);  // CMD = Data
+  TEST_ASSERT_EQUAL_HEX8('A',  out[2]);
+  TEST_ASSERT_EQUAL_HEX8('B',  out[3]);
+  TEST_ASSERT_EQUAL_HEX8('C',  out[4]);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, out[5]);  // FEND
+}
+
+void test_kiss_encode_escapes_fend_byte() {
+  // Payload contains a 0xC0 byte → must be escaped 0xDB 0xDC.
+  // Frame: FEND CMD FESC TFEND 'X' FEND = 6 bytes total.
+  const uint8_t payload[] = {0xC0, 'X'};
+  uint8_t out[16];
+  const size_t n = kiss::encode_data(payload, sizeof(payload), out, sizeof(out));
+  TEST_ASSERT_EQUAL_size_t(6u, n);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, out[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x00, out[1]);
+  TEST_ASSERT_EQUAL_HEX8(0xDB, out[2]);
+  TEST_ASSERT_EQUAL_HEX8(0xDC, out[3]);
+  TEST_ASSERT_EQUAL_HEX8('X',  out[4]);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, out[5]);
+}
+
+void test_kiss_encode_escapes_fesc_byte() {
+  const uint8_t payload[] = {0xDB};
+  uint8_t out[8];
+  const size_t n = kiss::encode_data(payload, sizeof(payload), out, sizeof(out));
+  TEST_ASSERT_EQUAL_size_t(5u, n);
+  TEST_ASSERT_EQUAL_HEX8(0xDB, out[2]);  // FESC
+  TEST_ASSERT_EQUAL_HEX8(0xDD, out[3]);  // TFESC
+}
+
+void test_kiss_encode_return_frame_is_three_bytes() {
+  uint8_t out[8];
+  const size_t n = kiss::encode_return(out, sizeof(out));
+  TEST_ASSERT_EQUAL_size_t(3u, n);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, out[0]);
+  TEST_ASSERT_EQUAL_HEX8(0xFF, out[1]);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, out[2]);
+}
+
+void test_kiss_encode_buffer_too_small_returns_zero() {
+  const uint8_t payload[] = {'A', 'B', 'C'};
+  uint8_t out[4];   // need 6 — too small
+  TEST_ASSERT_EQUAL_size_t(0u, kiss::encode_data(payload, sizeof(payload),
+                                                  out, sizeof(out)));
+}
+
+void test_kiss_decode_simple_frame() {
+  kiss::Decoder d;
+  const uint8_t bytes[] = {0xC0, 0x00, 'H', 'i', 0xC0};
+  for (uint8_t b : bytes) d.feed(b);
+  TEST_ASSERT_TRUE(d.ready());
+  uint8_t cmd; const uint8_t* p; size_t n;
+  TEST_ASSERT_TRUE(d.take_frame(cmd, p, n));
+  TEST_ASSERT_EQUAL_HEX8(0x00, cmd);
+  TEST_ASSERT_EQUAL_size_t(2u, n);
+  TEST_ASSERT_EQUAL_HEX8('H', p[0]);
+  TEST_ASSERT_EQUAL_HEX8('i', p[1]);
+}
+
+void test_kiss_decode_unescapes_fend() {
+  kiss::Decoder d;
+  // FEND 0x00 0xDB 0xDC 'A' FEND  — payload is {0xC0, 'A'}
+  const uint8_t bytes[] = {0xC0, 0x00, 0xDB, 0xDC, 'A', 0xC0};
+  for (uint8_t b : bytes) d.feed(b);
+  TEST_ASSERT_TRUE(d.ready());
+  uint8_t cmd; const uint8_t* p; size_t n;
+  TEST_ASSERT_TRUE(d.take_frame(cmd, p, n));
+  TEST_ASSERT_EQUAL_size_t(2u, n);
+  TEST_ASSERT_EQUAL_HEX8(0xC0, p[0]);
+  TEST_ASSERT_EQUAL_HEX8('A',  p[1]);
+}
+
+void test_kiss_decode_unescapes_fesc() {
+  kiss::Decoder d;
+  const uint8_t bytes[] = {0xC0, 0x00, 0xDB, 0xDD, 0xC0};   // payload = {0xDB}
+  for (uint8_t b : bytes) d.feed(b);
+  uint8_t cmd; const uint8_t* p; size_t n;
+  TEST_ASSERT_TRUE(d.take_frame(cmd, p, n));
+  TEST_ASSERT_EQUAL_size_t(1u, n);
+  TEST_ASSERT_EQUAL_HEX8(0xDB, p[0]);
+}
+
+void test_kiss_decode_drops_junk_between_frames() {
+  kiss::Decoder d;
+  const uint8_t bytes[] = {
+    'g','a','r','b','a','g','e',                 // pre-frame junk → ignored
+    0xC0, 0x00, 'O', 'K', 0xC0,                  // first frame
+    0xC0, 0x00, 'H', 'I', 0xC0,                  // second frame
+  };
+  size_t frames = 0;
+  for (uint8_t b : bytes) {
+    if (d.feed(b)) ++frames;
+  }
+  TEST_ASSERT_EQUAL_size_t(2u, frames);
+}
+
+void test_kiss_decode_back_to_back_fends_idle_resync() {
+  kiss::Decoder d;
+  // Some TNCs send extra FEND between frames as a guard. Decoder must
+  // tolerate this without producing a 0-byte spurious frame.
+  const uint8_t bytes[] = {
+    0xC0, 0xC0, 0x00, 'A', 0xC0,
+  };
+  size_t frames = 0;
+  for (uint8_t b : bytes) {
+    if (d.feed(b)) ++frames;
+  }
+  TEST_ASSERT_EQUAL_size_t(1u, frames);
+}
+
+// ───── AprsApp (Track A first real app) ────────────────────────────────────
+//
+// End-to-end pipeline: FakeRadioLink → kiss::Decoder → ax25::parse →
+// aprs::parse_position → AprsApp::Station. Builds the KISS bytes from
+// the same kSimplePosFrame / kDigipathFrame test vectors above.
+
+namespace {
+
+// Wrap a raw AX.25 frame as a single KISS Data frame.
+size_t kiss_wrap(const uint8_t* in, size_t in_len, uint8_t* out, size_t cap) {
+  return kiss::encode_data(in, in_len, out, cap);
+}
+
+}  // namespace
+
+void test_aprs_app_skips_kiss_when_radio_idle() {
+  Fixture f;
+  FakeRadioLink r;   // not connected
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  // Should not crash, should not advance state machine.
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(0u, app.station_count());
+  TEST_ASSERT_EQUAL_size_t(0u, app.rx_count());
+}
+
+void test_aprs_app_enters_kiss_mode_on_open() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::KissMode);
+}
+
+void test_aprs_app_decodes_position_from_kiss_bytes() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  // Wrap the simple K1ABC position frame as a KISS Data frame.
+  uint8_t kiss_bytes[80];
+  const size_t n = kiss_wrap(kSimplePosFrame, sizeof(kSimplePosFrame),
+                             kiss_bytes, sizeof(kiss_bytes));
+  TEST_ASSERT_TRUE(n > 0);
+  r.queue_kiss_bytes(kiss_bytes, n);
+  app.tick(1234);
+  TEST_ASSERT_EQUAL_size_t(1u, app.station_count());
+  TEST_ASSERT_EQUAL_size_t(1u, app.rx_count());
+  const auto& s = app.station_at(0);
+  TEST_ASSERT_EQUAL_STRING("K1ABC", s.call);
+  TEST_ASSERT_DOUBLE_WITHIN(0.001, 49.0583, s.lat_deg);
+  TEST_ASSERT_DOUBLE_WITHIN(0.001, -72.0292, s.lon_deg);
+  TEST_ASSERT_EQUAL_UINT32(1234u, s.last_seen_ms);
+}
+
+void test_aprs_app_appends_ssid_to_callsign() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  uint8_t kiss_bytes[80];
+  const size_t n = kiss_wrap(kDigipathFrame, sizeof(kDigipathFrame),
+                             kiss_bytes, sizeof(kiss_bytes));
+  r.queue_kiss_bytes(kiss_bytes, n);
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(1u, app.station_count());
+  TEST_ASSERT_EQUAL_STRING("K1ABC-9", app.station_at(0).call);
+}
+
+void test_aprs_app_dedupes_repeat_transmissions() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  uint8_t kiss_bytes[80];
+  const size_t n = kiss_wrap(kSimplePosFrame, sizeof(kSimplePosFrame),
+                             kiss_bytes, sizeof(kiss_bytes));
+  // Same frame twice in a row.
+  r.queue_kiss_bytes(kiss_bytes, n);
+  app.tick(100);
+  r.queue_kiss_bytes(kiss_bytes, n);
+  app.tick(200);
+  // Same callsign → same slot; count stays at 1, last_seen advances.
+  TEST_ASSERT_EQUAL_size_t(1u, app.station_count());
+  TEST_ASSERT_EQUAL_size_t(2u, app.rx_count());
+  TEST_ASSERT_EQUAL_UINT32(200u, app.station_at(0).last_seen_ms);
+}
+
+void test_aprs_app_status_frame_doesnt_create_station() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  uint8_t kiss_bytes[80];
+  const size_t n = kiss_wrap(kStatusFrame, sizeof(kStatusFrame),
+                             kiss_bytes, sizeof(kiss_bytes));
+  r.queue_kiss_bytes(kiss_bytes, n);
+  app.tick(0);
+  // RX counted (frame parsed) but no position → no station added.
+  TEST_ASSERT_EQUAL_size_t(1u, app.rx_count());
+  TEST_ASSERT_EQUAL_size_t(0u, app.station_count());
+}
+
+void test_aprs_app_arrow_keys_move_cursor() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  // Insert two distinct stations: K1ABC and K1ABC-9 (different keys).
+  uint8_t b[80];
+  size_t n;
+  n = kiss_wrap(kSimplePosFrame, sizeof(kSimplePosFrame), b, sizeof(b));
+  r.queue_kiss_bytes(b, n);
+  app.tick(0);
+  n = kiss_wrap(kDigipathFrame, sizeof(kDigipathFrame), b, sizeof(b));
+  r.queue_kiss_bytes(b, n);
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(2u, app.station_count());
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+  app.on_key(press(Key::Down));   // bounded at last
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+}
+
+void test_aprs_app_render_header_red() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+}
+
+void test_aprs_app_render_listening_when_empty() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  app.render(f.display);
+  TEST_ASSERT_TRUE(f.display.last_text().find("Listening") != std::string::npos);
+}
+
+void test_aprs_app_evicts_oldest_when_full() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  AprsApp app{r};
+  app.on_enter(f.hal);
+  // Fill with kMaxStations distinct callsigns (synthetic).
+  for (size_t i = 0; i < AprsApp::kMaxStations; ++i) {
+    // Build a frame with src "K0XXNN" where NN = i.
+    uint8_t frame[sizeof(kSimplePosFrame)];
+    std::memcpy(frame, kSimplePosFrame, sizeof(frame));
+    // src callsign chars are at offsets 7..12 (left-shifted ASCII).
+    // Replace last 2 chars with digits encoding i.
+    frame[7+4] = static_cast<uint8_t>(('0' + (i / 10) % 10) << 1);
+    frame[7+5] = static_cast<uint8_t>(('0' + i % 10) << 1);
+    uint8_t kb[80];
+    size_t n = kiss_wrap(frame, sizeof(frame), kb, sizeof(kb));
+    r.queue_kiss_bytes(kb, n);
+    app.tick(static_cast<uint32_t>(i + 1));
+  }
+  TEST_ASSERT_EQUAL_size_t(AprsApp::kMaxStations, app.station_count());
+  // Add one more — slot 0 (oldest) should get evicted, count stays.
+  uint8_t newer_frame[sizeof(kSimplePosFrame)];
+  std::memcpy(newer_frame, kSimplePosFrame, sizeof(newer_frame));
+  newer_frame[7+4] = static_cast<uint8_t>('Z' << 1);
+  newer_frame[7+5] = static_cast<uint8_t>('Z' << 1);
+  uint8_t kb[80];
+  size_t n = kiss_wrap(newer_frame, sizeof(newer_frame), kb, sizeof(kb));
+  r.queue_kiss_bytes(kb, n);
+  app.tick(9999);
+  TEST_ASSERT_EQUAL_size_t(AprsApp::kMaxStations, app.station_count());
+}
+
+void test_kiss_round_trip_encode_decode() {
+  // Encode a payload that contains both escape bytes, then decode it
+  // back. Must produce identical bytes.
+  const uint8_t payload[] = {'A', 0xC0, 'B', 0xDB, 'C', 0xC0, 0xDB};
+  uint8_t encoded[32];
+  const size_t n = kiss::encode_data(payload, sizeof(payload),
+                                     encoded, sizeof(encoded));
+  TEST_ASSERT_TRUE(n > 0);
+  kiss::Decoder d;
+  for (size_t i = 0; i < n; ++i) d.feed(encoded[i]);
+  uint8_t cmd; const uint8_t* p; size_t got_len;
+  TEST_ASSERT_TRUE(d.take_frame(cmd, p, got_len));
+  TEST_ASSERT_EQUAL_size_t(sizeof(payload), got_len);
+  for (size_t i = 0; i < sizeof(payload); ++i) {
+    TEST_ASSERT_EQUAL_HEX8(payload[i], p[i]);
+  }
+}
+
 void test_pineapple_client_unauthenticated_until_login() {
   FakeHttp h;
   pineapple::Client c{h};
@@ -3179,6 +3504,27 @@ int main(int, char**) {
   RUN_TEST(test_aprs_parse_position_signs_southern_western);
   RUN_TEST(test_aprs_parse_status);
   RUN_TEST(test_aprs_parse_status_rejects_position_dti);
+  RUN_TEST(test_kiss_encode_simple_payload);
+  RUN_TEST(test_kiss_encode_escapes_fend_byte);
+  RUN_TEST(test_kiss_encode_escapes_fesc_byte);
+  RUN_TEST(test_kiss_encode_return_frame_is_three_bytes);
+  RUN_TEST(test_kiss_encode_buffer_too_small_returns_zero);
+  RUN_TEST(test_kiss_decode_simple_frame);
+  RUN_TEST(test_kiss_decode_unescapes_fend);
+  RUN_TEST(test_kiss_decode_unescapes_fesc);
+  RUN_TEST(test_kiss_decode_drops_junk_between_frames);
+  RUN_TEST(test_kiss_decode_back_to_back_fends_idle_resync);
+  RUN_TEST(test_kiss_round_trip_encode_decode);
+  RUN_TEST(test_aprs_app_skips_kiss_when_radio_idle);
+  RUN_TEST(test_aprs_app_enters_kiss_mode_on_open);
+  RUN_TEST(test_aprs_app_decodes_position_from_kiss_bytes);
+  RUN_TEST(test_aprs_app_appends_ssid_to_callsign);
+  RUN_TEST(test_aprs_app_dedupes_repeat_transmissions);
+  RUN_TEST(test_aprs_app_status_frame_doesnt_create_station);
+  RUN_TEST(test_aprs_app_arrow_keys_move_cursor);
+  RUN_TEST(test_aprs_app_render_header_red);
+  RUN_TEST(test_aprs_app_render_listening_when_empty);
+  RUN_TEST(test_aprs_app_evicts_oldest_when_full);
   RUN_TEST(test_pineapple_client_unauthenticated_until_login);
   return UNITY_END();
 }
