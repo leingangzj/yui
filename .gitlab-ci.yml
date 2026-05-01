@@ -13,7 +13,7 @@ test:native:
   stage: test
   script:
     - pio --version
-    - pio test -e native --without-uploading --without-testing-on-target
+    - pio test -e native
   cache:
     key: pio-native
     paths:
