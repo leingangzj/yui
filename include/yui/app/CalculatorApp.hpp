@@ -6,6 +6,9 @@
 // Backspace deletes a digit; Enter duplicates X.
 //
 // Unary ops: 'n' = negate, 'q' = sqrt, 's' = swap top two, 'c' = clear all.
+// Trig (radians): 'i' = sin, 'o' = cos, 't' = tan.
+// Memory register (one slot): 'p' = M-store (top of X), 'r' = M-recall
+// (push memory onto stack), 'k' = M-clear.
 // To enter a negative literal: type the positive number then 'n'. This
 // avoids the parse ambiguity between "negative sign" and "subtract".
 //
@@ -30,6 +33,8 @@ public:
     sp_ = 0;
     buf_[0] = '\0';
     err_    = false;
+    mem_    = 0.0;
+    mem_set_ = false;
   }
 
   bool error() const { return err_; }
@@ -113,6 +118,38 @@ public:
     stack_[sp_ - 1] = std::sqrt(v);
   }
 
+  // Trig (radians). Sets err_ if stack is empty.
+  void apply_unary_(double (*f)(double)) {
+    if (err_) return;
+    flush_buffer();
+    if (sp_ == 0) { err_ = true; return; }
+    stack_[sp_ - 1] = f(stack_[sp_ - 1]);
+  }
+  void sin_top() { apply_unary_(static_cast<double(*)(double)>(std::sin)); }
+  void cos_top() { apply_unary_(static_cast<double(*)(double)>(std::cos)); }
+  void tan_top() { apply_unary_(static_cast<double(*)(double)>(std::tan)); }
+
+  // Memory register (single slot).
+  void m_store() {
+    if (err_) return;
+    flush_buffer();
+    if (sp_ == 0) { err_ = true; return; }
+    mem_     = stack_[sp_ - 1];
+    mem_set_ = true;
+  }
+  void m_recall() {
+    if (err_) return;
+    flush_buffer();
+    if (sp_ >= kStackDepth) {
+      for (size_t i = 1; i < kStackDepth; ++i) stack_[i - 1] = stack_[i];
+      --sp_;
+    }
+    stack_[sp_++] = mem_;
+  }
+  void m_clear() { mem_ = 0.0; mem_set_ = false; }
+  bool   m_has() const { return mem_set_; }
+  double m_value() const { return mem_; }
+
   // Swap X and Y.
   void swap() {
     if (err_) return;
@@ -157,6 +194,8 @@ private:
   size_t sp_ = 0;
   char   buf_[kBufSize] = {0};
   bool   err_ = false;
+  double mem_     = 0.0;
+  bool   mem_set_ = false;
 };
 
 class CalculatorApp : public App {
@@ -179,6 +218,12 @@ public:
       case 'q': engine_.sqrt_top(); return;
       case 's': engine_.swap();     return;
       case 'c': engine_.reset();    return;
+      case 'i': engine_.sin_top();  return;
+      case 'o': engine_.cos_top();  return;
+      case 't': engine_.tan_top();  return;
+      case 'p': engine_.m_store();  return;
+      case 'r': engine_.m_recall(); return;
+      case 'k': engine_.m_clear();  return;
       default: break;
     }
     if (k.key == Key::Backspace) engine_.backspace();
@@ -215,10 +260,11 @@ public:
       d.draw_text(8, y, line, kBlack, kWhite);
     }
 
-    // Input buffer
+    // Input buffer + memory indicator
     char buf_line[40];
     std::snprintf(buf_line, sizeof(buf_line), "> %s", engine_.buffer());
     d.draw_text(8, 110, buf_line, kJapanRed, kWhite);
+    if (engine_.m_has()) d.draw_text(d.width() - 18, 4, "M", kWhite, kJapanRed);
     d.flush();
   }
 

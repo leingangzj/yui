@@ -123,6 +123,7 @@ private:
   }
 
   void handle_done_(KeyEvent k) {
+    if (k.key == Key::Backspace && k.fn) { forget_(); return; }
     switch (k.key) {
       case Key::Up:    menu_.up();           break;
       case Key::Down:  menu_.down();         break;
@@ -157,6 +158,7 @@ private:
   }
 
   void handle_terminal_(KeyEvent k) {
+    if (k.key == Key::Backspace && k.fn) { forget_(); return; }
     if (k.key != Key::Enter) return;
     if (state_ == State::Failed) {
       // Re-open the editor so the user can fix a typo.
@@ -165,6 +167,18 @@ private:
       // Connected → back to list (kept around for re-pick).
       state_ = State::Done;
     }
+  }
+
+  void forget_() {
+    if (store_) {
+      store_->erase("wifi.ssid");
+      store_->erase("wifi.pass");
+    }
+    net_.wifi_disconnect();
+    sel_ssid_[0] = 0;
+    pass_[0] = 0;
+    pass_len_ = 0;
+    if (hal_) on_enter(*hal_);  // re-scan from a clean slate
   }
 
   // ── transitions ───────────────────────────────────────────────────────
@@ -226,7 +240,7 @@ private:
       std::snprintf(line, sizeof(line), "%s%-20s %s", lock, ap.ssid, rssi_str);
       d.draw_text(4, y + 2, line, fg, bg);
     }
-    d.draw_text(8, d.height() - 14, "Enter:join Tab:rescan",
+    d.draw_text(8, d.height() - 14, "Enter:join Tab:scan Fn+Bk:forget",
                 kJapanRedDark, kWhite);
   }
 
@@ -262,7 +276,8 @@ private:
     char ip_line[40];
     std::snprintf(ip_line, sizeof(ip_line), "IP %.16s", net_.wifi_ip());
     d.draw_text(8, 60, ip_line, kBlack, kWhite);
-    d.draw_text(8, d.height() - 14, "Enter:list", kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 14, "Enter:list Fn+Bk:forget",
+                kJapanRedDark, kWhite);
   }
 
   void render_failed_(IDisplay& d) {

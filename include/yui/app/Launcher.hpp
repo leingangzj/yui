@@ -5,6 +5,7 @@
 #include "yui/sys/SysProbe.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
+#include <ctime>
 
 namespace yui {
 
@@ -87,7 +88,25 @@ private:
       if (rssi != 0)
         n += std::snprintf(buf + n, sizeof(buf) - n, "%d ", rssi);
     }
-    if (probe_.uptime_ms) {
+    // Prefer wallclock HH:MM when NTP-synced; otherwise show uptime as a
+    // shorter "%H:%M" so the strip stays the same width either way.
+    bool clock_drawn = false;
+    if (probe_.epoch_seconds) {
+      const uint64_t e = probe_.epoch_seconds();
+      if (e != 0) {
+        const std::time_t t = static_cast<std::time_t>(e);
+        std::tm tm_buf{};
+#if defined(_WIN32)
+        localtime_s(&tm_buf, &t);
+#else
+        localtime_r(&t, &tm_buf);
+#endif
+        n += std::snprintf(buf + n, sizeof(buf) - n, "%02d:%02d",
+                           tm_buf.tm_hour, tm_buf.tm_min);
+        clock_drawn = true;
+      }
+    }
+    if (!clock_drawn && probe_.uptime_ms) {
       const uint32_t up = probe_.uptime_ms();
       const uint32_t hh = up / 3600000u;
       const uint32_t mm = (up / 60000u) % 60u;

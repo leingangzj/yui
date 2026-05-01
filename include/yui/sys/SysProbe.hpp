@@ -13,6 +13,7 @@ struct SysProbe {
   std::function<uint32_t()>      uptime_ms;
   std::function<const char*()>   ip_or_empty;
   std::function<int()>           wifi_rssi;         // dBm, 0 if disconnected
+  std::function<uint64_t()>      epoch_seconds;     // 0 if not NTP-synced
 };
 
 }  // namespace yui

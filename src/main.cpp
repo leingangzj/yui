@@ -74,6 +74,7 @@ yui::SysProbe make_sys_probe() {
     return s.c_str();
   };
   p.wifi_rssi        = []() -> int { return WiFi.isConnected() ? WiFi.RSSI() : 0; };
+  p.epoch_seconds    = []() -> uint64_t { return clock_.epoch_seconds(); };
   return p;
 }
 

@@ -328,6 +328,37 @@ void test_launcher_with_sysprobe_renders_status_text() {
   TEST_ASSERT_TRUE(s.find("03:21") != std::string::npos);
 }
 
+void test_launcher_status_uses_wallclock_when_synced() {
+  Fixture f;
+  StubApp a{"A"};
+  f.registry.add(&a);
+  ::setenv("TZ", "UTC0", 1); ::tzset();
+  SysProbe p;
+  p.battery_pct   = []{ return 50; };
+  p.uptime_ms     = []{ return 3 * 3600u * 1000u + 21u * 60u * 1000u; };  // 03:21
+  // 2025-01-01 09:07:00 UTC == unix 1735722420
+  p.epoch_seconds = []() -> uint64_t { return 1735722420ULL; };
+  Launcher l{f.registry, p};
+  l.on_enter(f.hal);
+  l.render(f.display);
+  const std::string& s = f.display.last_text();
+  TEST_ASSERT_TRUE(s.find("09:07") != std::string::npos);
+  TEST_ASSERT_TRUE(s.find("03:21") == std::string::npos);  // uptime suppressed
+}
+
+void test_launcher_status_falls_back_to_uptime_when_unsynced() {
+  Fixture f;
+  StubApp a{"A"};
+  f.registry.add(&a);
+  SysProbe p;
+  p.uptime_ms     = []{ return 3 * 3600u * 1000u + 21u * 60u * 1000u; };
+  p.epoch_seconds = []() -> uint64_t { return 0; };  // not synced
+  Launcher l{f.registry, p};
+  l.on_enter(f.hal);
+  l.render(f.display);
+  TEST_ASSERT_TRUE(f.display.last_text().find("03:21") != std::string::npos);
+}
+
 void test_launcher_without_sysprobe_skips_status() {
   Fixture f;
   StubApp a{"A"};
@@ -522,6 +553,13 @@ KeyEvent press_char(char c) {
   e.down = true;
   return e;
 }
+KeyEvent press_fn(Key k) {
+  KeyEvent e{};
+  e.key = k;
+  e.fn  = true;
+  e.down = true;
+  return e;
+}
 }
 
 void test_wifi_app_enter_on_secured_opens_pass_editor() {
@@ -659,6 +697,61 @@ void test_wifi_app_failed_enter_reopens_editor() {
   app.tick(0);
   app.on_key(press(Key::Enter));
   TEST_ASSERT_TRUE(app.state() == WifiApp::State::EnterPass);
+}
+
+void test_wifi_app_forget_on_done_clears_storage_and_disconnects() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("Saved", -50, true)});
+  FakeStorage store;
+  store.put_str("wifi.ssid", "Saved");
+  store.put_str("wifi.pass", "secret");
+  net.simulate_wifi_connected();
+  WifiApp app{net, &store};
+  app.on_enter(f.hal);
+  // on_enter sees Connected → State::Connected
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Connected);
+  app.on_key(press_fn(Key::Backspace));
+  // After forget: store cleared, disconnected, app re-scans.
+  char back[33] = "x";
+  TEST_ASSERT_FALSE(store.get_str("wifi.ssid", back, sizeof(back)));
+  TEST_ASSERT_FALSE(store.get_str("wifi.pass", back, sizeof(back)));
+  TEST_ASSERT_TRUE(net.wifi_state() == WifiState::Idle);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Done ||
+                   app.state() == WifiApp::State::Scanning);
+}
+
+void test_wifi_app_forget_in_done_state() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("A", -50, true)});
+  FakeStorage store;
+  store.put_str("wifi.ssid", "Old");
+  WifiApp app{net, &store};
+  app.on_enter(f.hal);
+  app.tick(0);
+  TEST_ASSERT_TRUE(app.state() == WifiApp::State::Done);
+  app.on_key(press_fn(Key::Backspace));
+  char back[33] = "x";
+  TEST_ASSERT_FALSE(store.get_str("wifi.ssid", back, sizeof(back)));
+}
+
+void test_wifi_app_plain_backspace_in_done_does_not_forget() {
+  Fixture f;
+  FakeNet net;
+  net.set_wifi_immediate(true);
+  net.set_wifi_results({make_ap("A", -50, true)});
+  FakeStorage store;
+  store.put_str("wifi.ssid", "Keep");
+  WifiApp app{net, &store};
+  app.on_enter(f.hal);
+  app.tick(0);
+  app.on_key(press(Key::Backspace));  // no Fn modifier
+  char back[33] = {0};
+  TEST_ASSERT_TRUE(store.get_str("wifi.ssid", back, sizeof(back)));
+  TEST_ASSERT_EQUAL_STRING("Keep", back);
 }
 
 void test_wifi_app_already_connected_skips_scan() {
@@ -822,6 +915,80 @@ void test_calc_app_dispatches_digits_and_ops() {
   k.ch = '6'; app.on_key(k);
   k.ch = '+'; app.on_key(k);
   TEST_ASSERT_EQUAL_FLOAT(10.0, app.engine().peek(0));
+}
+
+void test_calc_engine_sin_zero_is_zero() {
+  CalculatorEngine e;
+  e.input_char('0'); e.flush_buffer();
+  e.sin_top();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, e.peek(0));
+}
+
+void test_calc_engine_cos_zero_is_one() {
+  CalculatorEngine e;
+  e.input_char('0'); e.flush_buffer();
+  e.cos_top();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, e.peek(0));
+}
+
+void test_calc_engine_tan_pi_quarter_is_one() {
+  CalculatorEngine e;
+  // 0.7853981633974483 ≈ pi/4
+  for (char c : std::string("0.7853981633974483")) e.input_char(c);
+  e.flush_buffer();
+  e.tan_top();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, e.peek(0));
+}
+
+void test_calc_engine_trig_empty_stack_errors() {
+  CalculatorEngine e;
+  e.sin_top();
+  TEST_ASSERT_TRUE(e.error());
+}
+
+void test_calc_engine_memory_store_recall_round_trip() {
+  CalculatorEngine e;
+  e.input_char('4'); e.input_char('2'); e.flush_buffer();
+  TEST_ASSERT_FALSE(e.m_has());
+  e.m_store();
+  TEST_ASSERT_TRUE(e.m_has());
+  TEST_ASSERT_EQUAL_DOUBLE(42.0, e.m_value());
+  // pop X then recall — recall pushes onto stack
+  e.backspace();
+  TEST_ASSERT_EQUAL_size_t(0u, e.depth());
+  e.m_recall();
+  TEST_ASSERT_EQUAL_size_t(1u, e.depth());
+  TEST_ASSERT_EQUAL_DOUBLE(42.0, e.peek(0));
+}
+
+void test_calc_engine_memory_clear_zeros_and_unsets() {
+  CalculatorEngine e;
+  e.input_char('7'); e.flush_buffer();
+  e.m_store();
+  e.m_clear();
+  TEST_ASSERT_FALSE(e.m_has());
+  TEST_ASSERT_EQUAL_DOUBLE(0.0, e.m_value());
+}
+
+void test_calc_engine_memory_store_empty_errors() {
+  CalculatorEngine e;
+  e.m_store();
+  TEST_ASSERT_TRUE(e.error());
+  TEST_ASSERT_FALSE(e.m_has());
+}
+
+void test_calc_app_routes_trig_and_memory_keys() {
+  Fixture f;
+  CalculatorApp app;
+  app.on_enter(f.hal);
+  KeyEvent k{}; k.down = true; k.key = Key::Char;
+  k.ch = '0'; app.on_key(k);
+  k.ch = 'i'; app.on_key(k);  // sin(0) = 0
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, app.engine().peek(0));
+  k.ch = 'p'; app.on_key(k);  // store
+  TEST_ASSERT_TRUE(app.engine().m_has());
+  k.ch = 'k'; app.on_key(k);  // clear
+  TEST_ASSERT_FALSE(app.engine().m_has());
 }
 
 // ───── ImuApp ───────────────────────────────────────────────────────────────
@@ -2265,6 +2432,8 @@ int main(int, char**) {
   RUN_TEST(test_launcher_renders_header_in_red);
   RUN_TEST(test_launcher_renders_selected_row_highlighted);
   RUN_TEST(test_launcher_with_sysprobe_renders_status_text);
+  RUN_TEST(test_launcher_status_uses_wallclock_when_synced);
+  RUN_TEST(test_launcher_status_falls_back_to_uptime_when_unsynced);
   RUN_TEST(test_launcher_without_sysprobe_skips_status);
   RUN_TEST(test_shell_starts_in_splash);
   RUN_TEST(test_shell_holds_splash_before_min_time);
@@ -2286,6 +2455,9 @@ int main(int, char**) {
   RUN_TEST(test_wifi_app_connecting_advances_to_connected_on_tick);
   RUN_TEST(test_wifi_app_connecting_advances_to_failed_on_tick);
   RUN_TEST(test_wifi_app_failed_enter_reopens_editor);
+  RUN_TEST(test_wifi_app_forget_on_done_clears_storage_and_disconnects);
+  RUN_TEST(test_wifi_app_forget_in_done_state);
+  RUN_TEST(test_wifi_app_plain_backspace_in_done_does_not_forget);
   RUN_TEST(test_wifi_app_already_connected_skips_scan);
   RUN_TEST(test_ble_app_starts_and_completes);
   RUN_TEST(test_ble_app_arrow_keys_move_cursor);
@@ -2301,6 +2473,14 @@ int main(int, char**) {
   RUN_TEST(test_calc_app_routes_unary_ops);
   RUN_TEST(test_calc_engine_backspace);
   RUN_TEST(test_calc_app_dispatches_digits_and_ops);
+  RUN_TEST(test_calc_engine_sin_zero_is_zero);
+  RUN_TEST(test_calc_engine_cos_zero_is_one);
+  RUN_TEST(test_calc_engine_tan_pi_quarter_is_one);
+  RUN_TEST(test_calc_engine_trig_empty_stack_errors);
+  RUN_TEST(test_calc_engine_memory_store_recall_round_trip);
+  RUN_TEST(test_calc_engine_memory_clear_zeros_and_unsets);
+  RUN_TEST(test_calc_engine_memory_store_empty_errors);
+  RUN_TEST(test_calc_app_routes_trig_and_memory_keys);
   RUN_TEST(test_imu_app_reads_accel_on_tick);
   RUN_TEST(test_imu_app_renders_header_red);
   RUN_TEST(test_notes_starts_empty);
