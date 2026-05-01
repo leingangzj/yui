@@ -37,6 +37,14 @@
 #include "yui/game/SnakeEngine.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include "../../src/hal/native/NativeStorage.hpp"
+#include "../../src/hal/native/NativeRadioLink.hpp"
+#include "../../src/hal/native/NativeGnss.hpp"
+#include "../../src/hal/native/NativeHttp.hpp"
+#include "../../src/hal/native/NativePcap.hpp"
+#include "yui/proto/Ax25.hpp"
+#include "yui/proto/Aprs.hpp"
+#include "yui/proto/Pcap.hpp"
+#include "yui/proto/Pineapple.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
 #include "yui/app/PomodoroApp.hpp"
@@ -2608,6 +2616,182 @@ void test_sysinfo_renders_header_red() {
   TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
 }
 
+// ───── v0.2 HAL skeletons (FakeRadioLink / FakeGnss / FakeHttp / FakePcap) ──
+
+void test_fake_radiolink_starts_idle() {
+  FakeRadioLink r;
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::Idle);
+}
+
+void test_fake_radiolink_connect_immediate_to_command_mode() {
+  FakeRadioLink r;
+  TEST_ASSERT_TRUE(r.connect("AA:BB:CC:DD:EE:FF", "0000"));
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::CommandMode);
+  TEST_ASSERT_EQUAL_STRING("AA:BB:CC:DD:EE:FF", r.last_mac().c_str());
+}
+
+void test_fake_radiolink_connect_async_path() {
+  FakeRadioLink r;
+  r.set_connect_immediate(false);
+  TEST_ASSERT_TRUE(r.connect("AA:BB", "0000"));
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::Connecting);
+  r.simulate_connected();
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::CommandMode);
+}
+
+void test_fake_radiolink_command_returns_registered_reply() {
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("ID", "ID TH-D75A");
+  char buf[32] = {0};
+  TEST_ASSERT_TRUE(r.command("ID", buf, sizeof(buf), 1000));
+  TEST_ASSERT_EQUAL_STRING("ID TH-D75A", buf);
+}
+
+void test_fake_radiolink_unregistered_command_fails() {
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  char buf[16] = {0};
+  TEST_ASSERT_FALSE(r.command("ZZ", buf, sizeof(buf), 1000));
+}
+
+void test_fake_radiolink_kiss_round_trip() {
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  TEST_ASSERT_TRUE(r.enter_kiss(0));
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::KissMode);
+  // Caller-framed "data" frame: FEND 00 'H' 'i' FEND
+  const uint8_t out_frame[] = {0xC0, 0x00, 'H', 'i', 0xC0};
+  TEST_ASSERT_TRUE(r.kiss_write(out_frame, sizeof(out_frame)));
+  TEST_ASSERT_EQUAL_size_t(sizeof(out_frame), r.kiss_tx().size());
+  // Inject a fake RX frame and read it back
+  const uint8_t rx_frame[] = {0xC0, 0x00, 0xDE, 0xAD, 0xC0};
+  r.queue_kiss_bytes(rx_frame, sizeof(rx_frame));
+  uint8_t in[8] = {0};
+  const int n = r.kiss_read(in, sizeof(in));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(sizeof(rx_frame)), n);
+  TEST_ASSERT_EQUAL_HEX8(0xDE, in[2]);
+  TEST_ASSERT_EQUAL_HEX8(0xAD, in[3]);
+  TEST_ASSERT_TRUE(r.exit_kiss());
+  TEST_ASSERT_TRUE(r.state() == RadioLinkState::CommandMode);
+}
+
+void test_fake_radiolink_command_blocked_in_kiss_mode() {
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("ID", "ID TH-D75A");
+  r.enter_kiss(0);
+  char buf[16] = {0};
+  TEST_ASSERT_FALSE(r.command("ID", buf, sizeof(buf), 1000));
+}
+
+void test_fake_gnss_defaults_invalid() {
+  FakeGnss g;
+  TEST_ASSERT_FALSE(g.latest().valid);
+  TEST_ASSERT_FALSE(g.any_data_seen());
+}
+
+void test_fake_gnss_set_fix_round_trips() {
+  FakeGnss g;
+  GnssFix fix{};
+  fix.valid      = true;
+  fix.lat_deg    = 49.05833;
+  fix.lon_deg    = -72.02917;
+  fix.satellites = 8;
+  g.set_fix(fix);
+  TEST_ASSERT_TRUE(g.latest().valid);
+  TEST_ASSERT_EQUAL_UINT8(8, g.latest().satellites);
+  TEST_ASSERT_TRUE(g.any_data_seen());
+}
+
+void test_fake_http_returns_canned_response() {
+  FakeHttp h;
+  h.register_response("GET", "http://example/api/cards",
+                      200, "{\"cpu\":42}");
+  char body[64] = {0};
+  const int rc = h.request("GET", "http://example/api/cards",
+                           nullptr, "Bearer xyz", body, sizeof(body), 1000);
+  TEST_ASSERT_EQUAL_INT(200, rc);
+  TEST_ASSERT_EQUAL_STRING("{\"cpu\":42}", body);
+  TEST_ASSERT_EQUAL_STRING("Bearer xyz", h.last_auth().c_str());
+}
+
+void test_fake_http_unregistered_url_returns_neg_one() {
+  FakeHttp h;
+  char body[8] = {0};
+  TEST_ASSERT_EQUAL_INT(-1, h.request("GET", "http://nope", nullptr,
+                                      nullptr, body, sizeof(body), 1000));
+}
+
+void test_fake_pcap_writes_24_byte_header() {
+  FakePcap p;
+  TEST_ASSERT_TRUE(p.open("/test.pcap", PcapLinkType::Ieee80211, 65535));
+  TEST_ASSERT_EQUAL_UINT64(24u, p.bytes_written());
+  TEST_ASSERT_EQUAL_size_t(24u, p.buffer().size());
+  // Magic in little-endian byte order: D4 C3 B2 A1
+  TEST_ASSERT_EQUAL_HEX8(0xD4, p.buffer()[0]);
+  TEST_ASSERT_EQUAL_HEX8(0xC3, p.buffer()[1]);
+  TEST_ASSERT_EQUAL_HEX8(0xB2, p.buffer()[2]);
+  TEST_ASSERT_EQUAL_HEX8(0xA1, p.buffer()[3]);
+  // Linktype field (offset 20) = 0x69 = 105 LE
+  TEST_ASSERT_EQUAL_HEX8(0x69, p.buffer()[20]);
+  TEST_ASSERT_EQUAL_HEX8(0x00, p.buffer()[21]);
+}
+
+void test_fake_pcap_writes_packet_record_correctly() {
+  FakePcap p;
+  p.open("/x.pcap", PcapLinkType::Ieee80211, 65535);
+  const uint8_t frame[] = {0xAA, 0xBB, 0xCC};
+  // ts = 1.000123 sec → ts_sec=1, ts_usec=123
+  TEST_ASSERT_TRUE(p.write_packet(frame, sizeof(frame), 1'000'123ULL));
+  TEST_ASSERT_EQUAL_UINT64(24u + 16u + 3u, p.bytes_written());
+  // Record header at offset 24: ts_sec=1 (LE)
+  const auto& b = p.buffer();
+  TEST_ASSERT_EQUAL_HEX8(0x01, b[24]);
+  TEST_ASSERT_EQUAL_HEX8(0x00, b[25]);
+  TEST_ASSERT_EQUAL_HEX8(0x00, b[26]);
+  TEST_ASSERT_EQUAL_HEX8(0x00, b[27]);
+  // ts_usec=123 = 0x7B (LE)
+  TEST_ASSERT_EQUAL_HEX8(0x7B, b[28]);
+  // incl_len=3 (LE)
+  TEST_ASSERT_EQUAL_HEX8(0x03, b[32]);
+  // payload starts at offset 40
+  TEST_ASSERT_EQUAL_HEX8(0xAA, b[40]);
+}
+
+void test_pcap_format_handshake_path() {
+  uint8_t mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+  char buf[64] = {0};
+  const size_t n = pcap::format_handshake_path(mac, 1735689600ULL,
+                                                buf, sizeof(buf));
+  TEST_ASSERT_TRUE(n > 0);
+  TEST_ASSERT_EQUAL_STRING(
+      "/handshakes/AABBCCDDEEFF-1735689600.pcap", buf);
+}
+
+void test_aprs_dti_lookup() {
+  TEST_ASSERT_TRUE(aprs::dti_of('!') == aprs::Dti::PositionNoTime);
+  TEST_ASSERT_TRUE(aprs::dti_of('=') == aprs::Dti::PositionNoTimeMsg);
+  TEST_ASSERT_TRUE(aprs::dti_of('/') == aprs::Dti::PositionWithTime);
+  TEST_ASSERT_TRUE(aprs::dti_of('@') == aprs::Dti::PositionWithTimeMsg);
+  TEST_ASSERT_TRUE(aprs::dti_of('>') == aprs::Dti::Status);
+  TEST_ASSERT_TRUE(aprs::dti_of('Q') == aprs::Dti::Unknown);
+}
+
+void test_ax25_constants() {
+  TEST_ASSERT_EQUAL_HEX8(0x03, ax25::kControlUI);
+  TEST_ASSERT_EQUAL_HEX8(0xF0, ax25::kPidNoLayer3);
+}
+
+void test_pineapple_client_unauthenticated_until_login() {
+  FakeHttp h;
+  pineapple::Client c{h};
+  TEST_ASSERT_FALSE(c.authenticated());
+  // Stub: login returns false and leaves us unauthenticated.
+  TEST_ASSERT_FALSE(c.login("172.16.42.1", 1471, "root", "hak5"));
+  TEST_ASSERT_FALSE(c.authenticated());
+}
+
 // ───── Runner ───────────────────────────────────────────────────────────────
 
 
@@ -2817,5 +3001,22 @@ int main(int, char**) {
   RUN_TEST(test_sysinfo_renders_header_red);
   RUN_TEST(test_sysinfo_renders_time_when_synced);
   RUN_TEST(test_sysinfo_renders_no_sync_message_when_unsynced);
+  RUN_TEST(test_fake_radiolink_starts_idle);
+  RUN_TEST(test_fake_radiolink_connect_immediate_to_command_mode);
+  RUN_TEST(test_fake_radiolink_connect_async_path);
+  RUN_TEST(test_fake_radiolink_command_returns_registered_reply);
+  RUN_TEST(test_fake_radiolink_unregistered_command_fails);
+  RUN_TEST(test_fake_radiolink_kiss_round_trip);
+  RUN_TEST(test_fake_radiolink_command_blocked_in_kiss_mode);
+  RUN_TEST(test_fake_gnss_defaults_invalid);
+  RUN_TEST(test_fake_gnss_set_fix_round_trips);
+  RUN_TEST(test_fake_http_returns_canned_response);
+  RUN_TEST(test_fake_http_unregistered_url_returns_neg_one);
+  RUN_TEST(test_fake_pcap_writes_24_byte_header);
+  RUN_TEST(test_fake_pcap_writes_packet_record_correctly);
+  RUN_TEST(test_pcap_format_handshake_path);
+  RUN_TEST(test_aprs_dti_lookup);
+  RUN_TEST(test_ax25_constants);
+  RUN_TEST(test_pineapple_client_unauthenticated_until_login);
   return UNITY_END();
 }
