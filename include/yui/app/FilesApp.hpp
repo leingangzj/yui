@@ -1,7 +1,6 @@
 #pragma once
-// microSD directory browser. v0.0: read-only, single level (no recursion).
-// Up/Down navigate, Enter into dirs (or no-op on files for now), Esc handled
-// by the Shell.
+// microSD directory browser. Read-only. Up/Down navigate, Enter into dirs,
+// ".." pops back up. Cursor position is restored on pop.
 #include "yui/app/App.hpp"
 #include "yui/hal/IFs.hpp"
 #include "yui/shell/Menu.hpp"
@@ -14,6 +13,7 @@ namespace yui {
 class FilesApp : public App {
 public:
   static constexpr size_t kMaxEntries = 64;
+  static constexpr size_t kMaxDepth   = 8;
 
   explicit FilesApp(IFs& fs) : fs_(fs), menu_(0) {}
   const char* name() const override { return "Files"; }
@@ -21,6 +21,8 @@ public:
   void on_enter(Hal& /*hal*/) override {
     fs_.init();
     std::strncpy(cwd_, "/", sizeof(cwd_) - 1);
+    cwd_[sizeof(cwd_) - 1] = '\0';
+    depth_ = 0;
     refresh_();
   }
 
@@ -74,32 +76,73 @@ public:
   std::size_t cursor() const { return menu_.cursor(); }
   const char* cwd() const { return cwd_; }
   const FsEntry& at(size_t i) const { return entries_[i]; }
+  size_t depth() const { return depth_; }
 
 private:
+  bool at_root_() const { return cwd_[0] == '/' && cwd_[1] == '\0'; }
+
   void refresh_() {
-    const int n = fs_.list(cwd_, entries_, kMaxEntries);
-    count_      = (n < 0) ? 0 : static_cast<size_t>(n);
+    size_t off = 0;
+    if (!at_root_()) {
+      std::strncpy(entries_[0].name, "..", sizeof(entries_[0].name) - 1);
+      entries_[0].name[sizeof(entries_[0].name) - 1] = '\0';
+      entries_[0].is_dir = true;
+      entries_[0].size   = 0;
+      off = 1;
+    }
+    const int n = fs_.list(cwd_, entries_ + off, kMaxEntries - off);
+    const size_t added = (n < 0) ? 0 : static_cast<size_t>(n);
+    count_ = off + added;
     menu_.set_count(count_);
   }
+
   void enter_() {
     const auto& e = entries_[menu_.cursor()];
     if (!e.is_dir) return;
-    // Path concat: ensure single slash between segments.
-    char next[128];
-    if (std::strcmp(cwd_, "/") == 0)
-      std::snprintf(next, sizeof(next), "/%s", e.name);
-    else
-      std::snprintf(next, sizeof(next), "%s/%s", cwd_, e.name);
-    std::strncpy(cwd_, next, sizeof(cwd_) - 1);
-    cwd_[sizeof(cwd_) - 1] = '\0';
+    if (std::strcmp(e.name, "..") == 0) { pop_(); return; }
+    if (depth_ < kMaxDepth) {
+      saved_cursors_[depth_] = menu_.cursor();
+      ++depth_;
+    }
+    const size_t cwd_len  = std::strlen(cwd_);
+    const size_t name_len = std::strlen(e.name);
+    const size_t need     = cwd_len + 1 + name_len + 1;  // sep + nul
+    if (need > sizeof(cwd_)) return;  // path too long, ignore
+    if (at_root_()) {
+      cwd_[1] = '\0';
+      std::strncat(cwd_, e.name, sizeof(cwd_) - 2);
+    } else {
+      cwd_[cwd_len]     = '/';
+      cwd_[cwd_len + 1] = '\0';
+      std::strncat(cwd_, e.name, sizeof(cwd_) - cwd_len - 2);
+    }
     refresh_();
+    menu_.set_cursor(0);
+  }
+
+  void pop_() {
+    if (at_root_()) return;
+    size_t n = std::strlen(cwd_);
+    while (n > 1 && cwd_[n - 1] != '/') --n;
+    if (n > 1) --n;  // strip trailing slash unless we'd erase root
+    cwd_[n] = '\0';
+    if (cwd_[0] == '\0') { cwd_[0] = '/'; cwd_[1] = '\0'; }
+    refresh_();
+    if (depth_ > 0) {
+      --depth_;
+      menu_.set_cursor(saved_cursors_[depth_]);
+    } else {
+      menu_.set_cursor(0);
+    }
   }
 
   IFs&    fs_;
   Menu    menu_;
-  char    cwd_[128]              = {0};
-  FsEntry entries_[kMaxEntries]  = {};
-  size_t  count_                 = 0;
+  char    cwd_[128]                 = {0};
+  FsEntry entries_[kMaxEntries]     = {};
+  size_t  count_                    = 0;
+  size_t  saved_cursors_[kMaxDepth] = {0};
+  size_t  depth_                    = 0;
 };
 
 }  // namespace yui

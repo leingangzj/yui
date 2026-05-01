@@ -1,18 +1,24 @@
 #pragma once
 // Tiny line-oriented notes editor. One file at /yui-notes.txt on SD. The
 // buffer is kept short (capped at kBufCap) — this is a notes app, not a
-// word processor.
+// word processor. Insertion-point cursor with arrow-key nav, mid-buffer
+// edits, and viewport scroll on both axes.
 #include "yui/app/App.hpp"
 #include "yui/hal/IFs.hpp"
 #include "yui/types.hpp"
+#include <algorithm>
 #include <cstring>
 
 namespace yui {
 
 class NotesApp : public App {
 public:
-  static constexpr size_t      kBufCap = 1024;
-  static constexpr const char* kPath   = "/yui-notes.txt";
+  static constexpr size_t      kBufCap       = 1024;
+  static constexpr const char* kPath         = "/yui-notes.txt";
+  static constexpr int         kVisibleLines = 7;
+  static constexpr int         kVisibleCols  = 38;
+  static constexpr int         kCharW        = 6;
+  static constexpr int         kLineH        = 14;
 
   explicit NotesApp(IFs& fs) : fs_(fs) {}
   const char* name() const override { return "Notes"; }
@@ -24,31 +30,29 @@ public:
       const int n = fs_.read_all(kPath, buf_, kBufCap);
       if (n > 0) len_ = static_cast<size_t>(n);
     }
-    buf_[len_]  = '\0';
-    dirty_      = false;
+    buf_[len_]   = '\0';
+    cur_         = len_;
+    target_col_  = current_col_();
+    dirty_       = false;
     saved_flash_ = 0;
   }
 
   void on_key(KeyEvent k) override {
     if (!k.down) return;
-    if (k.key == Key::Backspace) {
-      if (len_ > 0) { --len_; buf_[len_] = '\0'; dirty_ = true; }
-      return;
+    switch (k.key) {
+      case Key::Backspace: backspace_(); return;
+      case Key::Enter:     insert_('\n'); return;
+      case Key::Space:     insert_(' '); return;
+      case Key::Left:      move_left_(); return;
+      case Key::Right:     move_right_(); return;
+      case Key::Up:        move_up_(); return;
+      case Key::Down:      move_down_(); return;
+      case Key::Tab:       save_(); return;
+      case Key::Char:
+        if (k.ch >= 0x20 && k.ch < 0x7F) insert_(k.ch);
+        return;
+      default: return;
     }
-    if (k.key == Key::Enter) {
-      append_('\n');
-      return;
-    }
-    if (k.key == Key::Space) {
-      append_(' ');
-      return;
-    }
-    if (k.key == Key::Char && k.ch >= 0x20 && k.ch < 0x7F) {
-      append_(k.ch);
-      return;
-    }
-    // Tab = save (no Cmd/Ctrl shortcuts on the Cardputer kbd).
-    if (k.key == Key::Tab) save_();
   }
 
   void render(IDisplay& d) override {
@@ -57,30 +61,50 @@ public:
     d.draw_text(8, 4, dirty_ ? "Notes *" : "Notes",  kWhite, kJapanRed);
     d.draw_text(d.width() - 60, 4, "Tab=save", kWhite, kJapanRed);
 
-    // Render last ~7 lines of buf_ (height 14 each, ~7 fit in 95 px).
-    constexpr int kVisibleLines = 7;
-    const char* line_starts[kVisibleLines + 32]{};
-    int total = 0;
-    line_starts[total++] = buf_;
-    for (size_t i = 0; i < len_ && total < static_cast<int>(sizeof(line_starts)/sizeof(*line_starts)); ++i) {
-      if (buf_[i] == '\n' && i + 1 < len_) line_starts[total++] = buf_ + i + 1;
-    }
-    int start_idx = total > kVisibleLines ? total - kVisibleLines : 0;
-    for (int i = start_idx; i < total; ++i) {
-      const char* p   = line_starts[i];
-      const char* end = (i + 1 < total) ? line_starts[i + 1] - 1 : buf_ + len_;
-      char line[40];
-      const size_t n = std::min<size_t>(sizeof(line) - 1, static_cast<size_t>(end - p));
-      std::memcpy(line, p, n);
-      line[n] = '\0';
-      const int y = 22 + (i - start_idx) * 14;
-      d.draw_text(4, y, line, kBlack, kWhite);
+    const size_t cur_line = current_line_();
+    const size_t cur_col  = current_col_();
+
+    // Vertical scroll: keep cursor within window.
+    if (cur_line < top_line_) top_line_ = cur_line;
+    if (cur_line >= top_line_ + kVisibleLines)
+      top_line_ = cur_line - kVisibleLines + 1;
+
+    // Horizontal scroll: keep cursor's column within visible columns.
+    if (cur_col < left_col_) left_col_ = cur_col;
+    if (cur_col >= left_col_ + kVisibleCols)
+      left_col_ = cur_col - kVisibleCols + 1;
+
+    // Walk lines, render visible window.
+    size_t line_idx = 0;
+    size_t line_start = 0;
+    for (size_t i = 0; i <= len_ && line_idx < top_line_ + kVisibleLines; ++i) {
+      const bool eol = (i == len_) || (buf_[i] == '\n');
+      if (eol) {
+        if (line_idx >= top_line_) {
+          char line[kVisibleCols + 1];
+          const size_t line_len = i - line_start;
+          const size_t off = std::min<size_t>(line_len, left_col_);
+          const size_t take = std::min<size_t>(line_len - off, static_cast<size_t>(kVisibleCols));
+          std::memcpy(line, buf_ + line_start + off, take);
+          line[take] = '\0';
+          const int y = 22 + static_cast<int>(line_idx - top_line_) * kLineH;
+          d.draw_text(4, y, line, kBlack, kWhite);
+        }
+        line_idx++;
+        line_start = i + 1;
+      }
     }
 
-    // Cursor as a small block at end of last line.
-    if (saved_flash_ > 0) {
-      d.draw_text(d.width() - 50, d.height() - 14, "saved", kJapanRed, kWhite);
+    // Cursor: thin vertical bar at insertion point.
+    if (cur_line >= top_line_ && cur_line < top_line_ + kVisibleLines &&
+        cur_col >= left_col_ && cur_col < left_col_ + kVisibleCols) {
+      const int cx = 4 + static_cast<int>(cur_col - left_col_) * kCharW;
+      const int cy = 22 + static_cast<int>(cur_line - top_line_) * kLineH;
+      d.fill_rect({cx, cy, 1, kLineH - 2}, kJapanRed);
     }
+
+    if (saved_flash_ > 0)
+      d.draw_text(d.width() - 50, d.height() - 14, "saved", kJapanRed, kWhite);
     d.flush();
   }
 
@@ -91,27 +115,107 @@ public:
   // Test hooks
   const char* buffer() const { return buf_; }
   size_t      buffer_len() const { return len_; }
+  size_t      cursor() const { return cur_; }
+  size_t      cursor_line() const { return current_line_(); }
+  size_t      cursor_col() const { return current_col_(); }
+  size_t      top_line() const { return top_line_; }
+  size_t      left_col() const { return left_col_; }
   bool        dirty() const { return dirty_; }
 
 private:
-  void append_(char c) {
+  size_t current_line_() const {
+    size_t line = 0;
+    for (size_t i = 0; i < cur_; ++i) if (buf_[i] == '\n') ++line;
+    return line;
+  }
+  size_t current_col_() const {
+    size_t col = 0;
+    for (size_t i = cur_; i > 0; --i) {
+      if (buf_[i - 1] == '\n') break;
+      ++col;
+    }
+    return col;
+  }
+  size_t line_start_offset_(size_t line) const {
+    if (line == 0) return 0;
+    size_t l = 0;
+    for (size_t i = 0; i < len_; ++i) {
+      if (buf_[i] == '\n') {
+        ++l;
+        if (l == line) return i + 1;
+      }
+    }
+    return len_;
+  }
+  size_t line_length_(size_t line_start) const {
+    size_t i = line_start;
+    while (i < len_ && buf_[i] != '\n') ++i;
+    return i - line_start;
+  }
+
+  void insert_(char c) {
     if (len_ + 1 >= kBufCap) return;
-    buf_[len_++] = c;
-    buf_[len_]   = '\0';
-    dirty_       = true;
+    if (cur_ < len_) std::memmove(buf_ + cur_ + 1, buf_ + cur_, len_ - cur_);
+    buf_[cur_] = c;
+    ++len_;
+    ++cur_;
+    buf_[len_] = '\0';
+    dirty_ = true;
+    target_col_ = current_col_();
+  }
+  void backspace_() {
+    if (cur_ == 0) return;
+    if (cur_ < len_) std::memmove(buf_ + cur_ - 1, buf_ + cur_, len_ - cur_);
+    --len_;
+    --cur_;
+    buf_[len_] = '\0';
+    dirty_ = true;
+    target_col_ = current_col_();
+  }
+  void move_left_() {
+    if (cur_ > 0) --cur_;
+    target_col_ = current_col_();
+  }
+  void move_right_() {
+    if (cur_ < len_) ++cur_;
+    target_col_ = current_col_();
+  }
+  void move_up_() {
+    const size_t line = current_line_();
+    if (line == 0) { cur_ = 0; target_col_ = 0; return; }
+    const size_t prev_start = line_start_offset_(line - 1);
+    const size_t prev_len   = line_length_(prev_start);
+    cur_ = prev_start + std::min<size_t>(target_col_, prev_len);
+  }
+  void move_down_() {
+    const size_t line = current_line_();
+    const size_t cur_start = line_start_offset_(line);
+    const size_t cur_len   = line_length_(cur_start);
+    const size_t next_start_candidate = cur_start + cur_len + 1;
+    if (next_start_candidate > len_) {
+      cur_ = len_;
+      target_col_ = current_col_();
+      return;
+    }
+    const size_t next_len = line_length_(next_start_candidate);
+    cur_ = next_start_candidate + std::min<size_t>(target_col_, next_len);
   }
   bool save_() {
     if (!fs_.write_all(kPath, buf_, len_)) return false;
     dirty_       = false;
-    saved_flash_ = 60;  // ~2 s at 30 fps
+    saved_flash_ = 60;
     return true;
   }
 
-  IFs&  fs_;
-  char  buf_[kBufCap] = {0};
-  size_t len_         = 0;
-  bool  dirty_        = false;
-  int   saved_flash_  = 0;
+  IFs&   fs_;
+  char   buf_[kBufCap] = {0};
+  size_t len_          = 0;
+  size_t cur_          = 0;
+  size_t target_col_   = 0;
+  size_t top_line_     = 0;
+  size_t left_col_     = 0;
+  bool   dirty_        = false;
+  int    saved_flash_  = 0;
 };
 
 }  // namespace yui

@@ -21,6 +21,11 @@ public:
     if (count_ == 0) cursor_ = 0;
   }
 
+  void set_cursor(std::size_t c) {
+    if (count_ == 0) { cursor_ = 0; return; }
+    cursor_ = (c >= count_) ? count_ - 1 : c;
+  }
+
 private:
   std::size_t count_;
   std::size_t cursor_;

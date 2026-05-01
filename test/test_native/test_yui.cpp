@@ -621,6 +621,84 @@ void test_notes_backspace() {
   TEST_ASSERT_EQUAL_STRING("a", app.buffer());
 }
 
+void test_notes_arrow_left_right_move_cursor() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char;
+  k.ch = 'a'; app.on_key(k);
+  k.ch = 'b'; app.on_key(k);
+  k.ch = 'c'; app.on_key(k);
+  TEST_ASSERT_EQUAL_size_t(3u, app.cursor());
+  app.on_key(press(Key::Left));
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor());
+  app.on_key(press(Key::Left));
+  app.on_key(press(Key::Left));
+  app.on_key(press(Key::Left));  // clamps at 0
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+  app.on_key(press(Key::Right));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+}
+
+void test_notes_insert_mid_buffer() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char;
+  k.ch = 'a'; app.on_key(k);
+  k.ch = 'c'; app.on_key(k);
+  app.on_key(press(Key::Left));         // between a and c
+  k.ch = 'b'; app.on_key(k);
+  TEST_ASSERT_EQUAL_STRING("abc", app.buffer());
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor());
+}
+
+void test_notes_backspace_mid_buffer() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char;
+  k.ch = 'a'; app.on_key(k);
+  k.ch = 'b'; app.on_key(k);
+  k.ch = 'c'; app.on_key(k);
+  app.on_key(press(Key::Left));         // cursor between b and c
+  app.on_key(press(Key::Backspace));    // delete b
+  TEST_ASSERT_EQUAL_STRING("ac", app.buffer());
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+}
+
+void test_notes_up_down_preserve_target_column() {
+  Fixture f;
+  FakeFs fs;
+  NotesApp app{fs};
+  app.on_enter(f.hal);
+  KeyEvent k{};
+  k.down = true; k.key = Key::Char;
+  // line 0: "hello"  line 1: "hi"  line 2: "world"
+  for (char c : "hello") if (c) { k.ch = c; app.on_key(k); }
+  app.on_key(press(Key::Enter));
+  for (char c : "hi") if (c) { k.ch = c; app.on_key(k); }
+  app.on_key(press(Key::Enter));
+  for (char c : "world") if (c) { k.ch = c; app.on_key(k); }
+  // cursor at end of "world" (line 2, col 5)
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor_line());
+  TEST_ASSERT_EQUAL_size_t(5u, app.cursor_col());
+  // up to line 1: "hi" only has 2 cols, clamps
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor_line());
+  TEST_ASSERT_EQUAL_size_t(2u, app.cursor_col());
+  // up to line 0: target column 5 still remembered, line is "hello" (5)
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_line());
+  TEST_ASSERT_EQUAL_size_t(5u, app.cursor_col());
+}
+
 void test_notes_save_and_reload() {
   Fixture f;
   FakeFs fs;
@@ -660,7 +738,58 @@ void test_files_enter_descends_into_dir() {
   // Cursor at "photos" (sorted before any other entry here).
   app.on_key(press(Key::Enter));
   TEST_ASSERT_EQUAL_STRING("/photos", app.cwd());
-  TEST_ASSERT_EQUAL_size_t(1u, app.count());
+  // /photos contains cat.jpg + synthetic "..".
+  TEST_ASSERT_EQUAL_size_t(2u, app.count());
+}
+
+void test_files_dotdot_at_subdir_pops_to_parent() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.mkdir("/photos");
+  fs.put_file("/photos/cat.jpg", "fake");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  // Descend into /photos
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_STRING("/photos", app.cwd());
+  // Cursor at 0 = ".."
+  TEST_ASSERT_EQUAL_STRING("..", app.at(0).name);
+  app.on_key(press(Key::Enter));  // pop
+  TEST_ASSERT_EQUAL_STRING("/", app.cwd());
+}
+
+void test_files_no_dotdot_at_root() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.put_file("/a.txt", "x");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  // No synthetic ".." at root.
+  for (size_t i = 0; i < app.count(); ++i) {
+    TEST_ASSERT_TRUE(std::strcmp(app.at(i).name, "..") != 0);
+  }
+}
+
+void test_files_pop_restores_cursor() {
+  Fixture f;
+  FakeFs fs;
+  fs.init();
+  fs.mkdir("/a");
+  fs.mkdir("/b");
+  fs.put_file("/b/c.txt", "x");
+  FilesApp app{fs};
+  app.on_enter(f.hal);
+  // Two dirs at root: /a (cursor 0), /b (cursor 1). Move to /b and descend.
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_STRING("/b", app.cwd());
+  // Pop via "..".
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_STRING("/", app.cwd());
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
 }
 
 // ───── IrRemoteApp ──────────────────────────────────────────────────────────
@@ -918,9 +1047,16 @@ int main(int, char**) {
   RUN_TEST(test_notes_starts_empty);
   RUN_TEST(test_notes_typing_marks_dirty);
   RUN_TEST(test_notes_backspace);
+  RUN_TEST(test_notes_arrow_left_right_move_cursor);
+  RUN_TEST(test_notes_insert_mid_buffer);
+  RUN_TEST(test_notes_backspace_mid_buffer);
+  RUN_TEST(test_notes_up_down_preserve_target_column);
   RUN_TEST(test_notes_save_and_reload);
   RUN_TEST(test_files_lists_root);
   RUN_TEST(test_files_enter_descends_into_dir);
+  RUN_TEST(test_files_dotdot_at_subdir_pops_to_parent);
+  RUN_TEST(test_files_no_dotdot_at_root);
+  RUN_TEST(test_files_pop_restores_cursor);
   RUN_TEST(test_ir_app_sends_nec_on_enter);
   RUN_TEST(test_ir_app_arrow_keys_change_selection);
   RUN_TEST(test_mic_app_silent_input_yields_zero_rms);
