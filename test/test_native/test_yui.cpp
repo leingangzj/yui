@@ -1191,6 +1191,120 @@ void test_clock_tab_switches_modes() {
   app.on_enter(f.hal);
   app.on_key(press(Key::Tab));
   TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Timer);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::TimeOfDay);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Stopwatch);
+}
+
+void test_clock_time_of_day_renders_unsynced_placeholder() {
+  Fixture f;
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  // FakeClock epoch defaults to 0 → "no NTP sync" path. Just confirm
+  // render doesn't crash and leaves the header red.
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::TimeOfDay);
+}
+
+void test_clock_time_of_day_enter_calls_ntp_sync() {
+  Fixture f;
+  FakeNet net;
+  net.simulate_wifi_connected();
+  ClockApp app{&net, "ntp.example", "UTC0"};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_EQUAL_INT(0, net.ntp_calls());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
+  TEST_ASSERT_EQUAL_STRING("ntp.example", net.last_ntp_server());
+  TEST_ASSERT_EQUAL_STRING("UTC0",        net.last_ntp_tz());
+}
+
+void test_clock_time_of_day_enter_does_not_toggle_running() {
+  Fixture f;
+  FakeNet net;
+  ClockApp app{&net};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Enter));
+  // Enter must not start the stopwatch from TimeOfDay mode.
+  TEST_ASSERT_FALSE(app.running());
+}
+
+// ───── INet WiFi connect / NTP (FakeNet) ─────────────────────────────────────
+
+void test_fakenet_wifi_connect_rejects_empty_ssid() {
+  FakeNet net;
+  TEST_ASSERT_FALSE(net.wifi_connect("", "pw"));
+  TEST_ASSERT_FALSE(net.wifi_connect(nullptr, "pw"));
+  TEST_ASSERT_TRUE(net.wifi_state() == WifiState::Idle);
+}
+
+void test_fakenet_wifi_connect_immediate_marks_connected() {
+  FakeNet net;
+  TEST_ASSERT_TRUE(net.wifi_connect("home", "secret"));
+  TEST_ASSERT_TRUE(net.wifi_state() == WifiState::Connected);
+  TEST_ASSERT_EQUAL_STRING("home",   net.last_ssid());
+  TEST_ASSERT_EQUAL_STRING("secret", net.last_pass());
+  TEST_ASSERT_EQUAL_STRING("192.168.1.42", net.wifi_ip());
+}
+
+void test_fakenet_wifi_connect_async_path() {
+  FakeNet net;
+  net.set_wifi_connect_immediate(false);
+  TEST_ASSERT_TRUE(net.wifi_connect("home", "pw"));
+  TEST_ASSERT_TRUE(net.wifi_state() == WifiState::Connecting);
+  net.simulate_wifi_connected("10.0.0.5");
+  TEST_ASSERT_TRUE(net.wifi_state() == WifiState::Connected);
+  TEST_ASSERT_EQUAL_STRING("10.0.0.5", net.wifi_ip());
+}
+
+void test_fakenet_wifi_disconnect_clears_state() {
+  FakeNet net;
+  net.wifi_connect("home", "pw");
+  net.wifi_disconnect();
+  TEST_ASSERT_TRUE(net.wifi_state() == WifiState::Idle);
+  TEST_ASSERT_EQUAL_STRING("0.0.0.0", net.wifi_ip());
+}
+
+void test_fakenet_ntp_sync_requires_connected() {
+  FakeNet net;
+  TEST_ASSERT_FALSE(net.ntp_sync("pool.ntp.org", "UTC0"));
+  net.simulate_wifi_connected();
+  TEST_ASSERT_TRUE(net.ntp_sync("pool.ntp.org", "UTC0"));
+  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
+  TEST_ASSERT_EQUAL_STRING("pool.ntp.org", net.last_ntp_server());
+}
+
+// ───── IClock epoch_seconds ──────────────────────────────────────────────────
+
+void test_fakeclock_epoch_defaults_to_zero() {
+  FakeClock c;
+  TEST_ASSERT_EQUAL_UINT64(0u, c.epoch_seconds());
+}
+
+void test_fakeclock_set_epoch_round_trips() {
+  FakeClock c;
+  c.set_epoch(1735689600ULL);  // 2025-01-01 00:00 UTC
+  TEST_ASSERT_EQUAL_UINT64(1735689600ULL, c.epoch_seconds());
+}
+
+void test_clock_time_of_day_renders_time_when_synced() {
+  Fixture f;
+  // 2025-01-01 12:34:56 UTC → unix 1735734896. Render must not crash.
+  f.clock.set_epoch(1735734896ULL);
+  ClockApp app;
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Tab));
+  app.render(f.display);
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
 }
 
 void test_clock_timer_up_down_adjusts_target() {
@@ -1976,6 +2090,17 @@ int main(int, char**) {
   RUN_TEST(test_clock_tab_switches_modes);
   RUN_TEST(test_clock_timer_up_down_adjusts_target);
   RUN_TEST(test_clock_backspace_resets);
+  RUN_TEST(test_clock_time_of_day_renders_unsynced_placeholder);
+  RUN_TEST(test_clock_time_of_day_enter_calls_ntp_sync);
+  RUN_TEST(test_clock_time_of_day_enter_does_not_toggle_running);
+  RUN_TEST(test_clock_time_of_day_renders_time_when_synced);
+  RUN_TEST(test_fakenet_wifi_connect_rejects_empty_ssid);
+  RUN_TEST(test_fakenet_wifi_connect_immediate_marks_connected);
+  RUN_TEST(test_fakenet_wifi_connect_async_path);
+  RUN_TEST(test_fakenet_wifi_disconnect_clears_state);
+  RUN_TEST(test_fakenet_ntp_sync_requires_connected);
+  RUN_TEST(test_fakeclock_epoch_defaults_to_zero);
+  RUN_TEST(test_fakeclock_set_epoch_round_trips);
   RUN_TEST(test_snake_app_backspace_pauses);
   RUN_TEST(test_snake_step_interval_shrinks_with_score);
   RUN_TEST(test_tone_app_cursor_moves);

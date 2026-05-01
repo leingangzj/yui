@@ -6,6 +6,7 @@
 #include <BLEDevice.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
+#include <time.h>
 #include <vector>
 #include <cstring>
 #include <cstdio>
@@ -32,6 +33,49 @@ public:
 
   size_t wifi_count() const override { return wifi_aps_.size(); }
   const WifiAp& wifi_at(size_t i) const override { return wifi_aps_[i]; }
+
+  // ─── WiFi connection ─────────────────────────────────────────────────
+  bool wifi_connect(const char* ssid, const char* pass) override {
+    if (!ssid || ssid[0] == 0) return false;
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, pass ? pass : "");
+    state_ = WifiState::Connecting;
+    return true;
+  }
+  void wifi_disconnect() override {
+    WiFi.disconnect(true, true);
+    state_ = WifiState::Idle;
+  }
+  WifiState wifi_state() override {
+    const wl_status_t s = WiFi.status();
+    if (s == WL_CONNECTED) state_ = WifiState::Connected;
+    else if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL ||
+             s == WL_CONNECTION_LOST) state_ = WifiState::Failed;
+    else if (s == WL_IDLE_STATUS || s == WL_DISCONNECTED) {
+      // Stay in Connecting if a join is still in flight; only drop to Idle
+      // after an explicit disconnect.
+      if (state_ != WifiState::Connecting) state_ = WifiState::Idle;
+    }
+    return state_;
+  }
+  const char* wifi_ip() override {
+    if (WiFi.status() != WL_CONNECTED) {
+      std::strncpy(ip_buf_, "0.0.0.0", sizeof(ip_buf_));
+    } else {
+      const String s = WiFi.localIP().toString();
+      std::strncpy(ip_buf_, s.c_str(), sizeof(ip_buf_) - 1);
+      ip_buf_[sizeof(ip_buf_) - 1] = 0;
+    }
+    return ip_buf_;
+  }
+
+  // ─── NTP ─────────────────────────────────────────────────────────────
+  bool ntp_sync(const char* server, const char* tz) override {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    configTzTime(tz ? tz : "UTC0",
+                 server ? server : "pool.ntp.org");
+    return true;
+  }
 
   // ─── BLE ─────────────────────────────────────────────────────────────
   bool ble_scan_start(uint32_t duration_ms) override {
@@ -94,6 +138,8 @@ private:
   bool wifi_cached_ = false;
   bool ble_inited_  = false;
   bool ble_done_    = false;
+  WifiState state_  = WifiState::Idle;
+  char ip_buf_[16]  = "0.0.0.0";
 };
 
 }  // namespace yui

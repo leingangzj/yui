@@ -87,7 +87,7 @@ yui::FilesApp    files_app{fs_};
 yui::IrRemoteApp ir_app{ir_};
 yui::MicApp      mic_app{mic_};
 yui::SettingsApp settings_app{store_};
-yui::ClockApp    clock_app;
+yui::ClockApp    clock_app{&net_};
 yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 yui::SnakeApp    snake_app;
 yui::KeyTestApp  keytest_app;

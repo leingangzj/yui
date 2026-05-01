@@ -1,19 +1,30 @@
 #pragma once
-// Clock app — split into stopwatch and countdown timer modes.
-//   Tab    : switch mode
-//   Enter  : start/stop
-//   Backsp : reset
+// Clock app — three modes: stopwatch, countdown timer, time-of-day (NTP).
+//   Tab    : cycle mode
+//   Enter  : start/stop (stopwatch/timer); request NTP resync (TimeOfDay)
+//   Bksp   : reset (stopwatch/timer)
 //   Up/Dn  : (timer mode) adjust target ±10 s
 #include "yui/app/App.hpp"
+#include "yui/hal/INet.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
 #include <algorithm>
+#include <ctime>
 
 namespace yui {
 
 class ClockApp : public App {
 public:
-  enum class Mode { Stopwatch, Timer };
+  enum class Mode { Stopwatch, Timer, TimeOfDay };
+
+  // INet is optional — without it, TimeOfDay still renders the system clock
+  // (which is 0/--:--:-- until something else syncs it), but Enter cannot
+  // request a resync.
+  ClockApp() = default;
+  explicit ClockApp(INet* net,
+                    const char* ntp_server = "pool.ntp.org",
+                    const char* tz         = "UTC0")
+      : net_(net), ntp_server_(ntp_server), tz_(tz) {}
 
   const char* name() const override { return "Clock"; }
 
@@ -37,9 +48,16 @@ public:
   void on_key(KeyEvent k) override {
     if (!k.down) return;
     if (k.key == Key::Tab) {
-      mode_    = (mode_ == Mode::Stopwatch) ? Mode::Timer : Mode::Stopwatch;
+      mode_ = next_mode_(mode_);
       running_ = false;
       elapsed_ = 0;
+      return;
+    }
+    if (mode_ == Mode::TimeOfDay) {
+      if (k.key == Key::Enter && net_ && hal_) {
+        // Best-effort: requires WiFi already up. Result shows next render.
+        net_->ntp_sync(ntp_server_, tz_);
+      }
       return;
     }
     if (k.key == Key::Enter)     { running_ = !running_; return; }
@@ -53,7 +71,16 @@ public:
   void render(IDisplay& d) override {
     d.clear(kWhite);
     d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, mode_ == Mode::Stopwatch ? "Stopwatch" : "Timer", kWhite, kJapanRed);
+    const char* title = "Stopwatch";
+    if (mode_ == Mode::Timer)      title = "Timer";
+    if (mode_ == Mode::TimeOfDay)  title = "Time";
+    d.draw_text(8, 4, title, kWhite, kJapanRed);
+
+    if (mode_ == Mode::TimeOfDay) {
+      render_time_of_day_(d);
+      d.flush();
+      return;
+    }
 
     uint32_t shown = 0;
     if (mode_ == Mode::Stopwatch) shown = elapsed_;
@@ -86,12 +113,54 @@ public:
   uint32_t target()  const { return target_; }
 
 private:
-  Hal*     hal_      = nullptr;
-  Mode     mode_     = Mode::Stopwatch;
-  bool     running_  = false;
-  uint32_t elapsed_  = 0;
-  uint32_t target_   = 60'000;
-  uint32_t last_now_ = 0;
+  static Mode next_mode_(Mode m) {
+    switch (m) {
+      case Mode::Stopwatch: return Mode::Timer;
+      case Mode::Timer:     return Mode::TimeOfDay;
+      case Mode::TimeOfDay: return Mode::Stopwatch;
+    }
+    return Mode::Stopwatch;
+  }
+
+  void render_time_of_day_(IDisplay& d) {
+    const uint64_t epoch = hal_ ? hal_->clock.epoch_seconds() : 0;
+    if (epoch == 0) {
+      d.draw_text(20, 50, "--:--:--", kJapanRed, kWhite);
+      d.draw_text(8, 80, "no NTP sync", kJapanRedDark, kWhite);
+      const char* hint = net_ ? "Enter:sync  Tab:mode" : "Tab:mode";
+      d.draw_text(8, d.height() - 14, hint, kJapanRedDark, kWhite);
+      return;
+    }
+    const std::time_t t = static_cast<std::time_t>(epoch);
+    std::tm tm_buf{};
+#if defined(_WIN32)
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char hms[16];
+    std::snprintf(hms, sizeof(hms), "%02d:%02d:%02d",
+                  tm_buf.tm_hour, tm_buf.tm_min, tm_buf.tm_sec);
+    d.draw_text(40, 50, hms, kJapanRed, kWhite);
+
+    char ymd[16];
+    std::snprintf(ymd, sizeof(ymd), "%04d-%02d-%02d",
+                  tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday);
+    d.draw_text(60, 80, ymd, kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 14,
+                net_ ? "Enter:sync  Tab:mode" : "Tab:mode",
+                kJapanRedDark, kWhite);
+  }
+
+  Hal*        hal_        = nullptr;
+  INet*       net_        = nullptr;
+  const char* ntp_server_ = "pool.ntp.org";
+  const char* tz_         = "UTC0";
+  Mode        mode_       = Mode::Stopwatch;
+  bool        running_    = false;
+  uint32_t    elapsed_    = 0;
+  uint32_t    target_     = 60'000;
+  uint32_t    last_now_   = 0;
 };
 
 }  // namespace yui
