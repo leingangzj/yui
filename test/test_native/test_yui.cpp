@@ -43,6 +43,7 @@
 #include "yui/app/MetronomeApp.hpp"
 #include "yui/app/LifeApp.hpp"
 #include "yui/game/LifeEngine.hpp"
+#include "yui/app/DrawApp.hpp"
 #include <cstring>
 
 using yui::Menu;
@@ -1171,6 +1172,80 @@ void test_tone_app_backspace_stops() {
   TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
 }
 
+// ───── DrawApp ──────────────────────────────────────────────────────────────
+
+void test_draw_starts_blank_with_centered_cursor() {
+  Fixture f;
+  FakeFs fs;
+  DrawApp app{fs};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(DrawApp::kCols / 2, app.cursor_x());
+  TEST_ASSERT_EQUAL_INT(DrawApp::kRows / 2, app.cursor_y());
+  for (int y = 0; y < DrawApp::kRows; ++y)
+    for (int x = 0; x < DrawApp::kCols; ++x)
+      TEST_ASSERT_FALSE(app.at(x, y));
+}
+
+void test_draw_arrows_move_cursor_with_clamp() {
+  Fixture f;
+  FakeFs fs;
+  DrawApp app{fs};
+  app.on_enter(f.hal);
+  for (int i = 0; i < 100; ++i) app.on_key(press(Key::Left));
+  TEST_ASSERT_EQUAL_INT(0, app.cursor_x());
+  for (int i = 0; i < 100; ++i) app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_INT(0, app.cursor_y());
+  for (int i = 0; i < 200; ++i) app.on_key(press(Key::Right));
+  TEST_ASSERT_EQUAL_INT(DrawApp::kCols - 1, app.cursor_x());
+}
+
+void test_draw_enter_toggles_cell() {
+  Fixture f;
+  FakeFs fs;
+  DrawApp app{fs};
+  app.on_enter(f.hal);
+  const int x = app.cursor_x();
+  const int y = app.cursor_y();
+  TEST_ASSERT_FALSE(app.at(x, y));
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.at(x, y));
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_FALSE(app.at(x, y));
+}
+
+void test_draw_backspace_clears() {
+  Fixture f;
+  FakeFs fs;
+  DrawApp app{fs};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_FALSE(app.at(app.cursor_x(), app.cursor_y()));
+}
+
+void test_draw_save_then_reload_round_trips() {
+  Fixture f;
+  FakeFs fs;
+  DrawApp app{fs};
+  app.on_enter(f.hal);
+  // Set three pixels.
+  app.on_key(press(Key::Enter));      // cursor at (30, 12)
+  app.on_key(press(Key::Right));
+  app.on_key(press(Key::Enter));      // (31, 12)
+  app.on_key(press(Key::Down));
+  app.on_key(press(Key::Enter));      // (31, 13)
+  app.on_key(press(Key::Tab));        // save
+  TEST_ASSERT_TRUE(app.just_saved());
+
+  // New instance should reload them.
+  DrawApp app2{fs};
+  app2.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app2.at(30, 12));
+  TEST_ASSERT_TRUE(app2.at(31, 12));
+  TEST_ASSERT_TRUE(app2.at(31, 13));
+  TEST_ASSERT_FALSE(app2.at(0, 0));
+}
+
 // ───── LifeEngine + LifeApp ─────────────────────────────────────────────────
 
 void test_life_blinker_oscillates_period_2() {
@@ -1597,6 +1672,11 @@ int main(int, char**) {
   RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
   RUN_TEST(test_tone_app_advances_through_preset);
   RUN_TEST(test_tone_app_backspace_stops);
+  RUN_TEST(test_draw_starts_blank_with_centered_cursor);
+  RUN_TEST(test_draw_arrows_move_cursor_with_clamp);
+  RUN_TEST(test_draw_enter_toggles_cell);
+  RUN_TEST(test_draw_backspace_clears);
+  RUN_TEST(test_draw_save_then_reload_round_trips);
   RUN_TEST(test_life_blinker_oscillates_period_2);
   RUN_TEST(test_life_glider_translates_after_4_steps);
   RUN_TEST(test_life_clear_zeros_grid);
