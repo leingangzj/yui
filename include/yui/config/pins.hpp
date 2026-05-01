@@ -8,6 +8,10 @@ namespace yui::pins {
 constexpr int kIntSda = 8;
 constexpr int kIntScl = 9;
 
+// TCA8418 keypad INT line — asserts low when key-event FIFO is non-empty.
+// Used (when wired) to skip I²C reads on a quiet keyboard. Optional.
+constexpr int kKbdInt = 11;
+
 // Display ST7789V2
 constexpr int kLcdMosi = 35;
 constexpr int kLcdSck  = 36;
