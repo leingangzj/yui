@@ -79,7 +79,13 @@
 #include <cstring>
 
 namespace {
-constexpr const char* kVersion = "v0.0.1-dev";
+// Stamped by tools/inject_version.py at build time from `git describe`.
+// Falls back to "dev" if the pre-build hook didn't run (e.g. someone built
+// with a stripped-down env).
+#ifndef YUI_VERSION
+#define YUI_VERSION "dev"
+#endif
+constexpr const char* kVersion = YUI_VERSION;
 
 yui::Esp32Display  display;
 yui::Esp32Clock    clock_;

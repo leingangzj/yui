@@ -27,17 +27,24 @@ MAC_PASS    = "packard00"
 MAC_FOLDER  = "/Users/zac/Desktop/yui-builds"
 
 
-def _git_short_sha() -> str:
-    # Resolve from the project root (one up from this script's tools/ dir)
-    # so PlatformIO's working directory doesn't trip the lookup.
+def _resolve_version(build_dir: Path) -> str:
+    # Prefer the string the pre-build hook just baked in — that way the
+    # artifact filename, the on-screen version, and the firmware are always
+    # the same identifier.
+    stamp = build_dir / "yui_version.txt"
+    if stamp.exists():
+        v = stamp.read_text().strip()
+        if v:
+            return v
     repo = Path(__file__).resolve().parent.parent
     try:
         return subprocess.check_output(
-            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            ["git", "-C", str(repo),
+             "describe", "--tags", "--dirty", "--always"],
             stderr=subprocess.DEVNULL,
-        ).decode().strip() or "nogit"
+        ).decode().strip() or "dev"
     except Exception:
-        return "nogit"
+        return "dev"
 
 
 def _run(cmd: list[str]) -> tuple[int, str]:
@@ -62,9 +69,12 @@ def push_to_mac(source, target, env):
         print(f"[push] {bin_path} missing — skipping")
         return
 
-    sha = _git_short_sha()
+    version = _resolve_version(bin_path.parent)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    versioned = f"yui-{stamp}-{sha}.bin"
+    # Slug-safe: replace anything filesystem-hostile with '_'.
+    safe_version = "".join(c if c.isalnum() or c in "-._" else "_"
+                           for c in version)
+    versioned = f"yui-{safe_version}-{stamp}.bin"
 
     # Stage payload locally first.
     stage = Path("/tmp/yui-push")
@@ -132,7 +142,7 @@ def push_to_mac(source, target, env):
             print(f"[push] {name} → {MAC_HOST}:{MAC_FOLDER}/{name}")
 
     if failures == 0:
-        print(f"[push] done · sha={sha} stamp={stamp}")
+        print(f"[push] done · version={version} stamp={stamp}")
     else:
         print(f"[push] {failures} file(s) failed — see above")
 
