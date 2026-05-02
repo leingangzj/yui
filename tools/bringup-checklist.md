@@ -2,9 +2,9 @@
 
 Print this page. Plug in the M5Cardputer ADV. Work top to bottom. Tick each box as you go. **If any step fails, stop and file an issue before continuing** — most failures cascade.
 
-**Build under test:** ****************\_\_\_**************** (e.g. `f16b43e`)
-**Date:** ****************\_\_\_****************
-**Tester:** ****************\_\_\_****************
+**Build under test:** ******\*\*\*\*******\_\_\_******\*\*\*\******* (e.g. `f16b43e`)
+**Date:** ******\*\*\*\*******\_\_\_******\*\*\*\*******
+**Tester:** ******\*\*\*\*******\_\_\_******\*\*\*\*******
 
 ---
 
@@ -190,9 +190,8 @@ If all boxes above are ticked, v0.3 is **hardware-validated**. Move on to:
 
 - [ ] bb-link bridge pairing — see `docs/protocols/KENWOOD_THD75.md`
 - [ ] 24-hour soak test — see `tools/soak-monitor.py`
-- [ ] Demo video — see `tools/demo-video-shotlist.md`
 
-Tester signature: ****************\_\_\_**************** Date: ****\_\_\_\_****
+Tester signature: ******\*\*\*\*******\_\_\_******\*\*\*\******* Date: \***\*\_\_\_\_\*\***
 
 ---
 

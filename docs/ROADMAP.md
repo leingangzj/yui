@@ -87,7 +87,6 @@ Plus the 14-step Phase 0 hardware bring-up checklist in `docs/HARDWARE_AUDIT.md`
 - ✅ End-user reference (`docs/USING.md`) — every app + every NVS key + every SD path
 - ⏳ Hardware bring-up — pre-staged: `tools/bringup-checklist.md` (print-friendly 14-step Phase 0) + bb-link bridge pairing per `docs/protocols/KENWOOD_THD75.md`
 - ⏳ 24-hour soak test — pre-staged: `tools/soak-monitor.py --port /dev/ttyACM0 --hours 24`; pass criterion: zero panics, zero WDTs, ≤3 boot banners, no >25% heap drops
-- ⏳ Demo video — pre-staged: `tools/demo-video-shotlist.md` (3-min cut, three-act script, capture-order plan, failure-mode reshoots)
 - ⏳ Public mirror with issues open
 
 **Effort remaining:** ~1-2 weekends with hardware in hand. All non-hardware prep (release script, image validation, checklist, soak monitor, shot list) is shipped — see `tools/`.

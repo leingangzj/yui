@@ -99,8 +99,7 @@ include/yui/
 src/hal/native/   Fake* backends used by the host tests
 src/hal/esp32/    Esp32* backends against M5Unified, NimBLE, esp_wifi, etc.
 test/test_native/ all 372 native tests, currently in one big file
-tools/            pack-release.sh, bringup-checklist.md, soak-monitor.py,
-                  demo-video-shotlist.md
+tools/            pack-release.sh, bringup-checklist.md, soak-monitor.py
 platformio.ini    `native` and `cardputer_adv` envs
 ```
 
