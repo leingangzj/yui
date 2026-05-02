@@ -48,6 +48,15 @@ public:
 
   virtual bool running() const = 0;
   virtual uint8_t channel() const = 0;
+
+  // Raw 802.11 frame transmit. On ESP32-S3, supports beacon /
+  // probe-req/resp / action / non-QoS data frames natively via
+  // esp_wifi_80211_tx; deauth/disassoc require the patched-libnet
+  // workaround (zmuldefs override of ieee80211_freedom_output) per
+  // docs/protocols/ESP_WIFI_AND_PCAP.md §2 path A. Returns true on
+  // success; false if backend doesn't support the requested frame
+  // class.
+  virtual bool tx_raw(const uint8_t* frame, size_t len) = 0;
 };
 
 }  // namespace yui

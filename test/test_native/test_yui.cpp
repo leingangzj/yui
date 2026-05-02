@@ -62,6 +62,15 @@
 #include "yui/app/WifiDeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
+#include "yui/app/TvBGoneApp.hpp"
+#include "yui/app/WifiBeaconFloodApp.hpp"
+#include "yui/app/WifiNativeDeauthApp.hpp"
+#include "yui/app/WpsScanApp.hpp"
+#include "yui/app/BleGattApp.hpp"
+#include "yui/app/BleJammerApp.hpp"
+#include "yui/app/CaptivePortalApp.hpp"
+#include "../../src/hal/native/NativeWifiAp.hpp"
+#include "../../src/hal/native/NativeBleCentral.hpp"
 #include "yui/proto/Dot11.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
@@ -4238,6 +4247,384 @@ void test_ble_spam_cycles_payloads() {
   TEST_ASSERT_TRUE(app.cycle_idx() != first);
 }
 
+// ───── Bruce-parity sweep apps ────────────────────────────────────────────
+
+// TvBGoneApp
+
+void test_tvbgone_starts_disabled() {
+  Fixture f;
+  FakeIr ir;
+  TvBGoneApp app{ir};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.enabled());
+  app.tick(0);
+  TEST_ASSERT_EQUAL_UINT32(0u, ir.sent_count());
+}
+
+void test_tvbgone_tab_enables_and_first_tick_fires() {
+  Fixture f;
+  FakeIr ir;
+  TvBGoneApp app{ir};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.enabled());
+  app.tick(0);
+  TEST_ASSERT_EQUAL_UINT32(1u, ir.sent_count());
+  TEST_ASSERT_EQUAL_size_t(1u, app.idx());
+}
+
+void test_tvbgone_iterates_full_table_then_disables() {
+  Fixture f;
+  FakeIr ir;
+  TvBGoneApp app{ir};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  size_t n = 0; TvBGoneApp::codes(n);
+  for (size_t i = 0; i < n; ++i) app.tick(static_cast<uint32_t>((i + 1) * 100));
+  TEST_ASSERT_EQUAL_UINT32(static_cast<uint32_t>(n), ir.sent_count());
+  // One more tick after exhaustion → enabled flips off
+  app.tick(static_cast<uint32_t>((n + 1) * 100));
+  TEST_ASSERT_FALSE(app.enabled());
+}
+
+// WifiBeaconFloodApp
+
+void test_beacon_flood_off_by_default() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiBeaconFloodApp app{mon};
+  app.on_enter(f.hal);
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(0u, app.tx_total());
+}
+
+void test_beacon_flood_tab_enables_and_tx_cycles() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiBeaconFloodApp app{mon};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.enabled());
+  app.tick(0);
+  app.tick(100);
+  app.tick(200);
+  TEST_ASSERT_TRUE(app.tx_total() >= 3);
+  TEST_ASSERT_EQUAL_size_t(app.tx_total(), mon.tx_count());
+}
+
+void test_beacon_flood_frame_contains_ssid_bytes() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiBeaconFloodApp app{mon};
+  app.clear_ssids();
+  app.add_ssid("YUI_TEST");
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(1u, mon.tx_count());
+  const auto& bytes = mon.tx_log()[0];
+  // Look for "YUI_TEST" bytes literally
+  bool found = false;
+  for (size_t i = 0; i + 8 <= bytes.size(); ++i) {
+    if (std::memcmp(&bytes[i], "YUI_TEST", 8) == 0) { found = true; break; }
+  }
+  TEST_ASSERT_TRUE(found);
+}
+
+void test_beacon_flood_up_down_change_channel() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiBeaconFloodApp app{mon};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_UINT8(6, app.channel());
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_UINT8(7, app.channel());
+  TEST_ASSERT_EQUAL_UINT8(7, mon.channel());
+  app.on_key(press(Key::Down));
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_UINT8(5, app.channel());
+}
+
+// WifiNativeDeauthApp
+
+void test_native_deauth_disarmed_by_default() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiNativeDeauthApp app{mon};
+  app.on_enter(f.hal);
+  app.set_target("AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66");
+  app.on_key(press_fn(Key::Enter));   // Fn+Enter without Tab → no fire
+  app.tick(0);
+  TEST_ASSERT_FALSE(app.firing());
+  TEST_ASSERT_EQUAL_size_t(0u, app.tx_total());
+}
+
+void test_native_deauth_arm_and_fire_emits_frames() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiNativeDeauthApp app{mon};
+  app.on_enter(f.hal);
+  app.set_target("AA:BB:CC:DD:EE:FF", "FF:FF:FF:FF:FF:FF");
+  app.on_key(press(Key::Tab));        // arm
+  TEST_ASSERT_TRUE(app.armed());
+  app.on_key(press_fn(Key::Enter));   // fire
+  TEST_ASSERT_TRUE(app.firing());
+  app.tick(0);
+  app.tick(50);
+  app.tick(100);
+  TEST_ASSERT_TRUE(app.tx_total() >= 3);
+  // Verify frames look like deauth (FC byte 0 == 0xC0)
+  for (const auto& frame : mon.tx_log()) {
+    TEST_ASSERT_TRUE(frame.size() >= 26);
+    TEST_ASSERT_EQUAL_HEX8(0xC0, frame[0]);
+  }
+}
+
+void test_native_deauth_invalid_mac_aborts_fire() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WifiNativeDeauthApp app{mon};
+  app.on_enter(f.hal);
+  app.set_target("not-a-mac", "FF:FF:FF:FF:FF:FF");
+  app.on_key(press(Key::Tab));
+  app.on_key(press_fn(Key::Enter));
+  app.tick(0);
+  TEST_ASSERT_FALSE(app.firing());
+  TEST_ASSERT_EQUAL_size_t(0u, app.tx_total());
+}
+
+// WpsScanApp
+
+void test_wps_scan_records_aps_with_and_without_wps() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WpsScanApp app{mon};
+  app.on_enter(f.hal);
+  // Build a beacon WITHOUT WPS IE (just SSID).
+  uint8_t bssid_no_wps[6] = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x01};
+  uint8_t f1[80];
+  size_t n1 = dot11::build_beacon(f1, sizeof(f1), "PlainNet", 8,
+                                   bssid_no_wps, 6);
+  WifiRxMeta m{}; m.type = WifiPktType::Management; m.channel = 6; m.rssi = -60;
+  mon.inject_frame(f1, n1, m);
+  // Beacon WITH WPS IE — splice the IE onto a built beacon.
+  uint8_t bssid_wps[6] = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x02};
+  uint8_t f2[120];
+  size_t n2 = dot11::build_beacon(f2, sizeof(f2), "WPSNet", 6,
+                                   bssid_wps, 6);
+  // Append vendor-specific WPS IE: tag=0xDD, len=4, OUI 00:50:F2 type 0x04
+  f2[n2++] = 0xDD; f2[n2++] = 0x04;
+  f2[n2++] = 0x00; f2[n2++] = 0x50; f2[n2++] = 0xF2; f2[n2++] = 0x04;
+  mon.inject_frame(f2, n2, m);
+  TEST_ASSERT_EQUAL_size_t(2u, app.count());
+  // Whichever order they came in
+  bool any_wps = false;
+  for (size_t i = 0; i < app.count(); ++i) {
+    if (app.entry_at(i).wps) any_wps = true;
+  }
+  TEST_ASSERT_TRUE(any_wps);
+}
+
+void test_wps_scan_dedupes_same_bssid() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  WpsScanApp app{mon};
+  app.on_enter(f.hal);
+  uint8_t bssid[6] = {1,2,3,4,5,6};
+  uint8_t buf[80];
+  size_t n = dot11::build_beacon(buf, sizeof(buf), "X", 1, bssid, 1);
+  WifiRxMeta m{}; m.type = WifiPktType::Management;
+  mon.inject_frame(buf, n, m);
+  mon.inject_frame(buf, n, m);
+  mon.inject_frame(buf, n, m);
+  TEST_ASSERT_EQUAL_size_t(1u, app.count());
+}
+
+void test_dot11_has_wps_ie_detects_oui() {
+  uint8_t bssid[6] = {0,0,0,0,0,0};
+  uint8_t buf[120];
+  size_t n = dot11::build_beacon(buf, sizeof(buf), "X", 1, bssid, 1);
+  TEST_ASSERT_FALSE(dot11::has_wps_ie(buf, n));
+  buf[n++] = 0xDD; buf[n++] = 0x04;
+  buf[n++] = 0x00; buf[n++] = 0x50; buf[n++] = 0xF2; buf[n++] = 0x04;
+  TEST_ASSERT_TRUE(dot11::has_wps_ie(buf, n));
+}
+
+// BleGattApp
+
+void test_ble_gatt_starts_in_idle() {
+  Fixture f;
+  FakeBleCentral c;
+  BleGattApp app{c};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.view() == BleGattApp::View::Idle);
+}
+
+void test_ble_gatt_connect_failure_lands_in_failed() {
+  Fixture f;
+  FakeBleCentral c;
+  BleGattApp app{c};
+  app.set_target_mac("AA:BB:CC:DD:EE:FF");  // not registered
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.view() == BleGattApp::View::Failed);
+}
+
+void test_ble_gatt_connect_enumerates_services() {
+  Fixture f;
+  FakeBleCentral c;
+  c.register_service("AA:BB:CC:DD:EE:FF",
+      "1800",
+      {{"2A00", 0x02, {'Y','U','I'}}, {"2A01", 0x02, {0x01}}});
+  c.register_service("AA:BB:CC:DD:EE:FF",
+      "180F",
+      {{"2A19", 0x12, {0x64}}});
+  BleGattApp app{c};
+  app.set_target_mac("AA:BB:CC:DD:EE:FF");
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.view() == BleGattApp::View::Services);
+  TEST_ASSERT_EQUAL_size_t(2u, app.services_count());
+}
+
+void test_ble_gatt_drill_into_chars() {
+  Fixture f;
+  FakeBleCentral c;
+  c.register_service("MAC",
+      "180F",
+      {{"2A19", 0x12, {0x42}}});
+  BleGattApp app{c};
+  app.set_target_mac("MAC");
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  app.on_key(press(Key::Enter));   // drill into first service
+  TEST_ASSERT_TRUE(app.view() == BleGattApp::View::Chars);
+  TEST_ASSERT_EQUAL_size_t(1u, app.chars_count());
+  TEST_ASSERT_EQUAL_STRING("2A19", app.char_at(0).uuid);
+  TEST_ASSERT_EQUAL_HEX8(0x12, app.char_at(0).properties);
+}
+
+// BleJammerApp
+
+void test_ble_jammer_off_by_default() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleJammerApp app{adv};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.enabled());
+  app.tick(0);
+  TEST_ASSERT_FALSE(adv.active());
+}
+
+void test_ble_jammer_fn_enter_starts_rapid_cycling() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleJammerApp app{adv};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.enabled());
+  app.tick(0);
+  app.tick(20);
+  app.tick(40);
+  TEST_ASSERT_TRUE(app.cycles() >= 3);
+  TEST_ASSERT_TRUE(adv.set_count() >= 3);
+}
+
+void test_ble_jammer_auto_off_after_30_seconds() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleJammerApp app{adv};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  app.tick(0);
+  app.tick(31000);    // past kAutoOffMs
+  TEST_ASSERT_FALSE(app.enabled());
+  TEST_ASSERT_FALSE(adv.active());
+}
+
+// CaptivePortalApp
+
+void test_captive_portal_idle_until_started() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeStorage st;
+  CaptivePortalApp app{ap, fs, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.state() == CaptivePortalApp::State::Idle);
+  TEST_ASSERT_FALSE(ap.active());
+}
+
+void test_captive_portal_fn_enter_starts_ap() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeStorage st;
+  st.put_str("cp.ssid", "FreeWiFi");
+  CaptivePortalApp app{ap, fs, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == CaptivePortalApp::State::Running);
+  TEST_ASSERT_TRUE(ap.active());
+  TEST_ASSERT_TRUE(ap.captive());
+}
+
+void test_captive_portal_no_ssid_does_not_start() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeStorage st;
+  CaptivePortalApp app{ap, fs, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_FALSE(ap.active());
+}
+
+void test_captive_portal_captures_form_submissions() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeStorage st;
+  st.put_str("cp.ssid", "X");
+  CaptivePortalApp app{ap, fs, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  ap.simulate_form_submit("192.168.4.2", "u=alice&p=hunter2");
+  ap.simulate_form_submit("192.168.4.3", "u=bob&p=qwerty");
+  TEST_ASSERT_EQUAL_size_t(2u, app.capture_count());
+  TEST_ASSERT_EQUAL_STRING("u=alice&p=hunter2", app.capture_at(0).body);
+  TEST_ASSERT_EQUAL_STRING("192.168.4.3", app.capture_at(1).peer_ip);
+}
+
+void test_captive_portal_tab_writes_captures_to_sd() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeStorage st;
+  st.put_str("cp.ssid", "X");
+  CaptivePortalApp app{ap, fs, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  ap.simulate_form_submit("10.0.0.1", "u=test");
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(fs.exists("/captures.txt"));
+}
+
+void test_captive_portal_backspace_stops_ap() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeStorage st;
+  st.put_str("cp.ssid", "X");
+  CaptivePortalApp app{ap, fs, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(ap.active());
+  app.on_key(press(Key::Backspace));
+  TEST_ASSERT_FALSE(ap.active());
+  TEST_ASSERT_TRUE(app.state() == CaptivePortalApp::State::Stopped);
+}
+
 void test_ble_spam_disable_stops_advertiser() {
   Fixture f;
   FakeBleAdvertiser adv;
@@ -4597,5 +4984,32 @@ int main(int, char**) {
   RUN_TEST(test_ble_spam_fn_enter_toggles_and_advertises);
   RUN_TEST(test_ble_spam_cycles_payloads);
   RUN_TEST(test_ble_spam_disable_stops_advertiser);
+  // Bruce-parity sweep
+  RUN_TEST(test_tvbgone_starts_disabled);
+  RUN_TEST(test_tvbgone_tab_enables_and_first_tick_fires);
+  RUN_TEST(test_tvbgone_iterates_full_table_then_disables);
+  RUN_TEST(test_beacon_flood_off_by_default);
+  RUN_TEST(test_beacon_flood_tab_enables_and_tx_cycles);
+  RUN_TEST(test_beacon_flood_frame_contains_ssid_bytes);
+  RUN_TEST(test_beacon_flood_up_down_change_channel);
+  RUN_TEST(test_native_deauth_disarmed_by_default);
+  RUN_TEST(test_native_deauth_arm_and_fire_emits_frames);
+  RUN_TEST(test_native_deauth_invalid_mac_aborts_fire);
+  RUN_TEST(test_wps_scan_records_aps_with_and_without_wps);
+  RUN_TEST(test_wps_scan_dedupes_same_bssid);
+  RUN_TEST(test_dot11_has_wps_ie_detects_oui);
+  RUN_TEST(test_ble_gatt_starts_in_idle);
+  RUN_TEST(test_ble_gatt_connect_failure_lands_in_failed);
+  RUN_TEST(test_ble_gatt_connect_enumerates_services);
+  RUN_TEST(test_ble_gatt_drill_into_chars);
+  RUN_TEST(test_ble_jammer_off_by_default);
+  RUN_TEST(test_ble_jammer_fn_enter_starts_rapid_cycling);
+  RUN_TEST(test_ble_jammer_auto_off_after_30_seconds);
+  RUN_TEST(test_captive_portal_idle_until_started);
+  RUN_TEST(test_captive_portal_fn_enter_starts_ap);
+  RUN_TEST(test_captive_portal_no_ssid_does_not_start);
+  RUN_TEST(test_captive_portal_captures_form_submissions);
+  RUN_TEST(test_captive_portal_tab_writes_captures_to_sd);
+  RUN_TEST(test_captive_portal_backspace_stops_ap);
   return UNITY_END();
 }

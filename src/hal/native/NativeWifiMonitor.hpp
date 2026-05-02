@@ -1,5 +1,6 @@
 #pragma once
 #include "yui/hal/IWifiMonitor.hpp"
+#include <vector>
 
 namespace yui {
 
@@ -31,10 +32,17 @@ public:
   }
 
   // Test helper: simulate a channel hop sweep (1..13).
-  // Useful for asserting an app's channel-hop loop behavior.
   void simulate_hop(uint8_t to) { channel_ = to; }
 
+  bool tx_raw(const uint8_t* frame, size_t len) override {
+    if (!running_) return false;
+    tx_log_.emplace_back(frame, frame + len);
+    return true;
+  }
+
   const WifiFilter& filter() const { return filter_; }
+  const std::vector<std::vector<uint8_t>>& tx_log() const { return tx_log_; }
+  size_t tx_count() const { return tx_log_.size(); }
 
 private:
   WifiFilter      filter_{};
@@ -42,6 +50,7 @@ private:
   void*           ctx_     = nullptr;
   uint8_t         channel_ = 0;
   bool            running_ = false;
+  std::vector<std::vector<uint8_t>> tx_log_;
 };
 
 }  // namespace yui

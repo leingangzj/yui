@@ -128,4 +128,92 @@ inline void format_mac(const uint8_t mac[6], char out[18]) {
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
+// Parse "AA:BB:CC:DD:EE:FF" string into 6 bytes. Returns true on success.
+inline bool parse_mac(const char* s, uint8_t out[6]) {
+  if (!s) return false;
+  unsigned a, b, c, d, e, f;
+  if (std::sscanf(s, "%2x:%2x:%2x:%2x:%2x:%2x",
+                  &a, &b, &c, &d, &e, &f) != 6) return false;
+  out[0] = a; out[1] = b; out[2] = c; out[3] = d; out[4] = e; out[5] = f;
+  return true;
+}
+
+// Build a beacon frame with the given SSID + BSSID + channel.
+// Returns bytes written, 0 on failure. Caller-supplied buffer needs
+// >= 38 + ssid_len bytes.
+inline size_t build_beacon(uint8_t* out, size_t cap,
+                           const char* ssid, size_t ssid_len,
+                           const uint8_t bssid[6], uint8_t channel) {
+  if (!out || cap < 38 + ssid_len) return 0;
+  size_t off = 0;
+  // FC: type=mgmt(0), subtype=beacon(8) → byte0 = 0x80
+  out[off++] = 0x80; out[off++] = 0x00;
+  // duration
+  out[off++] = 0x00; out[off++] = 0x00;
+  // Addr1 (DA) = broadcast
+  for (int i = 0; i < 6; ++i) out[off++] = 0xFF;
+  // Addr2 (SA) = BSSID
+  for (int i = 0; i < 6; ++i) out[off++] = bssid[i];
+  // Addr3 (BSSID)
+  for (int i = 0; i < 6; ++i) out[off++] = bssid[i];
+  // SeqCtl
+  out[off++] = 0x00; out[off++] = 0x00;
+  // Fixed params: timestamp(8) + beacon-interval(2) + capability(2)
+  for (int i = 0; i < 8; ++i) out[off++] = 0x00;
+  out[off++] = 0x64; out[off++] = 0x00;     // 100 TU beacon interval
+  out[off++] = 0x21; out[off++] = 0x04;     // ESS + Short Slot
+  // SSID IE
+  out[off++] = 0x00; out[off++] = static_cast<uint8_t>(ssid_len);
+  for (size_t i = 0; i < ssid_len; ++i)
+    out[off++] = static_cast<uint8_t>(ssid[i]);
+  // Supported Rates IE (1, 2, 5.5, 11 Mbps in 0.5 Mbps units, basic-flagged)
+  out[off++] = 0x01; out[off++] = 0x04;
+  out[off++] = 0x82; out[off++] = 0x84; out[off++] = 0x8B; out[off++] = 0x96;
+  // DS Parameter Set: channel
+  out[off++] = 0x03; out[off++] = 0x01; out[off++] = channel;
+  return off;
+}
+
+// Build a deauth frame. By default sends from BSSID to DA (broadcast or
+// specific client).
+inline size_t build_deauth(uint8_t* out, size_t cap,
+                           const uint8_t da[6], const uint8_t bssid[6],
+                           uint16_t reason = 7 /* class3 from non-assoc STA */) {
+  if (!out || cap < 26) return 0;
+  size_t off = 0;
+  // FC: type=mgmt(0), subtype=deauth(12) → byte0 = 0xC0
+  out[off++] = 0xC0; out[off++] = 0x00;
+  out[off++] = 0x00; out[off++] = 0x00;
+  for (int i = 0; i < 6; ++i) out[off++] = da[i];
+  for (int i = 0; i < 6; ++i) out[off++] = bssid[i];
+  for (int i = 0; i < 6; ++i) out[off++] = bssid[i];
+  out[off++] = 0x00; out[off++] = 0x00;
+  // Reason code (LE)
+  out[off++] = static_cast<uint8_t>(reason & 0xFF);
+  out[off++] = static_cast<uint8_t>((reason >> 8) & 0xFF);
+  return off;
+}
+
+// Detect WPS support in a beacon: vendor-specific IE (0xDD) with
+// Microsoft OUI 00:50:F2 type 0x04.
+inline bool has_wps_ie(const uint8_t* frame, size_t len) {
+  if (!frame || len < 24) return false;
+  if (fc_type(frame) != kTypeMgmt) return false;
+  const uint8_t st = fc_subtype(frame);
+  if (st != kSubBeacon && st != kSubProbeResp) return false;
+  size_t off = 24 + mgmt_fixed_params_for_subtype(st);
+  while (off + 2 <= len) {
+    const uint8_t tag    = frame[off];
+    const uint8_t ie_len = frame[off + 1];
+    if (off + 2 + ie_len > len) return false;
+    if (tag == 0xDD && ie_len >= 4) {
+      const uint8_t* p = frame + off + 2;
+      if (p[0] == 0x00 && p[1] == 0x50 && p[2] == 0xF2 && p[3] == 0x04)
+        return true;
+    }
+    off += 2 + ie_len;
+  }
+  return false;
+}
+
 }  // namespace yui::dot11

@@ -44,6 +44,13 @@
 #include "yui/app/KarmaApp.hpp"
 #include "yui/app/WifiDeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
+#include "yui/app/TvBGoneApp.hpp"
+#include "yui/app/WifiBeaconFloodApp.hpp"
+#include "yui/app/WifiNativeDeauthApp.hpp"
+#include "yui/app/WpsScanApp.hpp"
+#include "yui/app/BleGattApp.hpp"
+#include "yui/app/BleJammerApp.hpp"
+#include "yui/app/CaptivePortalApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -61,6 +68,8 @@
 #include "hal/esp32/Esp32Pcap.hpp"
 #include "hal/esp32/Esp32WifiMonitor.hpp"
 #include "hal/esp32/Esp32BleAdvertiser.hpp"
+#include "hal/esp32/Esp32WifiAp.hpp"
+#include "hal/esp32/Esp32BleCentral.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <cstring>
@@ -86,7 +95,9 @@ yui::Esp32Gnss      gnss_;    // GPS feed via radio_ NMEA (stub until v0.2)
 yui::Esp32Http      http_;    // HTTPClient wrapper for Pineapple REST
 yui::Esp32Pcap      pcap_;    // libpcap writer to SD (stub until v0.2)
 yui::Esp32WifiMonitor wmon_;  // promiscuous-mode RX (stub until v0.2)
-yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (stub until v0.2)
+yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (stub until v0.3)
+yui::Esp32WifiAp        wifi_ap_;  // SoftAP + captive portal (stub until v0.3)
+yui::Esp32BleCentral    ble_cent_; // BLE central (stub until v0.3)
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
 yui::SysProbe make_sys_probe() {
@@ -140,6 +151,13 @@ yui::EvilTwinApp         evil_twin_app{http_, store_};
 yui::KarmaApp            karma_app{http_, store_};
 yui::WifiDeauthApp       deauth_app{http_, store_};
 yui::BleSpamApp          ble_spam_app{ble_adv_};
+yui::TvBGoneApp          tvbgone_app{ir_};
+yui::WifiBeaconFloodApp  beacon_flood_app{wmon_};
+yui::WifiNativeDeauthApp native_deauth_app{wmon_};
+yui::WpsScanApp          wps_scan_app{wmon_};
+yui::BleGattApp          ble_gatt_app{ble_cent_};
+yui::BleJammerApp        ble_jammer_app{ble_adv_};
+yui::CaptivePortalApp    captive_app{wifi_ap_, fs_, store_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -190,8 +208,16 @@ void setup() {
   registry.add(&evil_twin_app);
   registry.add(&karma_app);
   registry.add(&deauth_app);
+  registry.add(&native_deauth_app);
+  registry.add(&beacon_flood_app);
+  registry.add(&wps_scan_app);
+  registry.add(&captive_app);
+  // TOOLS category
+  registry.add(&tvbgone_app);
   // BLUETOOTH category
   registry.add(&ble_spam_app);
+  registry.add(&ble_gatt_app);
+  registry.add(&ble_jammer_app);
   registry.add(&ble_app);
   registry.add(&ir_app);
   registry.add(&imu_app);
