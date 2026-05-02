@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Flash Yui</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E🛰️%3C/text%3E%3C/svg%3E"
+    />
+    <script
+      type="module"
+      src="https://unpkg.com/esp-web-tools@10.0.3/dist/web/install-button.js?module"
+    ></script>
+    <style>
+      :root {
+        --bg: #0e0f12;
+        --fg: #e8e8e8;
+        --muted: #9aa0a6;
+        --accent: #d92626;
+        --card: #161821;
+        --border: #2a2d36;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fafafa;
+          --fg: #111;
+          --muted: #555;
+          --card: #fff;
+          --border: #e3e3e3;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          16px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem 1.25rem 4rem;
+      }
+      main {
+        max-width: 640px;
+        width: 100%;
+      }
+      header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+      h1 {
+        font-size: 2.5rem;
+        margin: 0 0 0.5rem;
+        letter-spacing: -0.02em;
+      }
+      .kanji {
+        color: var(--accent);
+      }
+      .tagline {
+        color: var(--muted);
+        margin: 0;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.25rem;
+      }
+      .card h2 {
+        margin-top: 0;
+        font-size: 1.15rem;
+      }
+      esp-web-install-button {
+        --esp-tools-button-color: #fff;
+        --esp-tools-button-text-color: #fff;
+        --esp-tools-button-border-radius: 8px;
+      }
+      esp-web-install-button button,
+      .install-fallback {
+        display: inline-block;
+        background: var(--accent);
+        color: #fff;
+        border: 0;
+        padding: 0.85rem 1.5rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      esp-web-install-button button:hover {
+        filter: brightness(1.1);
+      }
+      ol,
+      ul {
+        padding-left: 1.25rem;
+      }
+      li {
+        margin: 0.35rem 0;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+      pre {
+        background: rgba(127, 127, 127, 0.12);
+        padding: 0.85rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 0.6rem 0;
+      }
+      code:not(pre code) {
+        background: rgba(127, 127, 127, 0.15);
+        padding: 0.1em 0.35em;
+        border-radius: 3px;
+      }
+      a {
+        color: var(--accent);
+      }
+      .note {
+        font-size: 0.92em;
+        color: var(--muted);
+        margin-top: 0.85rem;
+      }
+      .browser-warning {
+        background: rgba(217, 38, 38, 0.12);
+        border: 1px solid rgba(217, 38, 38, 0.4);
+        color: var(--fg);
+        padding: 0.85rem 1rem;
+        border-radius: 6px;
+        margin: 1rem 0;
+        display: none;
+      }
+      .browser-warning.show {
+        display: block;
+      }
+      footer {
+        margin-top: 2rem;
+        color: var(--muted);
+        font-size: 0.88em;
+        text-align: center;
+      }
+      footer a {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1><span class="kanji">結</span>い · Yui</h1>
+        <p class="tagline">
+          M5Stack Cardputer ADV firmware — flash from your browser.
+        </p>
+      </header>
+
+      <div id="browser-warning" class="browser-warning">
+        Your browser doesn't support the Web Serial API. Use Chrome, Edge, or
+        Brave on a desktop OS, or follow the esptool instructions below.
+      </div>
+
+      <section class="card">
+        <h2>1. Plug in the device</h2>
+        <p>
+          Connect the Cardputer ADV to this computer with a USB-C cable. A cable
+          that only carries power won't work — it has to enumerate a serial
+          port.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>2. Click install</h2>
+        <p>
+          The browser will prompt you to pick a serial port. The Cardputer
+          usually shows up as <code>USB JTAG/serial debug unit</code> or
+          <code>CDC ACM</code>.
+        </p>
+        <p style="text-align: center; margin: 1.25rem 0 0.5rem">
+          <esp-web-install-button
+            manifest="manifest.json"
+          ></esp-web-install-button>
+        </p>
+        <p class="note">
+          Flashing takes about 90 seconds at 921600 baud. The device will reboot
+          into the splash on its own when finished.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>What gets flashed</h2>
+        <ul>
+          <li>
+            <strong>Version:</strong> v0.3 (code-complete, hardware bring-up
+            pending)
+          </li>
+          <li>
+            <strong>Image:</strong> <code>yui-v0.3-cardputer_adv.bin</code> —
+            single merged image at offset <code>0x0</code> bundling bootloader +
+            partitions + firmware (~1.9 MB)
+          </li>
+          <li>
+            <strong>Target chip:</strong> ESP32-S3 (qio, 80 MHz, 8 MB flash)
+          </li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>If the browser button doesn't work</h2>
+        <p>
+          Web Serial only runs in Chromium-based browsers (Chrome, Edge, Brave,
+          Opera) on a desktop OS. Two fallbacks:
+        </p>
+        <h3 style="font-size: 1rem; margin-top: 1.25rem">esptool</h3>
+        <p>
+          Grab the <code>.bin</code> from
+          <a
+            href="https://github.com/leingangzj/yui/releases/latest"
+            rel="noopener"
+            >the latest release</a
+          >
+          and run:
+        </p>
+        <pre>
+python3 -m esptool --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
+  write_flash --flash_mode qio --flash_freq 80m --flash_size 8MB \
+  0x0 yui-v0.3-cardputer_adv.bin</pre
+        >
+        <p>
+          Replace <code>/dev/ttyACM0</code> with <code>COM3</code> (or similar)
+          on Windows, or <code>/dev/cu.usbmodem*</code> on macOS.
+        </p>
+
+        <h3 style="font-size: 1rem; margin-top: 1.25rem">M5Burner</h3>
+        <p>
+          Open M5Burner, pick <em>Custom Firmware</em>, drag the
+          <code>.bin</code> from the release page in. Hit Burn.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>After it boots</h2>
+        <ol>
+          <li>Splash → launcher.</li>
+          <li>
+            <strong>WiFi → Wifi</strong>: pick your AP, type the passphrase. NTP
+            runs on its own.
+          </li>
+          <li><strong>System → Settings</strong>: pick a timezone.</li>
+          <li>
+            (TH-D75 owners) <strong>Radio → Kenwood</strong>, Tab to scan for
+            the bb-link bridge.
+          </li>
+          <li>
+            (Pineapple owners) Set host/user/pass in NVS via serial, then
+            <strong>WiFi → Pineapple</strong>.
+          </li>
+        </ol>
+        <p>
+          Full reference:
+          <a href="https://github.com/leingangzj/yui/blob/main/docs/USING.md"
+            >USING.md</a
+          >.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Heads-up on RF</h2>
+        <p>
+          Several apps transmit RF or inject 802.11 management frames.
+          <strong
+            >Only point them at spectrum, networks, and devices you own or have
+            written authorization to test.</strong
+          >
+          Deauth, beacon flood, BLE-spam, and captive-portal phishing against
+          unconsenting parties is a federal crime in the US (CFAA, Wiretap Act,
+          FCC Part 15) and the equivalent elsewhere.
+        </p>
+      </section>
+
+      <footer>
+        <p>
+          <a href="https://github.com/leingangzj/yui"
+            >github.com/leingangzj/yui</a
+          >
+          · MIT licensed ·
+          <a href="https://github.com/leingangzj/yui/issues">file an issue</a>
+        </p>
+      </footer>
+    </main>
+
+    <script>
+      // Soft warning if the browser doesn't expose Web Serial.
+      if (!("serial" in navigator)) {
+        document.getElementById("browser-warning").classList.add("show");
+      }
+    </script>
+  </body>
+</html>
