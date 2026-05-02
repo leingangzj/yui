@@ -56,6 +56,7 @@
 #include "../../src/hal/native/NativeWifiMonitor.hpp"
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
+#include "yui/app/KoiGotchiApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
 #include "yui/app/HandshakeBrowserApp.hpp"
@@ -4109,6 +4110,89 @@ void test_handshake_app_on_exit_stops_and_closes() {
   TEST_ASSERT_FALSE(pcap.is_open());
 }
 
+// ───── KoiGotchiApp ────────────────────────────────────────────────────────
+
+void test_koigotchi_starts_in_sleep_mood() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp src{mon, pcap, f.clock};
+  FakeStorage store; store.init();
+  KoiGotchiApp koi{src, &store, &f.clock};
+  koi.on_enter(f.hal);
+  koi.tick(f.clock.millis());
+  TEST_ASSERT_TRUE(koi.mood_for_test() == KoiGotchiApp::Mood::Sleep);
+}
+
+void test_koigotchi_enters_hunt_when_packets_flow() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp src{mon, pcap, f.clock};
+  src.on_enter(f.hal);
+  FakeStorage store; store.init();
+  KoiGotchiApp koi{src, &store, &f.clock};
+  koi.on_enter(f.hal);
+
+  uint8_t frame[64];
+  uint8_t sa[6] = {1,2,3,4,5,6};
+  WifiRxMeta meta{}; meta.type = WifiPktType::Management;
+  const size_t n = build_probe_request(frame, sizeof(frame), sa, "T");
+  mon.inject_frame(frame, n, meta);
+  f.clock.advance(100);
+  koi.tick(f.clock.millis());
+  TEST_ASSERT_TRUE(koi.mood_for_test() == KoiGotchiApp::Mood::Hunt);
+}
+
+void test_koigotchi_pops_to_catch_on_eapol_and_increments_counts() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp src{mon, pcap, f.clock};
+  src.on_enter(f.hal);
+  FakeStorage store; store.init();
+  KoiGotchiApp koi{src, &store, &f.clock};
+  koi.on_enter(f.hal);
+
+  uint8_t frame[64];
+  uint8_t bssid[6] = {0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5};
+  WifiRxMeta meta{}; meta.type = WifiPktType::Data;
+  const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
+  mon.inject_frame(frame, n, meta);
+  f.clock.advance(100);
+  koi.tick(f.clock.millis());
+
+  TEST_ASSERT_TRUE(koi.mood_for_test() == KoiGotchiApp::Mood::Catch);
+  TEST_ASSERT_EQUAL_UINT32(1u, koi.today_count());
+  TEST_ASSERT_EQUAL_UINT32(1u, koi.lifetime_count());
+}
+
+void test_koigotchi_persists_lifetime_across_reentry() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  WifiHandshakeApp src{mon, pcap, f.clock};
+  src.on_enter(f.hal);
+  FakeStorage store; store.init();
+
+  {
+    KoiGotchiApp koi{src, &store, &f.clock};
+    koi.on_enter(f.hal);
+    uint8_t frame[64];
+    uint8_t bssid[6] = {0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5};
+    WifiRxMeta meta{}; meta.type = WifiPktType::Data;
+    const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
+    mon.inject_frame(frame, n, meta);
+    f.clock.advance(100);
+    koi.tick(f.clock.millis());
+    koi.on_exit();  // forces persistence
+  }
+
+  KoiGotchiApp koi2{src, &store, &f.clock};
+  koi2.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_UINT32(1u, koi2.lifetime_count());
+}
+
 // ───── v0.2 stretch apps ──────────────────────────────────────────────────
 
 // RemoteHeadApp
@@ -5599,6 +5683,10 @@ int main(int, char**) {
   RUN_TEST(test_handshake_app_opens_pcap_on_enter);
   RUN_TEST(test_handshake_app_writes_every_frame_to_pcap);
   RUN_TEST(test_handshake_app_increments_eapol_count_on_key_frame);
+  RUN_TEST(test_koigotchi_starts_in_sleep_mood);
+  RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
+  RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);
+  RUN_TEST(test_koigotchi_persists_lifetime_across_reentry);
   RUN_TEST(test_handshake_app_tick_hops_channels);
   RUN_TEST(test_handshake_app_on_exit_stops_and_closes);
   // v0.2 stretch — Track A

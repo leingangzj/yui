@@ -54,6 +54,7 @@
 #include "yui/app/BleJammerApp.hpp"
 #include "yui/app/CaptivePortalApp.hpp"
 #include "yui/app/SatTrackerApp.hpp"
+#include "yui/app/KoiGotchiApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -172,6 +173,7 @@ yui::BleGattApp          ble_gatt_app{ble_cent_};
 yui::BleJammerApp        ble_jammer_app{ble_adv_};
 yui::CaptivePortalApp    captive_app{wifi_ap_, fs_, store_};
 yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
+yui::KoiGotchiApp        koigotchi_app{handshake_app, &store_, &clock_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -259,6 +261,7 @@ void setup() {
   registry.add(&pomodoro_app);
   registry.add(&clock_app);
   registry.add(&snake_app);
+  registry.add(&koigotchi_app);
   registry.add(&life_app);
   registry.add(&draw_app);
   registry.add(&calendar_app);
