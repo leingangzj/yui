@@ -22,6 +22,7 @@
 #include "yui/sat/Topo.hpp"
 #include "yui/sat/Pass.hpp"
 #include "yui/types.hpp"
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -245,7 +246,7 @@ private:
     if (!f.prop.propagate(t_sec, sv)) return;
     const sat::LookAngles la = sat::look_angles(sv, observer_, now_jd_);
     const double df = sat::doppler_hz(f.freq_hz, la.range_rate_kms);
-    const long long shifted = static_cast<long long>(f.freq_hz + df);
+    const long long shifted = static_cast<long long>(std::llround(f.freq_hz + df));
     char cmd[32];
     std::snprintf(cmd, sizeof(cmd), "FQ 0,%010lld", shifted);
     char resp[40] = {0};

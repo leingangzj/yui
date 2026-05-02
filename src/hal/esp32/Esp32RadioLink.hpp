@@ -24,7 +24,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
-#include <vector>
+#include <deque>
 
 namespace yui {
 
@@ -98,8 +98,7 @@ public:
       rx_char_->registerForNotify(&Esp32RadioLink::notify_cb_);
     }
 
-    state_   = RadioLinkState::CommandMode;
-    in_kiss_ = false;
+    state_ = RadioLinkState::CommandMode;
     return true;
   }
 
@@ -107,8 +106,7 @@ public:
     // Flip state first so any in-flight BLE notify callbacks are dropped
     // by notify_cb_ rather than landing in rx_buf_ to be carried into
     // the next connect() cycle.
-    state_   = RadioLinkState::Idle;
-    in_kiss_ = false;
+    state_ = RadioLinkState::Idle;
     if (client_ && client_->isConnected()) client_->disconnect();
     flush_rx_();
   }
@@ -116,10 +114,7 @@ public:
   RadioLinkState state() override {
     if (state_ == RadioLinkState::Idle ||
         state_ == RadioLinkState::Failed) return state_;
-    if (!client_ || !client_->isConnected()) {
-      state_   = RadioLinkState::Idle;
-      in_kiss_ = false;
-    }
+    if (!client_ || !client_->isConnected()) state_ = RadioLinkState::Idle;
     return state_;
   }
 
@@ -138,8 +133,7 @@ public:
     std::snprintf(cmd, sizeof(cmd), "TN 2,%u\r", static_cast<unsigned>(vfo));
     write_str_(cmd);
     delay(150);
-    in_kiss_ = true;
-    state_   = RadioLinkState::KissMode;
+    state_ = RadioLinkState::KissMode;
     return true;
   }
 
@@ -147,8 +141,7 @@ public:
     if (state_ != RadioLinkState::KissMode) return false;
     const uint8_t exit_frame[3] = {0xC0, 0xFF, 0xC0};
     write_bytes_(exit_frame, sizeof(exit_frame));
-    in_kiss_ = false;
-    state_   = RadioLinkState::CommandMode;
+    state_ = RadioLinkState::CommandMode;
     return true;
   }
 
@@ -156,14 +149,12 @@ public:
     if (!client_ || !client_->isConnected()) return -1;
     if (cap == 0) return 0;
     int n = 0;
+    const bool kiss = in_kiss_();
     while (!rx_buf_.empty() && static_cast<size_t>(n) < cap) {
       const uint8_t b = rx_buf_.front();
-      rx_buf_.erase(rx_buf_.begin());
-      if (in_kiss_) {
-        buf[n++] = b;
-      } else {
-        nmea_feed_(static_cast<char>(b));
-      }
+      rx_buf_.pop_front();
+      if (kiss) buf[n++] = b;
+      else      nmea_feed_(static_cast<char>(b));
     }
     return n;
   }
@@ -176,10 +167,10 @@ public:
 
   // Bridge for Esp32Gnss — pump RX buffer and surface NMEA lines.
   bool peek_nmea_line(char* out, size_t cap) {
-    if (in_kiss_ || !client_ || !client_->isConnected()) return false;
+    if (in_kiss_() || !client_ || !client_->isConnected()) return false;
     while (!rx_buf_.empty()) {
       nmea_feed_(static_cast<char>(rx_buf_.front()));
-      rx_buf_.erase(rx_buf_.begin());
+      rx_buf_.pop_front();
     }
     if (!have_line_ || cap == 0) return false;
     const size_t n = (line_len_ < cap - 1) ? line_len_ : cap - 1;
@@ -212,7 +203,7 @@ private:
     while (millis() < deadline) {
       while (!rx_buf_.empty() && n + 1 < cap) {
         const uint8_t b = rx_buf_.front();
-        rx_buf_.erase(rx_buf_.begin());
+        rx_buf_.pop_front();
         if (b == '\r') { out[n] = '\0'; return n > 0; }
         out[n++] = static_cast<char>(b);
       }
@@ -246,14 +237,15 @@ private:
     for (size_t i = 0; i < len; ++i) self_->rx_buf_.push_back(data[i]);
   }
 
+  bool in_kiss_() const { return state_ == RadioLinkState::KissMode; }
+
   static Esp32RadioLink*  self_;
   bool                    ble_inited_ = false;
   BLEClient*              client_     = nullptr;
   BLERemoteCharacteristic* tx_char_   = nullptr;
   BLERemoteCharacteristic* rx_char_   = nullptr;
-  std::vector<uint8_t>    rx_buf_;
+  std::deque<uint8_t>     rx_buf_;
   RadioLinkState          state_      = RadioLinkState::Idle;
-  bool                    in_kiss_    = false;
   char                    line_buf_[120] = {0};
   size_t                  line_len_   = 0;
   bool                    have_line_  = false;

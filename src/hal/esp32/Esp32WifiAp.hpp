@@ -142,14 +142,11 @@ private:
     }
     String body;
     if (first.startsWith("POST")) {
-      // Read body, fixed up to a small cap
+      body.reserve(256);
       while (client.available() && body.length() < 256) body += static_cast<char>(client.read());
       if (cb_) {
-        char ip_str[20];
-        IPAddress ip = client.remoteIP();
-        std::snprintf(ip_str, sizeof(ip_str), "%u.%u.%u.%u",
-                      ip[0], ip[1], ip[2], ip[3]);
-        cb_(ctx_, ip_str, body.c_str());
+        const String ip_str = client.remoteIP().toString();
+        cb_(ctx_, ip_str.c_str(), body.c_str());
       }
     }
     String resp =
