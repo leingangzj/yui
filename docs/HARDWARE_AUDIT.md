@@ -1,7 +1,6 @@
 # Hardware Audit — M5Cardputer ADV
 
 **Date:** 2026-05-01
-**Auditor:** Claude (Opus 4.7)
 **Sources:**
 
 - `docs.m5stack.com/en/core/Cardputer ADV` (official M5 docs)

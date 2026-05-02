@@ -87,10 +87,13 @@ don't pre-build for hardware we don't own.
   room for a SPIFFS/LittleFS data partition + OTA later).
 - **RAM:** apps shouldn't allocate more than ~32 KB of long-lived state.
 
-## What Yui Is Not
+## What Yui is not
 
-- Not a Flipper Zero clone. We don't have the radios.
-- Not a security-research toolkit. WiFi/BLE features are convenience-grade
-  (scan, connect, info), not deauth/portal/sniff.
-- Not Meshtastic. If you want mesh, install Meshtastic — it's pre-flashed by
-  M5Stack with the Mesh Kit. Yui can coexist with a separate flash slot later.
+- Not a Flipper Zero. We don't have the sub-GHz, NFC, or 125 kHz radios,
+  and we're not adding them — see `ROADMAP.md` for what's explicitly out
+  of scope.
+- Not a Pineapple replacement. The Pineapple companion app drives a real
+  Pineapple over its REST API; it doesn't reimplement PineAP.
+- Not Meshtastic. If you want mesh, flash Meshtastic — M5Stack ships
+  their Mesh Kit pre-flashed for it. Yui can coexist in a separate slot
+  if/when OTA lands.

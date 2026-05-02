@@ -1,7 +1,8 @@
 # Roadmap
 
-> Personal hobby project, one developer + AI assistance. No funding, no
-> team. Realistic; updated to match what's actually shipping.
+> Personal hobby project. One developer, no team, no funding. Updated
+> to match what's actually shipping rather than what sounded good in a
+> design doc.
 
 ## v0.1 — Foundation + utility apps (DONE, commit 0689297)
 
