@@ -11,6 +11,7 @@
 #include "yui/app/AppRegistry.hpp"
 #include "yui/app/Launcher.hpp"
 #include "yui/app/AboutApp.hpp"
+#include "yui/app/RemoteApp.hpp"
 #include "yui/app/StubApp.hpp"
 #include "yui/shell/Shell.hpp"
 #include "../../src/hal/native/NativeKeyboard.hpp"
@@ -380,6 +381,100 @@ void test_launcher_esc_returns_to_categories() {
   l.enter_category(Category::Tools);
   l.on_key(press(Key::Esc));
   TEST_ASSERT_TRUE(l.view() == Launcher::View::Categories);
+}
+
+// ───── RemoteApp + Fn+V chord ───────────────────────────────────────────────
+
+namespace {
+class MockRemote : public IRemote {
+public:
+  bool start() override     { running_ = true; ++start_calls; return true; }
+  void stop() override      { running_ = false; ++stop_calls; }
+  bool running() const override { return running_; }
+  const char* ip() const override { return "10.0.0.42"; }
+  bool poll_key(KeyEvent&) override { return false; }
+  int  start_calls = 0;
+  int  stop_calls  = 0;
+private:
+  bool running_ = false;
+};
+}  // namespace
+
+void test_remote_app_enter_toggles_runtime_only() {
+  Fixture f;
+  MockRemote remote;
+  FakeStorage store;
+  store.init();
+  RemoteApp app{remote, &store};
+  app.on_enter(f.hal);
+
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(remote.running());
+  TEST_ASSERT_EQUAL(1, remote.start_calls);
+
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_FALSE(remote.running());
+  TEST_ASSERT_EQUAL(1, remote.stop_calls);
+
+  // Persist flag untouched by Enter — that lever is F. get_int returns
+  // false when the key is absent, which is exactly what we want here.
+  int32_t persisted = 99;
+  const bool present = store.get_int(kStorageKeyDevRemote, persisted, 0);
+  TEST_ASSERT_FALSE(present);
+}
+
+void test_remote_app_f_flips_persist_flag() {
+  Fixture f;
+  MockRemote remote;
+  FakeStorage store;
+  store.init();
+  RemoteApp app{remote, &store};
+  app.on_enter(f.hal);
+
+  KeyEvent fk{};
+  fk.key = Key::Char; fk.ch = 'f'; fk.down = true;
+  app.on_key(fk);
+  int32_t v = -1;
+  store.get_int(kStorageKeyDevRemote, v, -1);
+  TEST_ASSERT_EQUAL(1, v);
+  TEST_ASSERT_EQUAL(1, app.persist_flag());
+
+  app.on_key(fk);
+  store.get_int(kStorageKeyDevRemote, v, -1);
+  TEST_ASSERT_EQUAL(0, v);
+}
+
+void test_shell_fn_plus_v_toggles_remote_and_persists() {
+  Fixture f;
+  MockRemote remote;
+  FakeStorage store;
+  store.init();
+  StubApp stub{"x"};
+  f.registry.add(&stub);
+  Launcher l{f.registry};
+  Shell s{f.hal, l, "v-test", 0};  // splash min = 0 so we drop straight in
+  s.bind_remote(&remote, &store);
+  s.start();
+
+  // Tick once to leave splash on a key press.
+  f.keyboard.inject(press(Key::Enter));
+  s.tick();
+
+  KeyEvent chord{};
+  chord.key = Key::Char; chord.ch = 'v'; chord.fn = true; chord.down = true;
+  f.keyboard.inject(chord);
+  s.tick();
+  TEST_ASSERT_TRUE(remote.running());
+  int32_t v = -1;
+  store.get_int(kStorageKeyDevRemote, v, -1);
+  TEST_ASSERT_EQUAL(1, v);
+  TEST_ASSERT_TRUE(s.last_chord_toggled());
+
+  f.keyboard.inject(chord);
+  s.tick();
+  TEST_ASSERT_FALSE(remote.running());
+  store.get_int(kStorageKeyDevRemote, v, -1);
+  TEST_ASSERT_EQUAL(0, v);
 }
 
 void test_launcher_renders_carousel_tile_in_red() {
@@ -5212,6 +5307,9 @@ int main(int, char**) {
   RUN_TEST(test_launcher_drills_into_category_on_enter);
   RUN_TEST(test_launcher_left_right_flip_categories);
   RUN_TEST(test_launcher_esc_returns_to_categories);
+  RUN_TEST(test_remote_app_enter_toggles_runtime_only);
+  RUN_TEST(test_remote_app_f_flips_persist_flag);
+  RUN_TEST(test_shell_fn_plus_v_toggles_remote_and_persists);
   RUN_TEST(test_shell_starts_in_splash);
   RUN_TEST(test_shell_holds_splash_before_min_time);
   RUN_TEST(test_shell_advances_to_launcher_after_min_time_and_key);

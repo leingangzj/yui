@@ -1,7 +1,10 @@
 #pragma once
 #include "yui/hal/Hal.hpp"
+#include "yui/hal/IRemote.hpp"
+#include "yui/hal/IStorage.hpp"
 #include "yui/app/App.hpp"
 #include "yui/app/Launcher.hpp"
+#include "yui/app/RemoteApp.hpp"
 #include "yui/types.hpp"
 #include "yui/shell/Splash.hpp"
 
@@ -29,11 +32,27 @@ public:
     launcher_.on_enter(hal_);
   }
 
+  // Optional bindings for the global Fn+V remote-toggle chord. Both must
+  // be set for the chord to do anything; the Shell stays unaware of remote
+  // state when they're nullptr (keeps native tests trivial).
+  void bind_remote(IRemote* remote, IStorage* store) {
+    remote_ = remote;
+    store_  = store;
+  }
+
   // Run one frame: pump input, advance state, render.
   void tick() {
     KeyEvent ev{};
     bool got_key = hal_.keyboard.poll(ev);
     const uint32_t now = hal_.clock.millis();
+
+    // Global chord: Fn+V toggles the remote viewer + persists the new
+    // state. Eaten before any app sees it so we don't get accidental 'v'
+    // characters typed into Notes/etc.
+    if (got_key && ev.down && ev.fn && (ev.ch == 'v' || ev.ch == 'V')) {
+      toggle_remote_();
+      return;
+    }
 
     switch (phase_) {
       case Phase::Splash: {
@@ -75,7 +94,20 @@ public:
   Phase phase() const { return phase_; }
   App*  current_app() const { return current_app_; }
 
+  // Test hook: returns whether the chord successfully toggled remote.
+  bool last_chord_toggled() const { return last_chord_toggled_; }
+
 private:
+  void toggle_remote_() {
+    last_chord_toggled_ = false;
+    if (!remote_) return;
+    const bool new_state = !remote_->running();
+    if (new_state) remote_->start();
+    else           remote_->stop();
+    if (store_) store_->put_int(kStorageKeyDevRemote, new_state ? 1 : 0);
+    last_chord_toggled_ = true;
+  }
+
   void enter_launcher_() {
     phase_ = Phase::Launcher;
     launcher_.on_enter(hal_);
@@ -98,6 +130,9 @@ private:
   uint32_t    splash_start_ms_ = 0;
   Phase       phase_           = Phase::Splash;
   App*        current_app_     = nullptr;
+  IRemote*    remote_          = nullptr;
+  IStorage*   store_           = nullptr;
+  bool        last_chord_toggled_ = false;
 };
 
 }  // namespace yui

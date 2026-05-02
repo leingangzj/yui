@@ -2,6 +2,7 @@
 #if defined(YUI_TARGET_CARDPUTER_ADV)
 
 #include "yui/hal/IKeyboard.hpp"
+#include "yui/hal/IRemote.hpp"
 #include "yui/drivers/Tca8418.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include <M5Unified.h>
@@ -21,7 +22,13 @@ public:
   // user starts wondering why nothing types.
   bool initialized() const { return initialized_; }
 
+  // Optional: when wired, the remote viewer's key inbox is drained before
+  // each I²C poll, so browser keystrokes are first-class.
+  void set_remote(IRemote* r) { remote_ = r; }
+
   bool poll(KeyEvent& out) override {
+    if (remote_ && remote_->running() && remote_->poll_key(out)) return true;
+
     if (!initialized_) {
       // Throttle init retries. The chip either answers within a few hundred
       // ms of I²C begin() or it isn't on the bus — hammering writeRegister8
@@ -62,6 +69,7 @@ private:
   static constexpr uint32_t kInitRetryMs = 250;
 
   Tca8418  tca_;
+  IRemote* remote_ = nullptr;
   bool     initialized_ = false;
   uint32_t last_init_attempt_ms_ = 0;
   uint32_t init_failures_ = 0;

@@ -49,6 +49,12 @@ public:
     canvas_.pushSprite(0, 0);
   }
 
+  // Lets the remote viewer (Esp32WebRemote) capture the same backing
+  // sprite we push to the panel. Returns nullptr if sprite alloc failed.
+  M5Canvas* canvas() {
+    return canvas_init_failed_ ? nullptr : &canvas_;
+  }
+
 private:
   // If sprite allocation fails (low heap), fall back to immediate mode so the
   // device at least boots — tearing returns but it's better than a black brick.

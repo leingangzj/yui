@@ -72,6 +72,8 @@
 #include "hal/esp32/Esp32BleAdvertiser.hpp"
 #include "hal/esp32/Esp32WifiAp.hpp"
 #include "hal/esp32/Esp32BleCentral.hpp"
+#include "hal/esp32/Esp32WebRemote.hpp"
+#include "yui/app/RemoteApp.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <cstring>
@@ -100,6 +102,7 @@ yui::Esp32WifiMonitor wmon_;  // promiscuous-mode RX (stub until v0.2)
 yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (stub until v0.3)
 yui::Esp32WifiAp        wifi_ap_;  // SoftAP + captive portal (stub until v0.3)
 yui::Esp32BleCentral    ble_cent_; // BLE central (stub until v0.3)
+yui::Esp32WebRemote     remote_;   // Browser viewer + key inbox
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
 yui::SysProbe make_sys_probe() {
@@ -119,6 +122,7 @@ yui::SysProbe make_sys_probe() {
 
 yui::AppRegistry registry;
 yui::AboutApp    about_app{kVersion};
+yui::RemoteApp   remote_app{remote_, &store_};
 yui::WifiApp     wifi_app{net_, &store_};
 yui::BleApp      ble_app{net_};
 yui::ImuApp      imu_app{imu_};
@@ -254,17 +258,48 @@ void setup() {
   registry.add(&keytest_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
+  registry.add(&remote_app);
   registry.add(&about_app);
 
   static yui::Launcher launcher{registry, make_sys_probe()};
   static yui::Shell    shell{hal, launcher, kVersion};
   launcher_ptr = &launcher;
   shell_ptr    = &shell;
+
+  // Wire up the browser viewer. The display owns the sprite that the
+  // remote streams; the keyboard hands its inbox back to the same remote.
+  remote_.set_canvas(display.canvas());
+  remote_.set_version(kVersion);
+  keyboard.set_remote(&remote_);
+  shell.bind_remote(&remote_, &store_);
+
+  // Persisted dev-mode flag: if set, fire up the viewer once we've got an
+  // IP. (start() is a no-op while WiFi is still associating; we retry from
+  // loop().)
+  int32_t dev_remote = 0;
+  store_.get_int(yui::kStorageKeyDevRemote, dev_remote, 0);
+  if (dev_remote) remote_.start();
+
   shell.start();
 }
 
 void loop() {
   shell_ptr->tick();
+  // Service the HTTP + WS server, push a frame if it's time. Both are
+  // throttled internally so this stays cheap when nobody's connected.
+  remote_.tick();
+  remote_.push_frame();
+
+  // Retry remote start once WiFi finishes associating after boot.
+  static bool boot_remote_started = false;
+  if (!boot_remote_started && !remote_.running()) {
+    int32_t dev_remote = 0;
+    store_.get_int(yui::kStorageKeyDevRemote, dev_remote, 0);
+    if (dev_remote && WiFi.isConnected()) {
+      remote_.start();
+      boot_remote_started = true;
+    }
+  }
   delay(33);  // ~30 FPS
 }
 
