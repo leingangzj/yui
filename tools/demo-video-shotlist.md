@@ -87,7 +87,7 @@ Quick cuts to make the point that the launcher is a real shell, not a single-app
 
 ## Outro (2:50–3:00)
 
-- [ ] **4.1** Hold on the launcher's category screen, fade lower-third: **"yui-os/yui — MIT — fits in a coat pocket."**
+- [ ] **4.1** Hold on the launcher's category screen, fade lower-third: **"leingangzj/yui — MIT — fits in a coat pocket."**
 - [ ] **4.2** Cut to black.
 
 ---

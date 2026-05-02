@@ -27,7 +27,7 @@ build from source.
 ### Clone and build
 
 ```bash
-git clone https://github.com/yui-os/yui.git
+git clone https://github.com/leingangzj/yui.git
 cd yui
 
 # Run host-side tests first to make sure the toolchain is working.

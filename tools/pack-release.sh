@@ -92,7 +92,7 @@ cat > "$OUT_MANIFEST" <<JSON
   "address": "0x0",
   "description": "Yui — pocket comms + pentest companion. Pairs the Cardputer ADV with a Kenwood TH-D75 (via bb-link bridge), WiFi Pineapple, and uses the onboard radio for native WiFi/BLE work. Includes a satellite tracker that drives the TH-D75 for Doppler shift during a pass.",
   "license": "MIT",
-  "homepage": "https://github.com/yui-os/yui"
+  "homepage": "https://github.com/leingangzj/yui"
 }
 JSON
 
