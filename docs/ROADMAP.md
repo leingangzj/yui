@@ -131,7 +131,7 @@ Decided 2026-05-01 — these are NOT v2.0, NOT "later," they're dropped:
 - **BME680 / environmental sensors**
 - **BadUSB / HID injection** (the Cardputer USB-C is device-mode-only — never works on this hardware regardless)
 
-Yui's scope is the bare ADV + the radios already on Zac's desk (TH-D75, Pineapple, FT5DR, ID-50, UV-K5, USB monitor stick). Anything requiring an additional Cap or external module is not on the roadmap.
+Yui's scope is the bare ADV plus radios you already own (the dev set: TH-D75, Pineapple, FT5DR, ID-50, UV-K5, USB monitor stick). Anything requiring an additional Cap or external module is not on the roadmap.
 
 ---
 

@@ -15,8 +15,8 @@
 // of ieee80211_freedom_output via -zmuldefs and a vendored
 // libnet80211.a — which is fragile across IDF upgrades. Yui keeps
 // the call-site in place but does not ship the patched binary in
-// v0.3; if/when Zac wants real TX of deauth on hardware, drop the
-// patched archive into board/lib_extra and add the linker flag.
+// v0.3. To enable real TX of deauth on hardware, drop the patched
+// archive into board/lib_extra and add the linker flag.
 #include "yui/hal/IWifiMonitor.hpp"
 #include <WiFi.h>
 extern "C" {

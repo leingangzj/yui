@@ -22,25 +22,6 @@ What it does, in plain terms:
 Plus the everyday-carry stuff: notes, files, RPN calculator with trig and
 memory, mic FFT, IR remote, calendar, todos, Snake, Life, tone/metronome.
 
-```
-   ┌────────────────────────────────────┐
-   │   Yui                              │
-   │ ┌─────────┐ ┌─────────┐ ┌────────┐ │
-   │ │ Radio   │ │ WiFi    │ │ Bluetooth│
-   │ │ APRS    │ │ Probes  │ │ Spam   │ │
-   │ │ GPS     │ │ Handshake│ │ GATT   │ │
-   │ │ SatTrack│ │ Pineapple│ │ Jam    │ │
-   │ └─────────┘ └─────────┘ └────────┘ │
-   │ ┌─────────┐ ┌─────────┐ ┌────────┐ │
-   │ │ Tools   │ │ System  │ │ Fun    │ │
-   │ └─────────┘ └─────────┘ └────────┘ │
-   └────────────────────────────────────┘
-        ↕ BLE       ↕ WiFi STA      ↕ direct
-     bb-link     WiFi Pineapple     onboard
-        ↕ BT-Classic
-    Kenwood TH-D75
-```
-
 ## Status
 
 🛰️ **v0.3 — code-complete, hardware bring-up pending.** `pio run -e
