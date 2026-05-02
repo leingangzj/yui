@@ -23,6 +23,8 @@
 #include "yui/assets/sprite_koi_idle.hpp"
 #include "yui/assets/sprite_koi_swim.hpp"
 #include "yui/assets/sprite_koi_leap.hpp"
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -102,47 +104,48 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-
-    // Header strip.
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "KoiGotchi", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
 
     const Mood m = mood_(now_for_render_());
-    const int  frame_w = sprite_w_(m);
-    const int  frame_h = sprite_h_(m);
-    const int  cx = (d.width()  - frame_w) / 2;
-    const int  cy = 22;
+    ui::Chrome::header(d, "KoiGotchi", mood_label_(m));
 
-    // Soft pond bed under the koi for visual contrast against red text.
-    d.fill_rect({cx - 2, cy - 2, frame_w + 4, frame_h + 4}, kWhite);
-
+    // Sprite, centered in the body. Idle/Swim sprites are small enough to
+    // leave room for a stat column on the right; Leap takes more space so
+    // we let it dominate.
+    const int frame_w = sprite_w_(m);
+    const int frame_h = sprite_h_(m);
+    const int cx = ui::kBodyPadX;
+    const int cy = ui::kBodyTopY + 2;
     advance_frame_(m);
     const auto& f = current_frame_(m);
     d.draw_png(f.data, f.len, cx, cy);
 
-    // Status block under the sprite.
-    char line[40];
-    int y = cy + frame_h + 6;
-    std::snprintf(line, sizeof(line), "Mood: %s", mood_label_(m));
-    d.draw_text(8, y, line, kJapanRedDark, kWhite); y += 12;
+    // Stat column to the right of the sprite. Two rows: today + lifetime.
+    const int sx = cx + frame_w + 12;
+    char val[20];
+    std::snprintf(val, sizeof(val), "%u", static_cast<unsigned>(today_));
+    d.draw_text(sx, ui::kBodyTopY,                    "Today",
+                ui::kHint, ui::kSurface);
+    d.draw_text(sx, ui::kBodyTopY + ui::kBodyLineH,   val,
+                ui::kAccent, ui::kSurface);
+    std::snprintf(val, sizeof(val), "%u", static_cast<unsigned>(lifetime_));
+    d.draw_text(sx, ui::kBodyTopY + ui::kBodyLineH * 2 + 4, "Lifetime",
+                ui::kHint, ui::kSurface);
+    d.draw_text(sx, ui::kBodyTopY + ui::kBodyLineH * 3 + 4, val,
+                ui::kAccentDark, ui::kSurface);
 
-    std::snprintf(line, sizeof(line), "Caught today : %u",
-                  static_cast<unsigned>(today_));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 12;
-
-    std::snprintf(line, sizeof(line), "Lifetime     : %u",
-                  static_cast<unsigned>(lifetime_));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 12;
-
+    // Last-AP / hint line under the sprite.
+    const int y = cy + frame_h + 4;
     if (src_.last_bssid()[0]) {
-      std::snprintf(line, sizeof(line), "Last AP: %s", src_.last_bssid());
-      d.draw_text(8, y, line, kJapanRedDark, kWhite);
+      char line[40];
+      std::snprintf(line, sizeof(line), "Last: %s", src_.last_bssid());
+      d.draw_text(ui::kBodyPadX, y, line, ui::kHint, ui::kSurface);
     } else {
-      d.draw_text(8, y, "Open WiFi → Handshake to feed me",
-                  kJapanRedDark, kWhite);
+      d.draw_text(ui::kBodyPadX, y, "Open WiFi > Handshake to feed me",
+                  ui::kHint, ui::kSurface);
     }
 
+    ui::Chrome::footer(d, "R:reset  Esc:back");
     d.flush();
   }
 

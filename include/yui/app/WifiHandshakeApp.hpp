@@ -16,6 +16,8 @@
 #include "yui/proto/Dot11.hpp"
 #include "yui/proto/Pcap.hpp"
 #include "yui/types.hpp"
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 #include <cstdio>
 #include <cstring>
 
@@ -66,32 +68,37 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    char title[40];
-    std::snprintf(title, sizeof(title), "Handshake ch%u",
-                  static_cast<unsigned>(cur_channel_));
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    char ch[8];
+    std::snprintf(ch, sizeof(ch), "ch%u", static_cast<unsigned>(cur_channel_));
+    ui::Chrome::header(d, "Handshake", ch);
 
-    char line[40];
-    int y = 22;
+    int y = ui::kBodyTopY;
     if (!file_open_) {
-      d.draw_text(8, y, "SD write failed", kJapanRedBright, kWhite);
-      y += 14;
+      d.draw_text(ui::kBodyPadX, y, "SD write failed",
+                  kJapanRedBright, ui::kSurface);
+      y += ui::kBodyLineH;
     }
-    std::snprintf(line, sizeof(line), "Frames captured: %u",
-                  static_cast<unsigned>(pkt_total_));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
-    std::snprintf(line, sizeof(line), "EAPOL seen: %u",
-                  static_cast<unsigned>(eapol_seen_));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    char val[24];
+    std::snprintf(val, sizeof(val), "%u", static_cast<unsigned>(pkt_total_));
+    ui::Chrome::stat(d, (y - ui::kBodyTopY) / ui::kBodyLineH, "Frames", val);
+    y += ui::kBodyLineH;
+
+    std::snprintf(val, sizeof(val), "%u", static_cast<unsigned>(eapol_seen_));
+    ui::Chrome::stat(d, (y - ui::kBodyTopY) / ui::kBodyLineH, "EAPOL", val);
+    y += ui::kBodyLineH;
+
     if (last_bssid_[0]) {
-      std::snprintf(line, sizeof(line), "Last BSSID: %s", last_bssid_);
-      d.draw_text(8, y, line, kJapanRedDark, kWhite); y += 14;
+      ui::Chrome::stat(d, (y - ui::kBodyTopY) / ui::kBodyLineH,
+                       "Last AP", last_bssid_);
+      y += ui::kBodyLineH;
     }
-    std::snprintf(line, sizeof(line), "File: %llu KB",
+
+    std::snprintf(val, sizeof(val), "%llu KB",
                   static_cast<unsigned long long>(pcap_.bytes_written() / 1024));
-    d.draw_text(8, y, line, kJapanRedDark, kWhite);
+    ui::Chrome::stat(d, (y - ui::kBodyTopY) / ui::kBodyLineH, "File", val);
+
+    ui::Chrome::footer(d, "Esc:back");
     d.flush();
   }
 

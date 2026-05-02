@@ -13,6 +13,8 @@
 #include "yui/hal/IRemote.hpp"
 #include "yui/hal/IStorage.hpp"
 #include "yui/types.hpp"
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 #include <cstdio>
 
 namespace yui {
@@ -49,28 +51,29 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Remote VNC", kWhite, kJapanRed);
-
+    d.clear(ui::kSurface);
     const bool on = remote_.running();
-    d.draw_text(8,  26, on ? "Status: ON" : "Status: OFF",
-                on ? kJapanRed : kJapanRedDark, kWhite);
+    ui::Chrome::header(d, "Remote VNC", on ? "ON" : "OFF");
 
+    int y = ui::kBodyTopY;
     if (on) {
       char line[64];
       std::snprintf(line, sizeof(line), "http://%s/", remote_.ip());
-      d.draw_text(8, 42, line, kBlack, kWhite);
-      d.draw_text(8, 56, "open in any browser", kJapanRedDark, kWhite);
+      d.draw_text(ui::kBodyPadX, y, line, ui::kOnSurface, ui::kSurface);
+      y += ui::kBodyLineH;
+      d.draw_text(ui::kBodyPadX, y, "open in any browser",
+                  ui::kHint, ui::kSurface);
     } else {
-      d.draw_text(8, 42, "(not advertising)", kJapanRedDark, kWhite);
+      d.draw_text(ui::kBodyPadX, y, "(not advertising)",
+                  ui::kHint, ui::kSurface);
     }
+    y += ui::kBodyLineH + 6;
 
-    d.draw_text(8,  82, persist_ ? "Auto-start: ON" : "Auto-start: OFF",
-                persist_ ? kJapanRed : kJapanRedDark, kWhite);
+    d.draw_text(ui::kBodyPadX, y,
+                persist_ ? "Auto-start: ON" : "Auto-start: OFF",
+                persist_ ? ui::kAccent : ui::kHint, ui::kSurface);
 
-    d.draw_text(8, 104, "Enter:toggle  F:auto-start", kJapanRedDark, kWhite);
-    d.draw_text(8, 118, "Esc:back",                    kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Enter:toggle  F:auto  Esc:back");
     d.flush();
   }
 

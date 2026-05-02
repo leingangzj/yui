@@ -1,6 +1,8 @@
 #pragma once
 #include "yui/app/App.hpp"
 #include "yui/types.hpp"
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 
 namespace yui {
 
@@ -12,16 +14,19 @@ public:
   Category    category() const override { return Category::System; }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "About", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "About");
 
-    d.draw_text(8,  26, "Yui",            kJapanRed,     kWhite);
-    d.draw_text(8,  40, version_,         kJapanRedDark, kWhite);
-    d.draw_text(8,  60, "Cardputer ADV",  kBlack,        kWhite);
-    d.draw_text(8,  74, "MIT licensed",   kBlack,        kWhite);
-    d.draw_text(8, 110, "Esc to go back", kJapanRedDark, kWhite);
+    int y = ui::kBodyTopY;
+    d.draw_text(ui::kBodyPadX, y, "Yui", ui::kAccent, ui::kSurface);
+    y += ui::kBodyLineH;
+    d.draw_text(ui::kBodyPadX, y, version_, ui::kAccentDark, ui::kSurface);
+    y += ui::kBodyLineH + 6;
+    d.draw_text(ui::kBodyPadX, y, "Cardputer ADV", ui::kOnSurface, ui::kSurface);
+    y += ui::kBodyLineH;
+    d.draw_text(ui::kBodyPadX, y, "MIT licensed", ui::kOnSurface, ui::kSurface);
 
+    ui::Chrome::footer(d, "Esc:back");
     d.flush();
   }
 

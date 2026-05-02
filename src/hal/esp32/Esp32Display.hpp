@@ -44,6 +44,16 @@ public:
     t.setCursor(x, y);
     t.print(s);
   }
+  void draw_text_scaled(int x, int y, const char* s,
+                        Color fg, Color bg, int scale) override {
+    auto& t = target_();
+    t.setTextSize(scale > 0 ? scale : 1);
+    t.setTextColor(fg, bg);
+    t.setCursor(x, y);
+    t.print(s);
+    t.setTextSize(1);  // leave the renderer at the default for callers
+  }
+
   void draw_png(const uint8_t* data, std::size_t len, int x, int y) override {
     if (!data || len == 0) return;
     target_().drawPng(data, len, x, y);

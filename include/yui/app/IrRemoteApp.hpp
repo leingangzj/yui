@@ -5,6 +5,8 @@
 #include "yui/app/App.hpp"
 #include "yui/hal/IIr.hpp"
 #include "yui/types.hpp"
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 #include <cstdio>
 
 namespace yui {
@@ -52,24 +54,15 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "IR Remote", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "IR Remote", flash_ > 0 ? "BLAST!" : nullptr);
 
     for (size_t i = 0; i < kNecPresetCount; ++i) {
-      const int y    = 22 + static_cast<int>(i) * 14;
-      const bool sel = (i == cursor_);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
-      if (sel) d.fill_rect({0, y - 2, d.width(), 14}, bg);
-      d.draw_text(8, y + 3, kNecPresets[i].label, fg, bg);
+      ui::Chrome::list_row(d, static_cast<int>(i),
+                           kNecPresets[i].label, i == cursor_);
     }
 
-    if (flash_ > 0) {
-      d.draw_text(8, d.height() - 14, "blast!", kJapanRed, kWhite);
-    } else {
-      d.draw_text(8, d.height() - 14, "Enter to send", kJapanRedDark, kWhite);
-    }
+    ui::Chrome::footer(d, "Enter:send  Esc:back");
     d.flush();
   }
 
