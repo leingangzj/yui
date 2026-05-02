@@ -79,19 +79,25 @@ Plus the 14-step Phase 0 hardware bring-up checklist in `docs/HARDWARE_AUDIT.md`
 
 **Effort:** ~3–4 weekends with the device in hand.
 
-## v1.0 — Ship (in progress)
+## v1.0 — Ship (firmware shipped; hardware validation pending)
+
+Shipped in the codebase:
 
 - ✅ M5Burner-compatible single-binary release script (`tools/pack-release.sh`)
-- ✅ README rewritten for v0.3 reality (tri-radio companion + Bruce parity + SatTracker)
-- ✅ End-user install guide (`docs/INSTALL.md`)
-- ✅ End-user reference (`docs/USING.md`) — every app + every NVS key + every SD path
-- ⏳ Hardware bring-up — pre-staged: `tools/bringup-checklist.md` (print-friendly 14-step Phase 0) + bb-link bridge pairing per `docs/protocols/KENWOOD_THD75.md`
-- ⏳ 24-hour soak test — pre-staged: `tools/soak-monitor.py --port /dev/ttyACM0 --hours 24`; pass criterion: zero panics, zero WDTs, ≤3 boot banners, no >25% heap drops
-- ⏳ Public mirror with issues open
+- ✅ Browser-based web flasher at <https://leingangzj.github.io/yui> (ESP Web Tools, served from GitHub Pages)
+- ✅ End-user install guide (`docs/INSTALL.md`) — three flash paths, friction-ordered
+- ✅ End-user reference (`docs/USING.md`) — every app, every NVS key, every SD path
+- ✅ Release CI (`.github/workflows/release.yml`) — tag triggers test → build → pack → web-installer refresh → asset upload
+- ✅ Public mirror at <https://github.com/leingangzj/yui> with Issues + Discussions enabled
 
-**Effort remaining:** ~1-2 weekends with hardware in hand. All non-hardware prep (release script, image validation, checklist, soak monitor, shot list) is shipped — see `tools/`.
+Still pending — hardware-gated, will land in v1.0.x patch releases:
 
-### Known v0.3 caveats that v1.0 may revisit
+- ⏳ Phase 0 hardware bring-up — pre-staged in `tools/bringup-checklist.md` (14-step print-friendly checklist)
+- ⏳ bb-link bridge pairing with the TH-D75 — protocol notes in `docs/protocols/KENWOOD_THD75.md`
+- ⏳ 24-hour soak test — pre-staged in `tools/soak-monitor.py`; pass criterion: zero panics, zero WDTs, ≤3 boot banners, no >25% heap drops
+- ⏳ M5Burner submission — manual form at M5; checklist in `docs/RELEASING.md`
+
+### Known caveats v1.0.x may revisit
 
 1. **Native deauth via patched libnet** — `Esp32WifiMonitor::tx_raw` calls
    `esp_wifi_80211_tx`, which Espressif blocks for deauth/disassoc. The

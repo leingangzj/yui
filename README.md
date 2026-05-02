@@ -24,10 +24,12 @@ memory, mic FFT, IR remote, calendar, todos, Snake, Life, tone/metronome.
 
 ## Status
 
-🛰️ **v0.3 — code-complete, hardware bring-up pending.** `pio run -e
+🛰️ **v1.0 — shipped, awaiting field validation.** `pio run -e
 cardputer_adv` and `pio test -e native` are both green. ~40 apps across 6
-categories. 372 native tests. Nothing has touched real hardware yet; that's
-v1.0's job.
+categories. 372 native tests. The firmware hasn't been validated on real
+hardware yet — anyone flashing v1.0 is the first hardware tester. If
+something breaks, please [open an issue](https://github.com/leingangzj/yui/issues)
+with serial logs.
 
 ## Hardware
 
@@ -63,7 +65,7 @@ write it to flash offset `0x0`:
 ```bash
 python3 -m esptool --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
   write_flash --flash_mode qio --flash_freq 80m --flash_size 8MB \
-  0x0 yui-v0.3-cardputer_adv.bin
+  0x0 yui-v1.0-cardputer_adv.bin
 ```
 
 **From source.**
@@ -144,5 +146,5 @@ the answer is no.
 
 ## Roadmap
 
-`docs/ROADMAP.md`. Short version: v0.1 / v0.2 / v0.3 are shipped; v1.0
-is the polish + hardware-validation pass.
+`docs/ROADMAP.md`. Short version: v0.1 / v0.2 / v0.3 / v1.0 all shipped
+in the firmware. Real-hardware validation is the next thing.
