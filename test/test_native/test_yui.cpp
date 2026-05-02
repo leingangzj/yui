@@ -360,6 +360,17 @@ void test_launcher_drills_into_category_on_enter() {
   TEST_ASSERT_EQUAL_PTR(&a, l.selected());
 }
 
+void test_launcher_left_right_flip_categories() {
+  Fixture f;
+  Launcher l{f.registry};
+  l.on_enter(f.hal);
+  const Category start = l.current_category();
+  l.on_key(press(Key::Right));
+  TEST_ASSERT_TRUE(l.current_category() != start);
+  l.on_key(press(Key::Left));
+  TEST_ASSERT_TRUE(l.current_category() == start);
+}
+
 void test_launcher_esc_returns_to_categories() {
   Fixture f;
   StubApp a{"A"};
@@ -371,29 +382,42 @@ void test_launcher_esc_returns_to_categories() {
   TEST_ASSERT_TRUE(l.view() == Launcher::View::Categories);
 }
 
-void test_launcher_renders_header_in_red() {
+void test_launcher_renders_carousel_tile_in_red() {
   Fixture f;
   StubApp a{"A"};
   f.registry.add(&a);
   Launcher l{f.registry};
   l.on_enter(f.hal);
   l.render(f.display);
-  // Header band is the top kHeaderH rows, painted kJapanRed.
-  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
+  // Carousel: full white background (no header bar), with a red icon tile
+  // centered horizontally near the top. Tile is 56×56 starting at y≈14.
+  // Tile is 56-px wide, centered → on a 240-wide display the tile occupies
+  // x=92..147. Sample (95, 40): inside the red backplate, away from any
+  // white glyph stroke at the center.
+  TEST_ASSERT_EQUAL_HEX16(kWhite,    f.display.pixel_at(2, 5));
+  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(95, 40));
 }
 
-void test_launcher_renders_selected_row_highlighted() {
+void test_launcher_renders_dot_pager_for_current_category() {
   Fixture f;
-  StubApp a{"A"}, b{"B"};
-  f.registry.add(&a); f.registry.add(&b);
+  StubApp a{"A"};
+  f.registry.add(&a);
   Launcher l{f.registry};
   l.on_enter(f.hal);
   l.render(f.display);
-  // Cursor on row 0: row 0 should have red bg, row 1 should have white bg.
-  const int row0_y = Launcher::kHeaderH + 4;
-  const int row1_y = Launcher::kHeaderH + 4 + Launcher::kRowH;
-  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, row0_y));
-  TEST_ASSERT_EQUAL_HEX16(kWhite,    f.display.pixel_at(20, row1_y));
+  // Bottom-row pager: the cursor's dot is filled red, others are dark-red
+  // mini-squares. Cursor starts at index 0 (Radio), so the leftmost pager
+  // pixel should be kJapanRed.
+  const int H = f.display.height();
+  // The leftmost pager dot lives at x = pager_x; sample y = H-8 row.
+  // We just need to confirm that *some* red pixel exists on the pager row,
+  // and that pixel(0..1, H-1) is white (no full-width strip).
+  bool found_red = false;
+  for (int x = 0; x < f.display.width(); ++x) {
+    if (f.display.pixel_at(x, H - 8) == kJapanRed) { found_red = true; break; }
+  }
+  TEST_ASSERT_TRUE(found_red);
+  TEST_ASSERT_EQUAL_HEX16(kWhite, f.display.pixel_at(0, H - 1));
 }
 
 void test_launcher_with_sysprobe_renders_status_text() {
@@ -5177,8 +5201,8 @@ int main(int, char**) {
   RUN_TEST(test_launcher_down_advances_cursor);
   RUN_TEST(test_launcher_up_wraps);
   RUN_TEST(test_launcher_enter_sets_pending_launch);
-  RUN_TEST(test_launcher_renders_header_in_red);
-  RUN_TEST(test_launcher_renders_selected_row_highlighted);
+  RUN_TEST(test_launcher_renders_carousel_tile_in_red);
+  RUN_TEST(test_launcher_renders_dot_pager_for_current_category);
   RUN_TEST(test_launcher_with_sysprobe_renders_status_text);
   RUN_TEST(test_launcher_status_uses_wallclock_when_synced);
   RUN_TEST(test_launcher_status_falls_back_to_uptime_when_unsynced);
@@ -5186,6 +5210,7 @@ int main(int, char**) {
   RUN_TEST(test_launcher_starts_in_categories_view);
   RUN_TEST(test_launcher_enter_on_empty_category_stays_in_categories);
   RUN_TEST(test_launcher_drills_into_category_on_enter);
+  RUN_TEST(test_launcher_left_right_flip_categories);
   RUN_TEST(test_launcher_esc_returns_to_categories);
   RUN_TEST(test_shell_starts_in_splash);
   RUN_TEST(test_shell_holds_splash_before_min_time);

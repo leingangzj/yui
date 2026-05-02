@@ -4,6 +4,7 @@
 #if defined(YUI_TARGET_CARDPUTER_ADV)
 
 #include <M5Unified.h>
+#include "yui/config/pins.hpp"
 #include "yui/shell/Splash.hpp"
 #include "yui/shell/Shell.hpp"
 #include "yui/app/AppRegistry.hpp"
@@ -169,6 +170,19 @@ void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
   M5.Display.setRotation(1);
+
+  // Bring up the offscreen sprite that backs every render call. Without this
+  // we'd repaint a live framebuffer at 30 FPS and the panel would tear
+  // diagonally on every frame.
+  if (!display.begin()) {
+    log_.error("display sprite alloc failed — falling back to direct draw");
+  }
+
+  // The Cardputer ADV's TCA8418 keypad lives on M5.In_I2C (G8/G9). M5Unified
+  // only auto-begins that bus when it positively identifies the board; if
+  // detection misses (the ADV is a relatively new SKU) the keyboard stays
+  // dead. Bring the bus up explicitly so we don't depend on auto-detect.
+  M5.In_I2C.begin(I2C_NUM_0, yui::pins::kIntSda, yui::pins::kIntScl);
 
   log_.info("Yui boot");
 

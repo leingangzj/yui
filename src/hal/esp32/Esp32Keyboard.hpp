@@ -16,10 +16,29 @@ class Esp32Keyboard : public IKeyboard {
 public:
   Esp32Keyboard() : tca_(M5.In_I2C) {}
 
+  // True once the TCA8418 acknowledged its config registers. Useful for
+  // boot-time diagnostics — the Shell can flag a missing keypad before the
+  // user starts wondering why nothing types.
+  bool initialized() const { return initialized_; }
+
   bool poll(KeyEvent& out) override {
     if (!initialized_) {
+      // Throttle init retries. The chip either answers within a few hundred
+      // ms of I²C begin() or it isn't on the bus — hammering writeRegister8
+      // every 33 ms wedges the bus and floods the serial log.
+      const uint32_t now = millis();
+      if (now - last_init_attempt_ms_ < kInitRetryMs) return false;
+      last_init_attempt_ms_ = now;
+
       initialized_ = tca_.init_matrix(7, 8);
-      if (!initialized_) return false;
+      if (!initialized_) {
+        if (++init_failures_ == 1 || init_failures_ % 30 == 0) {
+          Serial.printf("[kbd] TCA8418 init failed (attempt %u)\n",
+                        init_failures_);
+        }
+        return false;
+      }
+      Serial.println("[kbd] TCA8418 ready");
     }
 
     uint8_t code = 0;
@@ -40,9 +59,13 @@ public:
   }
 
 private:
-  Tca8418 tca_;
-  bool    initialized_ = false;
-  bool    shift_ = false, fn_ = false, ctrl_ = false, alt_ = false;
+  static constexpr uint32_t kInitRetryMs = 250;
+
+  Tca8418  tca_;
+  bool     initialized_ = false;
+  uint32_t last_init_attempt_ms_ = 0;
+  uint32_t init_failures_ = 0;
+  bool     shift_ = false, fn_ = false, ctrl_ = false, alt_ = false;
 };
 
 }  // namespace yui
