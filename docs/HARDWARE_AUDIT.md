@@ -111,7 +111,7 @@ The internal I²C bus (G8/G9) is shared between:
 - ES8311 audio codec (`0x18`)
 - **EXT-14 connector pins 8/10** (Caps plug in here)
 
-**Implication:** any Cap that uses I²C must avoid those three addresses. (Caps are out of scope entirely as of 2026-05-01 — extra-hardware features are dropped — but documenting the constraint in case a future Cap is reconsidered.)
+**Implication:** any Cap that uses I²C must avoid those three addresses.
 
 ---
 

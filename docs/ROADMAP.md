@@ -115,29 +115,3 @@ Plus the 14-step Phase 0 hardware bring-up checklist in `docs/HARDWARE_AUDIT.md`
 4. **Pcap streaming throughput on SD** — SD writes can stall under load.
    `Esp32Pcap` flushes every 16 KB; if real captures show packet drops,
    ring-buffer in RAM first.
-
----
-
-## What's explicitly OUT of scope
-
-Decided 2026-05-01 — these are NOT v2.0, NOT "later," they're dropped:
-
-- **CC1101** (sub-GHz remote replay / spectrum)
-- **PN532** (13.56 MHz NFC R/W)
-- **125 kHz RFID** (LF tag work)
-- **iButton** (Dallas 1-Wire)
-- **LoRa-1262 Cap** (LoRa / Meshtastic / GNSS-via-Cap)
-- **BME680 / environmental sensors**
-- **BadUSB / HID injection** (the Cardputer USB-C is device-mode-only — never works on this hardware regardless)
-
-Yui's scope is the bare ADV plus radios you already own (the dev set: TH-D75, Pineapple, FT5DR, ID-50, UV-K5, USB monitor stick). Anything requiring an additional Cap or external module is not on the roadmap.
-
----
-
-## "Done enough" definition for v1.0
-
-> A friend with an ADV reads the README, flashes the M5Burner image,
-> pairs it with their TH-D75 over Bluetooth, points it at an upcoming
-> ISS pass, and works the bird. No phone, no laptop. They also use
-> it as a hand-held remote for their Pineapple at a paid pentest gig.
-> Both work first try.
