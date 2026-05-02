@@ -7,6 +7,7 @@
 #include "yui/gfx/Braille.hpp"
 #include "yui/gfx/koi_art.hpp"
 #include "yui/shell/Splash.hpp"
+#include "yui/shell/BootAnimation.hpp"
 #include "../../src/hal/native/NativeDisplay.hpp"
 #include "yui/app/AppRegistry.hpp"
 #include "yui/app/Launcher.hpp"
@@ -228,6 +229,27 @@ void test_splash_writes_version_string() {
   yui::render_splash(d, "v9.9.9-banana", 0);
   // The version is the last text drawn each frame (footer line).
   TEST_ASSERT_EQUAL_STRING("v9.9.9-banana", d.last_text().c_str());
+}
+
+void test_boot_animation_indexes_clamp_to_last_frame() {
+  // First frame at t=0.
+  TEST_ASSERT_EQUAL(0u, yui::boot_frame_index_at(0));
+  // Mid-animation: frame N at N * kBootFrameMs ms.
+  TEST_ASSERT_EQUAL(5u, yui::boot_frame_index_at(yui::kBootFrameMs * 5));
+  // Past the end: clamped to the final frame.
+  const std::size_t last = yui::assets::kBootFrameCount - 1;
+  TEST_ASSERT_EQUAL(last,
+                    yui::boot_frame_index_at(60u * 1000u));
+}
+
+void test_boot_animation_calls_draw_png_per_frame() {
+  NativeDisplay d;
+  // NativeDisplay's draw_png is the IDisplay default (no-op), so we just
+  // assert clear+flush wiring is intact and the call doesn't crash.
+  yui::render_boot_animation(d, 0);
+  TEST_ASSERT_EQUAL(1, d.flush_count());
+  yui::render_boot_animation(d, yui::kBootFrameMs * 10);
+  TEST_ASSERT_EQUAL(2, d.flush_count());
 }
 
 void test_splash_flushes_once_per_frame() {
@@ -5288,6 +5310,8 @@ int main(int, char**) {
   RUN_TEST(test_splash_renders_red_koi_pixels_at_t0);
   RUN_TEST(test_splash_shimmer_advances_with_time);
   RUN_TEST(test_splash_writes_version_string);
+  RUN_TEST(test_boot_animation_indexes_clamp_to_last_frame);
+  RUN_TEST(test_boot_animation_calls_draw_png_per_frame);
   RUN_TEST(test_splash_flushes_once_per_frame);
   RUN_TEST(test_registry_starts_empty);
   RUN_TEST(test_registry_adds_apps);

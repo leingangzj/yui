@@ -44,6 +44,11 @@ public:
     t.setCursor(x, y);
     t.print(s);
   }
+  void draw_png(const uint8_t* data, std::size_t len, int x, int y) override {
+    if (!data || len == 0) return;
+    target_().drawPng(data, len, x, y);
+  }
+
   void flush() override {
     if (canvas_init_failed_) return;
     canvas_.pushSprite(0, 0);

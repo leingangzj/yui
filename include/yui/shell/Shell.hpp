@@ -7,6 +7,7 @@
 #include "yui/app/RemoteApp.hpp"
 #include "yui/types.hpp"
 #include "yui/shell/Splash.hpp"
+#include <functional>
 
 namespace yui {
 
@@ -40,6 +41,15 @@ public:
     store_  = store;
   }
 
+  // Override the splash renderer. Default = the legacy Braille koi
+  // (render_splash). Device builds swap in render_boot_animation so the
+  // 24-frame PNG sequence runs at boot. Signature stays HAL-only so the
+  // override is portable.
+  using SplashRenderer = std::function<void(IDisplay&, uint32_t /*elapsed_ms*/)>;
+  void set_splash_renderer(SplashRenderer fn) {
+    splash_render_ = std::move(fn);
+  }
+
   // Run one frame: pump input, advance state, render.
   void tick() {
     KeyEvent ev{};
@@ -61,6 +71,8 @@ public:
         const bool key_pressed = got_key && ev.down;
         if (min_elapsed && key_pressed) {
           enter_launcher_();
+        } else if (splash_render_) {
+          splash_render_(hal_.display, elapsed);
         } else {
           render_splash(hal_.display, version_, elapsed);
         }
@@ -133,6 +145,7 @@ private:
   IRemote*    remote_          = nullptr;
   IStorage*   store_           = nullptr;
   bool        last_chord_toggled_ = false;
+  SplashRenderer splash_render_;
 };
 
 }  // namespace yui

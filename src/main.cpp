@@ -6,6 +6,7 @@
 #include <M5Unified.h>
 #include "yui/config/pins.hpp"
 #include "yui/shell/Splash.hpp"
+#include "yui/shell/BootAnimation.hpp"
 #include "yui/shell/Shell.hpp"
 #include "yui/app/AppRegistry.hpp"
 #include "yui/app/Launcher.hpp"
@@ -268,7 +269,14 @@ void setup() {
   registry.add(&about_app);
 
   static yui::Launcher launcher{registry, make_sys_probe()};
-  static yui::Shell    shell{hal, launcher, kVersion};
+  // Device splash holds for the full koi animation length; native env
+  // keeps its 1.5 s default. Press a key after the floor elapses to skip.
+  static yui::Shell    shell{hal, launcher, kVersion,
+                             yui::kBootAnimationTotalMs};
+  shell.set_splash_renderer(
+      [](yui::IDisplay& d, uint32_t elapsed) {
+        yui::render_boot_animation(d, elapsed);
+      });
   launcher_ptr = &launcher;
   shell_ptr    = &shell;
 
