@@ -12,6 +12,8 @@ release/
 *.elf
 *.hex
 *.bin
+# but keep the firmware shipped through GitHub Pages
+!docs/web-installer/*.bin
 *.swp
 *.swo
 *~
