@@ -4916,6 +4916,192 @@ void test_pass_predictor_finds_a_pass_within_24h() {
   TEST_ASSERT_TRUE(info.max_elevation_deg >= 0.0);
 }
 
+// ───── v0.3 review fixes — regression coverage ────────────────────────────
+
+void test_pass_predictor_starting_mid_pass_pins_aos_to_search_start() {
+  // Regression for Pass.hpp aos_t = -1 leak: if the predictor starts
+  // search mid-pass, an LOS within the window must produce a PassInfo
+  // whose aos_jd is the search start (not garbage from -1 sentinel).
+  sat::TleElements el;
+  sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
+  sat::Propagator p;
+  p.init(el);
+  sat::ObserverGeodetic obs{49.0, -72.0, 0};
+  const double jd_epoch = sat::jd_from_year_day(el.epoch_year, el.epoch_day);
+  // First find any AOS/LOS so we know a real pass window
+  sat::PassInfo full = sat::predict_next_pass(p, obs, jd_epoch, 24.0, 0.0, 30.0);
+  TEST_ASSERT_TRUE(full.found);
+  // Now restart search from halfway between AOS and LOS — i.e. mid-pass.
+  const double jd_mid = 0.5 * (full.aos_jd + full.los_jd);
+  sat::PassInfo mid = sat::predict_next_pass(p, obs, jd_mid, 24.0, 0.0, 30.0);
+  TEST_ASSERT_TRUE(mid.found);
+  // aos_jd must be ≥ jd_mid (the search start) — never the -1 sentinel
+  // which would fall well before jd_epoch.
+  TEST_ASSERT_TRUE(mid.aos_jd >= jd_mid - 1e-6);
+  TEST_ASSERT_TRUE(mid.aos_jd > jd_epoch);
+  TEST_ASSERT_TRUE(mid.los_jd > mid.aos_jd);
+}
+
+void test_sattracker_accepts_two_line_tle_no_name() {
+  // Regression for SatTrackerApp::add_tle_record_ 2-line shift: a TLE
+  // file with only L1+L2 (no name line) must parse, not be silently
+  // discarded.
+  Fixture f;
+  FakeRadioLink r;
+  FakeGnss g;
+  FakeFs fs;
+  const char* records =
+    "1 25544U 98067A   24001.50000000  .00012345  00000-0  22345-3 0  9999\n"
+    "2 25544  51.6400 123.4567 0001234 234.5678 125.4321 15.50000000123456\n";
+  fs.write_all("/yui-tles.txt", records, std::strlen(records));
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(1u, app.favorite_count());
+  TEST_ASSERT_EQUAL_STRING("(unnamed)", app.favorite_at(0).name);
+}
+
+// ───── v0.3 gap fills — sat module ────────────────────────────────────────
+
+void test_vec3_mag_and_mag2() {
+  // 3-4-5 right triangle: |(3,4,0)| = 5, mag2 = 25.
+  const sat::Vec3 v{3.0, 4.0, 0.0};
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 25.0, v.mag2());
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12,  5.0, v.mag());
+  // Negative components: magnitude is unsigned.
+  const sat::Vec3 w{-1.0, -2.0, -2.0};
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 9.0, w.mag2());
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.0, w.mag());
+  // Zero vector.
+  const sat::Vec3 z{0, 0, 0};
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, z.mag());
+}
+
+void test_jd_from_unix_round_trip_to_j2000() {
+  // Unix epoch 1970-01-01 00:00 UTC = JD 2440587.5
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2440587.5, sat::jd_from_unix(0.0));
+  // 2000-01-01 12:00 UTC (= kJ2000) in unix seconds = 946728000
+  const double jd_noon = sat::jd_from_unix(946728000.0);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, sat::kJ2000, jd_noon);
+  // 2000-01-01 00:00 UTC = JD 2451544.5 (kJ2000 - 0.5)
+  const double jd_mid = sat::jd_from_unix(946684800.0);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, sat::kJ2000 - 0.5, jd_mid);
+}
+
+void test_topo_observer_ecef_at_known_points() {
+  // (0°N, 0°E, 0m) → (R, 0, 0)
+  const sat::Vec3 a = sat::observer_ecef_km({0, 0, 0});
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, sat::kEarthRadius_km, a.x);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, a.y);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, a.z);
+  // North pole: (90°N, 0°E, 0m) → (0, 0, R)
+  const sat::Vec3 n = sat::observer_ecef_km({90, 0, 0});
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, n.x);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, n.y);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, sat::kEarthRadius_km, n.z);
+  // Altitude adds to radius.
+  const sat::Vec3 up = sat::observer_ecef_km({0, 0, 1000.0});  // 1 km up
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, sat::kEarthRadius_km + 1.0, up.x);
+}
+
+void test_topo_eci_to_ecef_zero_gmst_is_identity() {
+  const sat::Vec3 v{1.0, 2.0, 3.0};
+  const sat::Vec3 r = sat::eci_to_ecef(v, 0.0);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, r.x);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 2.0, r.y);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.0, r.z);
+  // Quarter-turn (gmst = π/2): (1,0,0) → (0,-1,0); z preserved.
+  const sat::Vec3 q = sat::eci_to_ecef({1.0, 0.0, 5.0}, M_PI / 2.0);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9,  0.0, q.x);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, q.y);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9,  5.0, q.z);
+}
+
+// ───── v0.3 gap fills — fake HAL fixtures ─────────────────────────────────
+
+void test_fake_ble_central_connect_enumerate_read() {
+  FakeBleCentral c;
+  // Register a synthetic battery service.
+  std::vector<FakeBleCentral::CharSpec> chars = {
+    {"00002a19-0000-1000-8000-00805f9b34fb", 0x12, {77}},   // battery level: 77%
+  };
+  c.register_service("AA:BB:CC:DD:EE:FF",
+                     "0000180f-0000-1000-8000-00805f9b34fb", chars);
+  // Connecting to an unknown MAC fails; known MAC succeeds.
+  TEST_ASSERT_FALSE(c.connect("11:22:33:44:55:66"));
+  TEST_ASSERT_TRUE(c.connect("AA:BB:CC:DD:EE:FF"));
+  TEST_ASSERT_TRUE(c.connected());
+  // Service enumeration.
+  GattService svcs[4];
+  const size_t ns = c.enumerate_services(svcs, 4);
+  TEST_ASSERT_EQUAL_size_t(1u, ns);
+  TEST_ASSERT_EQUAL_STRING("0000180f-0000-1000-8000-00805f9b34fb", svcs[0].uuid);
+  // Char enumeration.
+  GattCharacteristic chs[4];
+  const size_t nc = c.enumerate_characteristics(svcs[0].uuid, chs, 4);
+  TEST_ASSERT_EQUAL_size_t(1u, nc);
+  TEST_ASSERT_EQUAL_HEX8(0x12, chs[0].properties);
+  // Read characteristic value.
+  uint8_t buf[4] = {0};
+  const int rd = c.read_characteristic(svcs[0].uuid, chs[0].uuid, buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(1, rd);
+  TEST_ASSERT_EQUAL_UINT8(77, buf[0]);
+  // Disconnect → enumeration returns 0, reads return -1.
+  c.disconnect();
+  TEST_ASSERT_FALSE(c.connected());
+  TEST_ASSERT_EQUAL_size_t(0u, c.enumerate_services(svcs, 4));
+  TEST_ASSERT_EQUAL_INT(-1, c.read_characteristic(svcs[0].uuid, chs[0].uuid,
+                                                  buf, sizeof(buf)));
+}
+
+namespace {
+struct WifiTapCtx {
+  size_t calls = 0;
+  WifiPktType last_type = WifiPktType::Misc;
+  size_t last_len = 0;
+};
+void wifi_tap_cb(void* ctx, const uint8_t* /*frame*/, size_t len,
+                 const WifiRxMeta& meta) {
+  auto* w = static_cast<WifiTapCtx*>(ctx);
+  ++w->calls;
+  w->last_type = meta.type;
+  w->last_len  = len;
+}
+}  // namespace
+
+void test_fake_wifi_monitor_filters_by_pkt_type() {
+  FakeWifiMonitor m;
+  WifiTapCtx tap;
+  m.set_callback(wifi_tap_cb, &tap);
+  WifiFilter filt;
+  filt.mgmt = true; filt.ctrl = false; filt.data = false; filt.misc = false;
+  TEST_ASSERT_TRUE(m.start(filt, 6));
+  TEST_ASSERT_TRUE(m.running());
+  TEST_ASSERT_EQUAL_UINT8(6, m.channel());
+  // Mgmt frame is delivered.
+  uint8_t fr[8] = {0x80, 0x00};
+  WifiRxMeta meta_mgmt{-50, 6, WifiPktType::Management};
+  m.inject_frame(fr, sizeof(fr), meta_mgmt);
+  TEST_ASSERT_EQUAL_size_t(1u, tap.calls);
+  TEST_ASSERT_EQUAL_size_t(8u, tap.last_len);
+  // Data frame is filtered out (filt.data = false).
+  WifiRxMeta meta_data{-60, 6, WifiPktType::Data};
+  m.inject_frame(fr, sizeof(fr), meta_data);
+  TEST_ASSERT_EQUAL_size_t(1u, tap.calls);   // unchanged
+  // Channel hop.
+  TEST_ASSERT_TRUE(m.set_channel(11));
+  TEST_ASSERT_EQUAL_UINT8(11, m.channel());
+  // tx_raw logs frames while running.
+  uint8_t tx[3] = {0xAA, 0xBB, 0xCC};
+  TEST_ASSERT_TRUE(m.tx_raw(tx, sizeof(tx)));
+  TEST_ASSERT_EQUAL_size_t(1u, m.tx_count());
+  // Stop → tx fails, frames dropped.
+  m.stop();
+  TEST_ASSERT_FALSE(m.running());
+  TEST_ASSERT_FALSE(m.tx_raw(tx, sizeof(tx)));
+  m.inject_frame(fr, sizeof(fr), meta_mgmt);
+  TEST_ASSERT_EQUAL_size_t(1u, tap.calls);   // still unchanged
+}
+
 void test_captive_portal_backspace_stops_ap() {
   Fixture f;
   FakeWifiAp ap;
@@ -5339,5 +5525,16 @@ int main(int, char**) {
   RUN_TEST(test_sattracker_enter_drills_into_detail);
   RUN_TEST(test_sattracker_tab_in_detail_starts_live);
   RUN_TEST(test_sattracker_live_writes_doppler_to_radio);
+  // v0.3 review fixes — regression coverage
+  RUN_TEST(test_pass_predictor_starting_mid_pass_pins_aos_to_search_start);
+  RUN_TEST(test_sattracker_accepts_two_line_tle_no_name);
+  // v0.3 gap fills — sat module
+  RUN_TEST(test_vec3_mag_and_mag2);
+  RUN_TEST(test_jd_from_unix_round_trip_to_j2000);
+  RUN_TEST(test_topo_observer_ecef_at_known_points);
+  RUN_TEST(test_topo_eci_to_ecef_zero_gmst_is_identity);
+  // v0.3 gap fills — fake HAL fixtures
+  RUN_TEST(test_fake_ble_central_connect_enumerate_read);
+  RUN_TEST(test_fake_wifi_monitor_filters_by_pkt_type);
   return UNITY_END();
 }

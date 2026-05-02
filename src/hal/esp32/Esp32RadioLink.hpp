@@ -45,6 +45,10 @@ public:
       BLEDevice::init("Yui");
       ble_inited_ = true;
     }
+    // Drop any bytes that survived a prior session before opening the
+    // notify gate again — the static notify_cb_ uses state_ to decide
+    // whether to push, so transition through Connecting after the flush.
+    flush_rx_();
     state_ = RadioLinkState::Connecting;
 
     BLEAddress* target_addr = nullptr;
@@ -100,9 +104,13 @@ public:
   }
 
   void disconnect() override {
-    if (client_ && client_->isConnected()) client_->disconnect();
+    // Flip state first so any in-flight BLE notify callbacks are dropped
+    // by notify_cb_ rather than landing in rx_buf_ to be carried into
+    // the next connect() cycle.
     state_   = RadioLinkState::Idle;
     in_kiss_ = false;
+    if (client_ && client_->isConnected()) client_->disconnect();
+    flush_rx_();
   }
 
   RadioLinkState state() override {
@@ -231,6 +239,10 @@ private:
   static void notify_cb_(BLERemoteCharacteristic* /*c*/, uint8_t* data,
                          size_t len, bool /*is_notify*/) {
     if (!self_) return;
+    // Drop late notifies after disconnect — otherwise they'd corrupt
+    // the next session's rx_buf_.
+    const RadioLinkState s = self_->state_;
+    if (s == RadioLinkState::Idle || s == RadioLinkState::Failed) return;
     for (size_t i = 0; i < len; ++i) self_->rx_buf_.push_back(data[i]);
   }
 

@@ -56,6 +56,18 @@ inline PassInfo predict_next_pass(const Propagator& prop,
   bool   in_pass = (prev_el >= horizon_deg);
   double aos_t = -1, los_t = -1;
   double max_el = -90, max_t = t0_sec;
+  // If the search starts mid-pass, AOS already happened — pin aos_t to
+  // the search start so a later LOS produces a valid PassInfo instead
+  // of leaking the -1 sentinel into info.aos_jd.
+  if (in_pass) {
+    aos_t  = t0_sec;
+    max_el = prev_el; max_t = t0_sec;
+    StateVector sv0;
+    if (prop.propagate(t0_sec, sv0)) {
+      info.aos_azimuth_deg =
+          look_angles(sv0, obs, jd_epoch + t0_sec / kSecsPerDay).azimuth_deg;
+    }
+  }
 
   while (t < t_end) {
     t += coarse_step_sec;

@@ -179,8 +179,11 @@ private:
     char name[24] = {0};
     char l1[80] = {0};
     char l2[80] = {0};
-    // Pull three newline-delimited lines.
-    const char* p = block;
+    // 2-line TLE (no name line): block starts with "1 ". Skip the name
+    // take and read directly into l1/l2. Name buffer is too small to
+    // hold a TLE line, so we must detect this before take_line truncates.
+    const bool two_line = (block[0] == '1' && block[1] == ' ');
+    const char* p = two_line ? block : block;
     auto take_line = [&p](char* dst, size_t cap) {
       size_t i = 0;
       while (*p && *p != '\n' && i + 1 < cap) dst[i++] = *p++;
@@ -188,13 +191,9 @@ private:
       while (i > 0 && (dst[i-1] == '\r' || dst[i-1] == ' ')) dst[--i] = '\0';
       dst[i] = '\0';
     };
-    take_line(name, sizeof(name));
-    take_line(l1,   sizeof(l1));
-    take_line(l2,   sizeof(l2));
-    // If first line looks like a TLE line ("1 ..."), shift: no name.
-    if (l1[0] == '\0' && name[0] == '1') {
-      std::strncpy(l2, l1, sizeof(l2));   // shouldn't trigger; defensive
-    }
+    if (!two_line) take_line(name, sizeof(name));
+    take_line(l1, sizeof(l1));
+    take_line(l2, sizeof(l2));
     Favorite& f = favs_[count_];
     std::strncpy(f.name, name[0] ? name : "(unnamed)", sizeof(f.name) - 1);
     f.freq_hz = freq_hz;
