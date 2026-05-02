@@ -121,22 +121,17 @@ I²C addresses: TCA8418 = `0x34`, BMI270 = `0x68`, ES8311 = `0x18`.
 
 ### EXT 14-pin (where Caps like LoRa-1262 plug in)
 
-| Pin | Signal  | GPIO    |
-| --- | ------- | ------- |
-| 1   | RESET   | GPIO 3  |
-| 3   | INT     | GPIO 4  |
-| 5   | BUSY    | GPIO 6  |
-| 7   | SCK     | GPIO 40 |
-| 9   | MOSI    | GPIO 14 |
-| 11  | MISO    | GPIO 39 |
-| 13  | CS      | GPIO 5  |
-| 2   | 5VIN    | —       |
-| 4   | GND     | —       |
-| 6   | 5VOUT   | —       |
-| 8   | I²C_SDA | GPIO 8  |
-| 10  | I²C_SCL | GPIO 9  |
-| 12  | UART_RX | GPIO 13 |
-| 14  | UART_TX | GPIO 15 |
+Physical pin layout (two columns, looking at the connector from the top):
+
+| Pins  | Left (odd)     | Right (even)      |
+| ----- | -------------- | ----------------- |
+| 1-2   | RESET — GPIO 3 | 5VIN              |
+| 3-4   | INT — GPIO 4   | GND               |
+| 5-6   | BUSY — GPIO 6  | 5VOUT             |
+| 7-8   | SCK — GPIO 40  | I²C_SDA — GPIO 8  |
+| 9-10  | MOSI — GPIO 14 | I²C_SCL — GPIO 9  |
+| 11-12 | MISO — GPIO 39 | UART_RX — GPIO 13 |
+| 13-14 | CS — GPIO 5    | UART_TX — GPIO 15 |
 
 > ⚠️ **Bus sharing:** the EXT-14 I²C pins are physically the same bus as the
 > internal I²C (GPIO 8/9). Caps must use I²C addresses that don't collide

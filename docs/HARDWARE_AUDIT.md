@@ -178,6 +178,6 @@ If steps 1–13 pass, v0.1 is hardware-validated and we're cleared for v0.2.
 
 - [x] Cross-check pins.hpp vs M5Unified — no errors found
 - [x] Cross-check docs vs official M5 product page — 1 minor doc fix
-- [ ] Add `kKbdInt = 11` to `pins.hpp` (cosmetic until v0.2 wires the INT path)
-- [ ] Fix EXT-14 connector pin labels in HARDWARE.md (cosmetic)
+- [x] Add `kKbdInt = 11` to `pins.hpp` (constant in tree at pins.hpp:13; INT-driven polling is a v0.2 polish task)
+- [x] Fix EXT-14 connector pin labels in HARDWARE.md (table now shows physical two-column layout)
 - [ ] Phase 0 hardware bring-up (gated on physical device)
