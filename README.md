@@ -47,7 +47,26 @@ To drive a Pineapple, point a **Hak5 WiFi Pineapple Mark VII** at your
 network and put its host + creds in NVS via the serial monitor. Yui
 talks to it over the REST API.
 
-## Build from source
+## Flashing
+
+Three paths, easiest first.
+
+**Web flasher.** Open <https://leingangzj.github.io/yui> in Chrome,
+Edge, or any Chromium-based browser on a desktop OS. Plug the device
+into a USB-C data port, click Install, pick the serial port, wait
+about 90 seconds.
+
+**esptool.** Grab `yui-vX.Y-cardputer_adv.bin` from the
+[latest release](https://github.com/leingangzj/yui/releases/latest) and
+write it to flash offset `0x0`:
+
+```bash
+python3 -m esptool --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
+  write_flash --flash_mode qio --flash_freq 80m --flash_size 8MB \
+  0x0 yui-v0.3-cardputer_adv.bin
+```
+
+**From source.**
 
 ```bash
 pio test -e native                              # host tests, no hardware
@@ -55,8 +74,7 @@ pio run -e cardputer_adv                        # build the firmware
 pio run -e cardputer_adv -t upload -t monitor   # flash over USB-C
 ```
 
-When v1.0 ships there'll be an M5Burner image and you can skip the
-PlatformIO step entirely. Until then, source builds.
+Full instructions including troubleshooting are in `docs/INSTALL.md`.
 
 ## First boot
 

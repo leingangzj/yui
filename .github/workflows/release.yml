@@ -1,0 +1,111 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (must already exist)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Native tests
+        run: pio test -e native
+
+      - name: Build firmware
+        run: pio run -e cardputer_adv
+
+      - name: Resolve version
+        id: ver
+        run: |
+          ref="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "version=${ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Pack release image
+        run: tools/pack-release.sh "${{ steps.ver.outputs.version }}"
+
+      - name: SHA256
+        run: |
+          cd release
+          sha256sum *.bin *.json > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Sync web-installer firmware
+        run: |
+          cp release/yui-${{ steps.ver.outputs.version }}-cardputer_adv.bin \
+             docs/web-installer/yui-${{ steps.ver.outputs.version }}-cardputer_adv.bin
+          # Update manifest.json to point at the new file
+          python3 - <<'PY'
+          import json, os, glob
+          version = os.environ['VERSION']
+          path = 'docs/web-installer/manifest.json'
+          with open(path) as f: m = json.load(f)
+          m['version'] = version
+          m['builds'][0]['parts'][0]['path'] = f'yui-{version}-cardputer_adv.bin'
+          with open(path, 'w') as f: json.dump(m, f, indent=2)
+          # Drop any stale .bin from previous release that's no longer the current
+          for old in glob.glob('docs/web-installer/yui-*-cardputer_adv.bin'):
+              if not old.endswith(f'yui-{version}-cardputer_adv.bin'):
+                  print(f'  removing stale: {old}')
+                  os.remove(old)
+          PY
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+
+      - name: Commit web-installer update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/web-installer/
+          if git diff --cached --quiet; then
+            echo "no web-installer changes"
+          else
+            git commit -m "release ${{ steps.ver.outputs.version }}: refresh web-installer firmware"
+            # Push to main only if this was a tag push (not workflow_dispatch on a detached tag)
+            if [ "${{ github.event_name }}" = "push" ]; then
+              git push origin HEAD:main
+            fi
+          fi
+
+      - name: Upload artifacts to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          files: |
+            release/yui-${{ steps.ver.outputs.version }}-cardputer_adv.bin
+            release/yui-${{ steps.ver.outputs.version }}-manifest.json
+            release/SHA256SUMS
+          fail_on_unmatched_files: true

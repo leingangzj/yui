@@ -1,100 +1,141 @@
 # Installing Yui
 
-Two paths: end-user (M5Burner image, ~5 minutes) and developer (build from
-source). M5Burner is the recommended path once v1.0 is published; until then,
-build from source.
+Three ways to flash, in order of friction:
 
-## Path 1 — M5Burner (coming with v1.0)
+1. **Web flasher** — open a URL in Chrome / Edge / Brave on a desktop OS,
+   plug in the device, click Install. No install required.
+2. **esptool from a Python install** — one command if you already have
+   Python on the box.
+3. **Build from source** — for contributors and people who want to run
+   off `main`.
 
-1. Plug the Cardputer ADV into your computer with a USB-C cable.
-2. Download and run [M5Burner](https://docs.m5stack.com/en/download).
-3. Search for "Yui" in the **Cardputer ADV** filter. The most recent release
-   tag is the right one.
-4. Click **Burn**. M5Burner will download the firmware bundle, set the
-   correct board profile, erase, and flash. Takes ~30 seconds.
-5. The device reboots into the hinomaru-koi splash → first-run setup.
+After flashing, jump to [First-run setup](#first-run-setup) below.
 
-## Path 2 — Build from source
+## Path 1 — Web flasher
+
+Go to **https://leingangzj.github.io/yui** in Chrome, Edge, Brave, or any
+recent Chromium-based browser on Windows / macOS / Linux. Plug the
+Cardputer ADV into a USB-C port that carries data (a charge-only cable
+won't enumerate a serial device). Click **Install**, pick the serial
+port from the prompt, wait about 90 seconds. The device reboots into
+the splash on its own.
+
+Why this works: the page uses the
+[Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API),
+which is supported in any Chromium-based browser. Firefox and Safari
+do not implement it, so try one of the other paths there.
+
+## Path 2 — esptool
+
+Grab the prebuilt image from the
+[latest release](https://github.com/leingangzj/yui/releases/latest) — the
+asset named `yui-vX.Y-cardputer_adv.bin` is a single merged image you can
+write to flash offset `0x0`.
+
+```bash
+pip install esptool   # if you don't already have it
+python3 -m esptool --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
+  write_flash --flash_mode qio --flash_freq 80m --flash_size 8MB \
+  0x0 yui-v0.3-cardputer_adv.bin
+```
+
+Substitute the right port for your OS:
+
+| OS      | Typical port        |
+| ------- | ------------------- |
+| Linux   | `/dev/ttyACM0`      |
+| macOS   | `/dev/cu.usbmodem*` |
+| Windows | `COM3` (or similar) |
+
+Hold the Cardputer's `G0` button while plugging in if `esptool` reports
+a sync error — that forces download mode. Newer revisions auto-enter
+download mode when needed.
+
+## Path 3 — Build from source
+
+Use this if you want to run an unreleased commit, hack on the firmware,
+or your platform isn't covered by the binary.
 
 ### Prerequisites
 
 - Python 3.9+
-- [PlatformIO Core](https://platformio.org/install/cli) (`pip install platformio`)
-- USB-C cable
-- An M5Stack Cardputer ADV (not the original Cardputer — they have different
-  hardware)
+- [PlatformIO Core](https://platformio.org/install/cli) — `pip install platformio`
+- USB-C data cable
+- An M5Stack Cardputer ADV (not the original Cardputer — different hardware)
 
-### Clone and build
+### Clone, test, build, flash
 
 ```bash
 git clone https://github.com/leingangzj/yui.git
 cd yui
 
-# Run host-side tests first to make sure the toolchain is working.
+# Run the host-side tests first to confirm the toolchain is sane.
 pio test -e native
 
-# Build firmware. First run pulls ~1 GB of toolchain + libs (M5Unified,
-# M5GFX, IRremoteESP8266, NimBLE, ESP-IDF + Arduino ESP32). Goes faster
-# after that.
+# Build firmware. The first run pulls ~1 GB of toolchain + libraries
+# (M5Unified, M5GFX, IRremoteESP8266, NimBLE, ESP-IDF, Arduino-ESP32);
+# subsequent runs are incremental.
 pio run -e cardputer_adv
-```
 
-### Flash
-
-Hold the Cardputer's `G0` button while plugging in the USB-C cable to enter
-download mode (newer revisions auto-enter when needed; if `pio` reports a
-sync error, hold `G0` and try again).
-
-```bash
+# Flash + drop into a serial monitor at 115200 baud.
 pio run -e cardputer_adv -t upload -t monitor
 ```
 
-The serial monitor at 115200 baud shows the boot log; the device runs
-straight to the splash + launcher.
+To produce the same single-image .bin the web flasher uses:
+
+```bash
+tools/pack-release.sh v0.3
+# -> release/yui-v0.3-cardputer_adv.bin
+# -> release/yui-v0.3-manifest.json
+```
 
 ## First-run setup
 
 ### WiFi
 
-Open the launcher (the device's home screen). Drill into **WiFi** category
-→ open **WiFi** → it scans, you select your AP, type the passphrase, Enter.
-Yui persists the credentials in NVS (Non-Volatile Storage) so it auto-
-connects on subsequent boots. Auto-NTP fires after the link comes up so
-the wallclock and SatTracker have accurate time.
+Open **WiFi → Wifi** from the launcher. The app scans, you pick the AP,
+type the passphrase, hit Enter. Credentials are persisted in NVS so the
+device auto-connects on subsequent boots. NTP runs once the link is up.
 
 ### Timezone
 
-**System → Settings**: arrow down to Timezone, Left/Right cycles through
-nine POSIX TZ presets (UTC, US E/C/M/P, UK, Central Europe, Japan, Sydney).
-Persisted.
+**System → Settings**, arrow down to Timezone, Left/Right cycles through
+nine POSIX presets (UTC, US Eastern/Central/Mountain/Pacific, UK, Central
+Europe, Japan, Sydney). Persisted.
 
 ### NTP server (optional)
 
-Same Settings page; defaults to `pool.ntp.org`. Cloudflare / Google / NIST
-also available.
+Same Settings page. Default is `pool.ntp.org`; Cloudflare, Google, and
+NIST are also in the picker.
 
-### TH-D75 + bb-link bridge (optional, for ham radio features)
+### Kenwood TH-D75 + bb-link bridge (optional)
 
-You'll need a separate ESP32 (original — NOT S3) running the
-[bb-link](https://github.com/islandmagic/bb-link) firmware. Pair the bridge
-to your TH-D75 once via the bb-link instructions (BT-Classic, PIN 0000).
+Required for any ham-radio feature (APRS, GPS log, SatTracker CAT
+control, RemoteHead). You need:
 
-In Yui:
+- A TH-D75
+- A separate ESP32 (the **original**, not the S3) flashed with the
+  [bb-link firmware](https://github.com/islandmagic/bb-link). The
+  bridge talks BT-Classic SPP to the radio and BLE GATT to the
+  Cardputer.
 
-1. **Radio → Kenwood** — press **Tab** to scan for "B.B. Link" via BLE.
-2. After connect, status flips to "ready"; Enter refreshes ID/freq/mode.
-3. To make the connection persistent, set NVS `radio.mac` to the bridge's
-   BLE MAC via the serial monitor: `pio device monitor` then type the
-   appropriate command (see USING.md).
+Pair the bridge to the radio once via bb-link's own instructions
+(BT-Classic, PIN `0000`). Then in Yui:
 
-The reason for the bridge: the Cardputer ADV's ESP32-S3 doesn't speak
-Bluetooth Classic, but the TH-D75 only speaks BT-Classic SPP. The bridge
-translates. ~$5 of hardware buys you APRS, GPS feed, SatTracker
-Doppler-tuning, and CAT control of the radio.
+1. **Radio → Kenwood**, Tab to scan for `B.B. Link` over BLE.
+2. After connect, status flips to `CommandMode`. Enter refreshes
+   ID / freq / mode.
+3. To make the pairing persistent, write the bridge's BLE MAC into NVS
+   key `radio.mac` via serial. Yui will reconnect to that MAC on next
+   boot without scanning.
 
-### WiFi Pineapple (optional, for WiFi pentest features)
+The bridge exists because the Cardputer's ESP32-S3 doesn't do
+Bluetooth Classic, and the TH-D75 only speaks Classic SPP.
 
-Configure these NVS keys via serial monitor (until v1.0 adds a UI):
+### WiFi Pineapple (optional)
+
+Until a configuration UI ships, set these NVS keys via the serial
+monitor:
 
 | Key       | Value                            |
 | --------- | -------------------------------- |
@@ -106,52 +147,53 @@ Configure these NVS keys via serial monitor (until v1.0 adds a UI):
 | `pa.psk`  | the Pineapple's WiFi passphrase  |
 
 When you open **WiFi → Pineapple**, Yui swaps association from your home
-WiFi to the Pineapple's AP for the duration of the app, then restores on
-exit. There will be a 2–3 second blip in WiFi-dependent apps during the
+WiFi to the Pineapple's AP for the duration of the app, then restores
+on exit. Expect a 2–3 second blip in any WiFi-dependent app during the
 swap.
 
-### Time-of-day callsign / GPS / etc.
+### APRS callsign (optional, only if you'll TX)
 
-For APRS TX, set `tx.call` (your callsign, no SSID) and `tx.ssid`
-(0–15) in NVS.
+Set `tx.call` to your callsign (no SSID) and `tx.ssid` to a number
+0–15. Yui won't transmit anything until both are set.
 
 ## Troubleshooting
 
 ### "Failed to connect to ESP32: Timed out waiting for packet header"
 
-Hold `G0`, plug USB-C, then run `pio run -e cardputer_adv -t upload`.
+Hold `G0`, plug USB-C, then re-run the flash command. Some revisions
+need the manual download-mode entry; auto-detect doesn't always fire
+on the first try.
 
-### Splash shows red bar but the launcher list is upside-down
+### Splash renders but the launcher is upside-down
 
-The `M5GFX` autodetect gave us the wrong rotation. File a bug and include
-the output of `pio device monitor` from boot.
+`M5GFX`'s autodetect picked the wrong rotation. File an issue and
+include the boot log (`pio device monitor`).
 
-### KeyTestApp shows row/col off-by-one
+### KeyTestApp reports the wrong row/col for a key
 
-If a key shows up at the wrong logical position, the TCA8418 keymap derived
-from the M5 schematic is off. Compare with `docs/HARDWARE.md` § "Keyboard
-Matrix" and submit a PR with the corrected matrix in
-`src/drivers/AdvKeymap.hpp`.
+The TCA8418 keymap drift. Compare with `docs/HARDWARE.md` ➝ "Keyboard
+Matrix" and PR a corrected matrix in `src/drivers/AdvKeymap.hpp`.
 
-### "no NTP sync" stays on the Time row of Sysinfo
+### "no NTP sync" stays on the Sysinfo Time row
 
-Verify WiFi is up first (System → Sysinfo shows the IP). Then verify the
-NTP server in Settings is reachable from your network. Some corporate
-networks block UDP/123.
+WiFi has to be up first (Sysinfo shows the IP when it is). Then verify
+the NTP server in Settings is reachable from your network — some
+corporate networks block UDP/123.
 
-### The Pineapple connects but recon scan never completes
+### Pineapple connects but recon never completes
 
-Pineapple firmware versions vary; the response shape can differ. Open an
-issue with the JSON body of `/api/recon/status` from a known scan.
+Pineapple firmware versions vary, and the response shape can differ.
+Open an issue with the body of `/api/recon/status` from a known good
+scan.
 
 ### TH-D75 GPS row is empty even after pairing
 
-Make sure the radio's `GP` (GPS data output) menu option is **on**. The
-bridge passes through whatever the radio sends; if the radio isn't
+Make sure the radio's `GP` (GPS data output) menu option is **on**.
+The bridge passes through whatever the radio sends; if the radio isn't
 emitting NMEA, neither is the bridge.
 
 ## Uninstalling
 
-`pio run -e cardputer_adv -t erase` wipes flash. The Cardputer goes back to
-factory state (M5Stack default firmware on next boot if it can find the
-M5Burner default; otherwise blank).
+`pio run -e cardputer_adv -t erase` wipes flash, or `python3 -m esptool
+--chip esp32s3 erase_flash`. The device goes back to a blank state and
+will boot the next firmware you flash.
