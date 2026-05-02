@@ -2,60 +2,128 @@
 
 > 結い — _Okinawan: cooperative community work, the bond that ties people together._
 
-A community-driven hobby OS for the **M5Stack Cardputer ADV**.
+A pocket-sized **comms + pentest companion** for the M5Stack Cardputer ADV.
 
-Yui is a tiny pocket-sized utility shell — a launcher plus a growing suite of
-small apps (notes, files, WiFi/BLE tools, IR remote, IMU toys, calculator,
-microSD browser). It runs on the bare ADV with no extra hardware required, and
-can grow as you add Caps and Grove modules.
+Yui pairs the Cardputer with the radios and tools you already own and turns
+them into a single hand-held console — a Kenwood TH-D75 ham radio (via a
+small bb-link bridge), a WiFi Pineapple, and the Cardputer's onboard 2.4 GHz
+radio for native WiFi/BLE work — plus a satellite tracker that drives the
+TH-D75's frequency for Doppler shift during a pass.
+
+```
+   ┌────────────────────────────────────┐
+   │   Yui                              │
+   │ ┌─────────┐ ┌─────────┐ ┌────────┐ │
+   │ │ Radio   │ │ WiFi    │ │ Bluetooth│
+   │ │ APRS    │ │ Probes  │ │ Spam   │ │
+   │ │ GPS     │ │ Handshake│ │ GATT   │ │
+   │ │ SatTrack│ │ Pineapple│ │ Jam    │ │
+   │ └─────────┘ └─────────┘ └────────┘ │
+   │ ┌─────────┐ ┌─────────┐ ┌────────┐ │
+   │ │ Tools   │ │ System  │ │ Fun    │ │
+   │ └─────────┘ └─────────┘ └────────┘ │
+   └────────────────────────────────────┘
+        ↕ BLE       ↕ WiFi STA      ↕ direct
+     bb-link     WiFi Pineapple     onboard
+        ↕ BT-Classic
+    Kenwood TH-D75
+```
 
 ## Status
 
-🌱 **v0.0 — ideation + scaffold.** No flashable build yet.
+🛰️ **v0.3 — feature-complete; awaiting hardware bring-up.** Both `pio run -e
+cardputer_adv` and `pio test -e native` are green. ~40 apps across 6
+categories. ~360 native unit tests. Real-hardware validation pending.
 
-## Goals
+## Headline features
 
-- **Pocket-sized.** One device, one keyboard, one screen. Apps stay small and
-  finishable.
-- **Hobbyist-first.** Friendly, hackable, MIT-licensed. Drop-in your own app in
-  an afternoon.
-- **Hardware-honest.** v0.1 only uses what the ADV has onboard (WiFi, BLE, IR,
-  IMU, mic, speaker, microSD, screen, keyboard). External modules are future
-  milestones, not promises.
-- **Testable on a laptop.** HAL-first architecture means most code runs and is
-  unit-tested on a host machine; we only need real hardware for final validation.
+- **APRS station tracker** with TX/RX over the TH-D75
+- **GPS logger** (GPX export) — uses the radio's onboard GNSS
+- **SatTracker** — TLE database, next-pass predictor, polar-plot live view,
+  Doppler-correcting CAT control of the TH-D75
+- **WiFi Pineapple companion** — recon, Evil Twin / Karma, deauth, handshake
+  browser, all driven from the Cardputer keyboard
+- **Native WiFi tools** — probe-request fingerprinting, WPA handshake capture
+  (passive), beacon flood, WPS scan, captive portal phishing with credential
+  capture, native deauth (when patched-libnet is provided)
+- **BLE tools** — scan, GATT enumeration, advertisement spam, jammer
+- **TV-B-Gone** — multi-brand IR power-off blast
+- Plus the v0.1 utility set: notes, files, calc (RPN+trig+memory), mic FFT,
+  IR remote, calendar, todos, snake, life, tone/metronome, etc.
 
-## Hardware Target
+## What you'll need
 
-**M5Stack Cardputer ADV** — ESP32-S3FN8, 8MB flash, 1.14" ST7789V2 LCD
-(240×135), 56-key keyboard via TCA8418, BMI270 IMU, ES8311 audio + 3.5mm jack,
-MEMS mic, IR emitter, microSD, Grove HY2.0-4P, EXT 14-pin bus, 1750 mAh
-battery.
+| Required                  | Why                                                      |
+| ------------------------- | -------------------------------------------------------- |
+| **M5Stack Cardputer ADV** | The host. ESP32-S3FN8, 8 MB flash.                       |
+| nothing else              | The bare ADV runs Yui + all native WiFi/BLE/IR features. |
 
-See [docs/HARDWARE.md](docs/HARDWARE.md) for verified specs and pinout.
+| Optional                                                                                            | Unlocks                                                           |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Kenwood TH-D75 + bb-link bridge** ([islandmagic/bb-link](https://github.com/islandmagic/bb-link)) | APRS, GPS log, SatTracker CAT control, RemoteHead VFO/mode editor |
+| **Hak5 WiFi Pineapple Mark VII**                                                                    | Pro WiFi-pentest tier — driven over the Pineapple's REST API      |
 
-## Quick Look
+The ESP32-S3 in the Cardputer is BLE-only, so the TH-D75 (which is BT-Classic
+SPP) needs the bb-link bridge — a separate ESP32 (original) board running
+the open-source bb-link firmware that translates BLE↔BT-Classic. ~$5 board,
+one-time pairing setup. See `docs/protocols/KENWOOD_THD75.md` for the
+architecture.
 
-```
-docs/             ARCHITECTURE, HARDWARE, TEST_ENV, PRIOR_ART, ROADMAP
-include/yui/      public headers
-include/yui/hal/  hardware abstraction interfaces
-src/              implementations (esp32 + native backends)
-test/test_native/ host-side unit tests (PlatformIO `test_native`)
-platformio.ini    cardputer + native env definitions
-```
-
-## Building (planned, not yet wired)
+## Quick start (developers)
 
 ```bash
-# Run tests on this machine (no hardware needed)
+# Run host-side tests (no hardware required)
 pio test -e native
 
-# Build for the ADV
+# Build firmware for the Cardputer ADV
 pio run -e cardputer_adv
 
-# Flash + monitor
+# Flash over USB
 pio run -e cardputer_adv -t upload -t monitor
+```
+
+End users will be able to flash a prebuilt M5Burner image — that's the v1.0
+deliverable; until then it's `pio` from source.
+
+## Install (end users — coming with v1.0)
+
+1. Download M5Burner.
+2. Search for "Yui" in the Cardputer ADV section, click Burn.
+3. After the device reboots, open WiFi from the Yui launcher and connect to
+   your home AP. Settings → Timezone for your zone.
+4. (Optional) Pair the bb-link bridge to your TH-D75 once via the bb-link
+   companion app, then in Yui open Radio → Kenwood and Tab to connect.
+5. (Optional) Configure your Pineapple host/credentials in NVS via the
+   serial monitor. Open WiFi → Pineapple to verify.
+
+## Architecture
+
+HAL-first C++17 with strict separation between platform-agnostic logic and
+ESP32-specific backends. ~360 native unit tests run on the host machine
+against `Fake*` HALs; real-hardware testing is layered on top, not under,
+the test pyramid.
+
+See `docs/ARCHITECTURE.md` and `docs/HARDWARE_AUDIT.md`.
+
+## Repo layout
+
+```
+docs/             HARDWARE.md, ARCHITECTURE.md, ROADMAP.md, HARDWARE_AUDIT.md,
+                  protocols/{KENWOOD_THD75, AX25_APRS, PINEAPPLE_API,
+                              ESP_WIFI_AND_PCAP}.md
+include/yui/
+   app/           ~40 app classes (RadioCategory, WiFiCategory, etc.)
+   hal/           IRadioLink, IGnss, IHttp, IPcap, IWifiMonitor, IBleAdvertiser,
+                  IBleCentral, IWifiAp, plus the v0.1 set (IDisplay, IKeyboard,
+                  IClock, ILog, INet, IImu, IFs, IIr, IMic, ISpeaker, IStorage)
+   proto/         AX.25 + APRS + KISS + Dot11 + Pcap + Pineapple decoders
+   sat/           Tle, Vec3, Time, Propagator, Topo, Pass — all the math
+                  the SatTracker needs
+src/hal/native/   Fake* test backends (no Arduino/ESP-IDF deps)
+src/hal/esp32/    Esp32* real backends — BluetoothSerial→bb-link via BLE,
+                  HTTPClient, esp_wifi_set_promiscuous_*, NimBLE GATT, etc.
+test/test_native/ ~360 host-side tests (one giant file for now)
+platformio.ini    `native` and `cardputer_adv` envs
 ```
 
 ## License
@@ -63,13 +131,24 @@ pio run -e cardputer_adv -t upload -t monitor
 MIT — see [LICENSE](LICENSE). Keep the copyright notice and do whatever you
 want with it.
 
+## Prior art
+
+Yui takes ideas (not code) from [Bruce](https://github.com/BruceDevices/firmware)
+(AGPL) and [NEMO](https://github.com/n0xa/m5stick-nemo) (GPL). Yui is MIT and
+written fresh. The Bruce-parity sweep app set was built as clean-room work
+against the same documented protocols Bruce uses, never copying their code.
+
+## Legal
+
+Several Yui apps transmit RF or send WiFi management frames that interact
+with networks/devices around you. **Use only on RF spectrum / networks /
+devices you own or have written authorization to test.** TX of WPA deauth,
+BLE-spam, beacon flood, captive-portal phishing, and the like against
+parties who have not consented is a federal crime in the US (CFAA / Wiretap
+Act / FCC Part 15) and equivalent elsewhere. The author and contributors
+take no responsibility for misuse.
+
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md). Short version: launcher + ~8 onboard-only
-apps for v0.1, then external-module support after.
-
-## Prior Art
-
-Yui borrows ideas (not code) from [Bruce](https://github.com/BruceDevices/firmware)
-and [NEMO](https://github.com/n0xa/m5stick-nemo). Both are excellent; both are
-GPL/AGPL. Yui is MIT and written fresh. See [docs/PRIOR_ART.md](docs/PRIOR_ART.md).
+See `docs/ROADMAP.md`. Short version: v0.1 done, v0.2 done, v0.3 done
+(awaiting hardware bring-up); v1.0 is the polish + ship pass.

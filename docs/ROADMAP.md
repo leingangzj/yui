@@ -51,7 +51,7 @@ Shipped 2026-05-01. The actual identity of the device.
 
 **Status:** all apps work end-to-end against native fakes. ESP32 backends for the network/radio HALs are stubs awaiting v0.3 hardware bring-up.
 
-## v0.3 — SatTracker + ESP32 hardware bring-up (NEXT)
+## v0.3 — SatTracker + ESP32 hardware bring-up (DONE in firmware, head 2d98a4a)
 
 Two pieces, only two pieces:
 
@@ -78,15 +78,43 @@ Plus the 14-step Phase 0 hardware bring-up checklist in `docs/HARDWARE_AUDIT.md`
 
 **Effort:** ~3–4 weekends with the device in hand.
 
-## v1.0 — Ship
+## v1.0 — Ship (in progress)
 
-- M5Burner image (signed .bin)
-- README a non-coder can install in 5 minutes
-- 24-hour soak test with no crashes
-- Demo video showing tri-radio companion in action
-- Public mirror with issues open
+- ✅ M5Burner-compatible single-binary release script (`tools/pack-release.sh`)
+- ✅ README rewritten for v0.3 reality (tri-radio companion + Bruce parity + SatTracker)
+- ✅ End-user install guide (`docs/INSTALL.md`)
+- ✅ End-user reference (`docs/USING.md`) — every app + every NVS key + every SD path
+- ⏳ Hardware bring-up — flash + 14-step Phase 0 checklist + bb-link bridge pairing
+- ⏳ 24-hour soak test
+- ⏳ Demo video showing TH-D75 + Pineapple + SatTracker on real hardware
+- ⏳ Public mirror with issues open
 
-**Effort:** ~2 weekends.
+**Effort remaining:** ~1-2 weekends with hardware in hand.
+
+### Known v0.3 caveats that v1.0 may revisit
+
+1. **Native deauth via patched libnet** — `Esp32WifiMonitor::tx_raw` calls
+   `esp_wifi_80211_tx`, which Espressif blocks for deauth/disassoc. The
+   patched-libnet workaround (vendored `libnet80211.a` + `-zmuldefs` linker
+   flag) isn't shipped in v0.3. If you want real native deauth on hardware,
+   add `board/lib_extra/` with the patched archive — Bruce / ESP32-Marauder
+   document the technique. Yui's UI already gates this app behind
+   Tab-arms-Fn+Enter-fires.
+
+2. **bb-link bridge** — Track A apps (TH-D75 ham radio integration) need
+   a separate ESP32 (original) board running [islandmagic/bb-link](https://github.com/islandmagic/bb-link)
+   firmware. Yui scans for "B.B. Link" advertised name and connects via
+   BLE to its GATT service. ~$5 of additional hardware, one-time setup.
+
+3. **WiFi+BT-Classic coexistence is moot** because we don't use BT-Classic
+   on the Cardputer side — but **WiFi STA + BLE central + WiFi monitor
+   mode** all on the S3 simultaneously hasn't been validated. Phase 0
+   stress test will reveal whether we need to serialize radio access by
+   category.
+
+4. **Pcap streaming throughput on SD** — SD writes can stall under load.
+   `Esp32Pcap` flushes every 16 KB; if real captures show packet drops,
+   ring-buffer in RAM first.
 
 ---
 

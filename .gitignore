@@ -6,6 +6,7 @@
 .ccache/
 build/
 dist/
+release/
 *.o
 *.a
 *.elf
