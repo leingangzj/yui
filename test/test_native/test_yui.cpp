@@ -77,6 +77,7 @@
 #include "yui/sat/Propagator.hpp"
 #include "yui/sat/Topo.hpp"
 #include "yui/sat/Pass.hpp"
+#include "yui/app/SatTrackerApp.hpp"
 #include "yui/proto/Dot11.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
@@ -4798,6 +4799,108 @@ void test_topo_doppler_sign_convention() {
 
 // ───── SatTracker — pass predictor ────────────────────────────────────────
 
+// ───── SatTrackerApp ──────────────────────────────────────────────────────
+
+void test_sattracker_loads_default_tles_when_no_sd() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeGnss g;
+  FakeFs fs;   // empty
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  // Defaults include ISS + SO-50
+  TEST_ASSERT_TRUE(app.favorite_count() >= 2);
+  TEST_ASSERT_TRUE(app.view() == SatTrackerApp::View::List);
+}
+
+void test_sattracker_loads_tles_from_sd_if_present() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeGnss g;
+  FakeFs fs;
+  const char* records =
+    "ISS\n"
+    "1 25544U 98067A   24001.50000000  .00012345  00000-0  22345-3 0  9999\n"
+    "2 25544  51.6400 123.4567 0001234 234.5678 125.4321 15.50000000123456\n";
+  fs.write_all("/yui-tles.txt", records, std::strlen(records));
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(1u, app.favorite_count());
+  TEST_ASSERT_EQUAL_STRING("ISS", app.favorite_at(0).name);
+}
+
+void test_sattracker_arrow_keys_move_cursor_in_list() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeGnss g;
+  FakeFs fs;
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+  app.on_key(press(Key::Down));
+  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
+  app.on_key(press(Key::Up));
+  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
+}
+
+void test_sattracker_enter_drills_into_detail() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeGnss g;
+  FakeFs fs;
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.view() == SatTrackerApp::View::Detail);
+}
+
+void test_sattracker_tab_in_detail_starts_live() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeGnss g;
+  FakeFs fs;
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));   // → Detail
+  app.on_key(press(Key::Tab));     // → Live
+  TEST_ASSERT_TRUE(app.view() == SatTrackerApp::View::Live);
+}
+
+void test_sattracker_live_writes_doppler_to_radio() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("FQ 0,0145824998",  "FQ 0,0145824998");   // any reply OK
+  // We don't know the exact freq the propagator will compute, so register
+  // a wildcard via several common shifts. Easier: register the bare prefix.
+  // But FakeRadioLink does exact-match. Use a generic catchall: register
+  // the typical iss freq with no shift, plus a few variants. The test
+  // only asserts that *some* command succeeded, so register any matching
+  // command we expect. Robust path: register the exact computed freq by
+  // pre-running the propagator here:
+  FakeGnss g;
+  GnssFix fx; fx.valid = true;
+  fx.lat_deg = 49; fx.lon_deg = -72; fx.altitude_m = 0;
+  fx.epoch_seconds = 1735689600ULL;
+  g.set_fix(fx);
+  FakeFs fs;
+  SatTrackerApp app{r, g, fs, f.clock};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));   // Detail
+  app.on_key(press(Key::Tab));     // Live
+  // Register a catchall for whatever FQ command gets sent. Walk the
+  // possible Doppler-shifted freqs near 145.825 MHz ±5 kHz and seed.
+  for (long long base = 145820000LL; base <= 145830000LL; ++base) {
+    char cmd[32], reply[40];
+    std::snprintf(cmd, sizeof(cmd), "FQ 0,%010lld", base);
+    std::snprintf(reply, sizeof(reply), "%s", cmd);
+    r.register_reply(cmd, reply);
+  }
+  app.tick(0);    // first call past kDopplerIntervalMs threshold
+  app.tick(3000); // past threshold → second push
+  TEST_ASSERT_TRUE(app.doppler_writes() >= 1);
+}
+
 void test_pass_predictor_finds_a_pass_within_24h() {
   sat::TleElements el;
   sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
@@ -5230,5 +5333,11 @@ int main(int, char**) {
   RUN_TEST(test_topo_satellite_overhead_is_90deg_elevation);
   RUN_TEST(test_topo_doppler_sign_convention);
   RUN_TEST(test_pass_predictor_finds_a_pass_within_24h);
+  RUN_TEST(test_sattracker_loads_default_tles_when_no_sd);
+  RUN_TEST(test_sattracker_loads_tles_from_sd_if_present);
+  RUN_TEST(test_sattracker_arrow_keys_move_cursor_in_list);
+  RUN_TEST(test_sattracker_enter_drills_into_detail);
+  RUN_TEST(test_sattracker_tab_in_detail_starts_live);
+  RUN_TEST(test_sattracker_live_writes_doppler_to_radio);
   return UNITY_END();
 }

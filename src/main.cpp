@@ -51,6 +51,7 @@
 #include "yui/app/BleGattApp.hpp"
 #include "yui/app/BleJammerApp.hpp"
 #include "yui/app/CaptivePortalApp.hpp"
+#include "yui/app/SatTrackerApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -158,6 +159,7 @@ yui::WpsScanApp          wps_scan_app{wmon_};
 yui::BleGattApp          ble_gatt_app{ble_cent_};
 yui::BleJammerApp        ble_jammer_app{ble_adv_};
 yui::CaptivePortalApp    captive_app{wifi_ap_, fs_, store_};
+yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -198,6 +200,7 @@ void setup() {
   registry.add(&gps_app);
   registry.add(&remote_head_app);
   registry.add(&aprs_msg_app);
+  registry.add(&sat_app);
   // WIFI category
   registry.add(&wifi_app);
   registry.add(&pa_app);
