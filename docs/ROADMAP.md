@@ -1,76 +1,115 @@
 # Roadmap
 
-> Realistic. Personal hobby project, one developer + AI assistance, evenings
-> and weekends. No funding, no team, no marketing.
+> Personal hobby project, one developer + AI assistance. No funding, no
+> team. Realistic; updated to match what's actually shipping.
 
-## v0.0 — Foundation (this weekend)
+## v0.1 — Foundation + utility apps (DONE, commit 0689297)
 
-- [x] Decide name, license, target hardware, scope
-- [x] Document hardware baseline (`docs/HARDWARE.md`)
-- [x] Document architecture, test plan, prior art
-- [ ] Repo scaffolded, builds clean for both `cardputer_adv` and `native` envs
-- [ ] HAL interfaces defined (`IDisplay`, `IKeyboard`, `IClock`, `ILog` minimum)
-- [ ] Native backend: stub impls + framebuffer assertions
-- [ ] One passing native unit test (e.g., menu cursor wrap)
-- [ ] `cardputer_adv` env compiles a "Hello, Yui" splash that prints the build
-      string to LCD
-- [ ] Pushed to GitLab CT 135 with a real `git log`
+Shipped 2026-05-01. 21 apps across the bare ADV's hardware:
 
-**Definition of done:** `pio test -e native` is green, `pio run -e cardputer_adv`
-produces a `.bin`. We do not need to flash hardware this weekend.
+- HAL split (display, keyboard, clock, log, net, IMU, fs, IR, mic, speaker, storage)
+- WiFi connect + auto-NTP + persistence
+- TZ + NTP-server pickers
+- Settings, Clock (TimeOfDay incl.), Sysinfo, About
+- Notes, Todo, Files, Calc (RPN+trig+memory), Mic FFT, IR remote, IMU bubble level, KeyTest
+- Pomodoro / Metronome / Tone / Snake / Life / Draw / Calendar
+- Animated hinomaru-koi splash
+- Categorized launcher (Flipper-style 6-category drill-in)
 
-## v0.1 — Launcher + onboard apps (next 2–4 weekends)
+Definition of done: `pio test -e native` green, `pio run -e cardputer_adv` produces a flashable .bin.
 
-Apps that need only what's onboard the bare ADV:
+## v0.2 — Tri-radio companion + Bruce-parity sweep (DONE, commit 8af44c0)
 
-- [ ] **Launcher / Shell** — splash, app grid, settings, about
-- [ ] **WiFi tools** — scan list, connect, info (RSSI, IP, gateway)
-- [ ] **BLE scanner** — list nearby devices with name/RSSI/MAC
-- [ ] **IR remote** — TV-B-Gone style code blast + custom save/replay
-- [ ] **IMU toys** — bubble level, compass, step counter
-- [ ] **Notes** — text editor that respects the 56-key kbd, saves to SD
-- [ ] **Files** — microSD browser (list, preview, delete)
-- [ ] **Calculator** — RPN-friendly, because keyboard
-- [ ] **Mic visualizer** — VU meter + crude FFT bars
+Shipped 2026-05-01. The actual identity of the device.
 
-**Out of scope for v0.1:** anything requiring a Cap or external module. CC1101,
-PN532, RFID2, LoRa, GPS, environmental sensors all wait until you actually
-have one in hand.
+**Track A — Kenwood TH-D75 over BT-Classic SPP:**
 
-## v0.2 — First Cap / module (when the LoRa-1262 lands)
+- KenwoodApp (status / pair / refresh)
+- AprsApp (RX station list)
+- AprsMessageApp (TX via KISS)
+- GpsApp (NMEA → GPX log)
+- RemoteHeadApp (VFO / freq / mode editor)
 
-- [ ] HAL interfaces extended (`IRadio` gets LoRa methods)
-- [ ] Cap detection on EXT-14 bus
-- [ ] **Meshtastic-lite app** or simple LoRa packet sender / receiver
+**Track B — WiFi Pineapple over WiFi/SSH/REST:**
 
-(Other modules — PN532, BME680, etc. — slot in as they arrive. Each becomes a
-small driver + one new app.)
+- PineappleApp (dashboard cards)
+- PineappleReconApp (paged AP list)
+- HandshakeBrowserApp (count captured handshakes)
+- EvilTwinApp / KarmaApp / WifiDeauthApp
 
-## v1.0 — When it's "done enough"
+**Track C — Cardputer onboard 2.4 GHz:**
 
-A Yui v1.0 release is "I'd be happy to hand this to a friend with an ADV and
-have them not be confused." That means:
+- WifiHandshakeApp (passive handshake capture to .pcap)
+- WifiProbeApp (probe-request fingerprinting)
+- WifiNativeDeauthApp (via patched libnet ieee80211_freedom_output)
+- WifiBeaconFloodApp (rotating fake APs)
+- CaptivePortalApp (SoftAP + DNS-redirect-all + HTML form capture)
+- WpsScanApp (WPS-IE detection in beacons)
+- BleSpamApp / BleJammerApp / BleGattApp
 
-- Stable launcher, no crashes during a day's use
-- 5+ apps that actually do something useful
-- README + install instructions a non-coder can follow (M5Burner image)
-- At least one app that's more interesting than "Bruce already does this"
+**Native v0.1 + v0.2:** ~40 apps. 343 native tests. Flash 1623 KB / 6.4 MB.
 
-No date. We get there when we get there.
+**Status:** all apps work end-to-end against native fakes. ESP32 backends for the network/radio HALs are stubs awaiting v0.3 hardware bring-up.
 
-## Explicit non-goals
+## v0.3 — SatTracker + ESP32 hardware bring-up (NEXT)
 
-- **Multi-device support** in v1. Cardputer ADV only. Don't add complexity
-  for the base Cardputer or T-Deck until v0.1 actually ships.
-- **OTA updates** in v1. Wired flashing is fine for a hobby project.
-- **A custom UI library.** M5GFX is fine; we're not a graphics project.
-- **Web companion app.** Maybe later, definitely not first.
-- **Plugin marketplace.** Apps are PRs, not downloadable bundles. Keep it
-  simple.
+Two pieces, only two pieces:
 
-## How we'll measure progress
+### SatTracker (headline)
 
-Every weekend: did we ship one observable thing? An app that runs, a test that
-passes, a doc that didn't exist before. If three weekends in a row pass with
-no observable shipped thing, the project is dead and we should admit it
-instead of generating more documentation.
+ISS + amateur-satellite tracker. TLE database on SD (CelesTrak refresh weekly), favorites with next-pass countdown, polar-plot live pass display, auto-GPS from TH-D75 NMEA, drift-free time (NTP at boot + GPS discipline), Doppler-correcting CAT control of the TH-D75. SGP4/SDP4 propagator vendored from a public-domain reference.
+
+**Effort:** ~4–6 weekends.
+
+### ESP32 hardware bring-up
+
+Replace 8 stubs with real implementations:
+
+- `Esp32RadioLink` — `BluetoothSerial` to TH-D75
+- `Esp32Gnss` — peel NMEA off the same SPP socket
+- `Esp32Http` — `HTTPClient`/`WiFiClient` for Pineapple REST
+- `Esp32Pcap` — libpcap streamer to SD
+- `Esp32WifiMonitor` — `esp_wifi_set_promiscuous_*` plus the patched-libnet `tx_raw` path for native deauth
+- `Esp32BleAdvertiser` — NimBLE GAP advertise
+- `Esp32WifiAp` — `WiFi.softAP()` + DNS server + HTTP captive portal
+- `Esp32BleCentral` — NimBLE BLEClient + GATT walk
+
+Plus the 14-step Phase 0 hardware bring-up checklist in `docs/HARDWARE_AUDIT.md`.
+
+**Effort:** ~3–4 weekends with the device in hand.
+
+## v1.0 — Ship
+
+- M5Burner image (signed .bin)
+- README a non-coder can install in 5 minutes
+- 24-hour soak test with no crashes
+- Demo video showing tri-radio companion in action
+- Public mirror with issues open
+
+**Effort:** ~2 weekends.
+
+---
+
+## What's explicitly OUT of scope
+
+Decided 2026-05-01 — these are NOT v2.0, NOT "later," they're dropped:
+
+- **CC1101** (sub-GHz remote replay / spectrum)
+- **PN532** (13.56 MHz NFC R/W)
+- **125 kHz RFID** (LF tag work)
+- **iButton** (Dallas 1-Wire)
+- **LoRa-1262 Cap** (LoRa / Meshtastic / GNSS-via-Cap)
+- **BME680 / environmental sensors**
+- **BadUSB / HID injection** (the Cardputer USB-C is device-mode-only — never works on this hardware regardless)
+
+Yui's scope is the bare ADV + the radios already on Zac's desk (TH-D75, Pineapple, FT5DR, ID-50, UV-K5, USB monitor stick). Anything requiring an additional Cap or external module is not on the roadmap.
+
+---
+
+## "Done enough" definition for v1.0
+
+> A friend with an ADV reads the README, flashes the M5Burner image,
+> pairs it with their TH-D75 over Bluetooth, points it at an upcoming
+> ISS pass, and works the bird. No phone, no laptop. They also use
+> it as a hand-held remote for their Pineapple at a paid pentest gig.
+> Both work first try.
