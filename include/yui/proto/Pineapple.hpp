@@ -109,12 +109,100 @@ public:
     return true;
   }
 
-  // STUB until v0.2-stretch: parsing the APResults array needs array
-  // iteration which JsonValue doesn't do. PineappleReconApp will get
-  // the count via dashboard_cards and the full result via a follow-up
-  // commit that adds an array helper to JsonValue.
-  bool recon_results(int /*scan_id*/, ApInfo* /*out_aps*/, size_t /*cap*/,
-                     size_t& count) { count = 0; return false; }
+  // Parses APResults array from /api/recon/scans/<id>. Each element
+  // is a small flat object — we walk the response substring-style,
+  // extracting one record at a time via JsonValue. Caps at `cap`.
+  bool recon_results(int scan_id, ApInfo* out_aps, size_t cap, size_t& count) {
+    count = 0;
+    char path[64];
+    std::snprintf(path, sizeof(path), "/api/recon/scans/%d", scan_id);
+    char resp[4096];
+    if (!authed_get_(path, resp, sizeof(resp))) return false;
+    // Find APResults array. Then iterate "{...}" objects within it.
+    const char* p = std::strstr(resp, "\"APResults\"");
+    if (!p) return true;          // no APs but request succeeded
+    p = std::strchr(p, '[');
+    if (!p) return true;
+    ++p;
+    while (count < cap) {
+      const char* obj = std::strchr(p, '{');
+      if (!obj) break;
+      const char* end = std::strchr(obj, '}');
+      if (!end) break;
+      const size_t olen = static_cast<size_t>(end - obj + 1);
+      char one[512];
+      const size_t copy = (olen < sizeof(one) - 1) ? olen : (sizeof(one) - 1);
+      std::memcpy(one, obj, copy);
+      one[copy] = '\0';
+      ApInfo& ap = out_aps[count];
+      json::find_string(one, "ssid",       ap.ssid,       sizeof(ap.ssid));
+      json::find_string(one, "bssid",      ap.bssid,      sizeof(ap.bssid));
+      json::find_string(one, "encryption", ap.encryption, sizeof(ap.encryption));
+      int ch = 0, rs = 0;
+      if (json::find_int(one, "channel", &ch)) ap.channel = static_cast<uint8_t>(ch);
+      if (json::find_int(one, "rssi",    &rs)) ap.rssi    = static_cast<int8_t>(rs);
+      ++count;
+      p = end + 1;
+    }
+    return true;
+  }
+
+  // ─── PineAP settings (Evil Twin / Karma) ──────────────────────────
+  bool pineap_set_enabled(bool enabled, bool karma) {
+    char body[160];
+    std::snprintf(body, sizeof(body),
+                  "{\"enablePineAP\":%s,\"karma\":%s}",
+                  enabled ? "true" : "false",
+                  karma   ? "true" : "false");
+    char resp[128];
+    return authed_request_("PUT", "/api/pineap/settings", body,
+                           resp, sizeof(resp));
+  }
+
+  bool pineap_add_ssid(const char* ssid) {
+    char body[80];
+    std::snprintf(body, sizeof(body), "{\"ssid\":\"%s\"}", ssid ? ssid : "");
+    char resp[128];
+    return authed_request_("PUT", "/api/pineap/ssids/ssid", body,
+                           resp, sizeof(resp));
+  }
+
+  bool pineap_clear_ssids() {
+    char resp[128];
+    return authed_request_("DELETE", "/api/pineap/ssids", nullptr,
+                           resp, sizeof(resp));
+  }
+
+  // ─── Handshake browser endpoints ──────────────────────────────────
+  // Returns the raw JSON body of /api/pineap/handshakes for the caller
+  // to render. Avoids parsing the (per-Pineapple-version-variable)
+  // shape; PineappleHandshakeApp counts entries by scanning for "bssid".
+  bool handshakes_raw(char* out, size_t cap) {
+    return authed_get_("/api/pineap/handshakes", out, cap);
+  }
+
+  // ─── Deauth (passes through to Pineapple — we never TX directly) ──
+  bool deauth_ap(const char* bssid, uint8_t channel, int multiplier = 1) {
+    char body[128];
+    std::snprintf(body, sizeof(body),
+        "{\"bssid\":\"%s\",\"channel\":%u,\"multiplier\":%d,\"clients\":[]}",
+        bssid ? bssid : "", static_cast<unsigned>(channel), multiplier);
+    char resp[128];
+    return authed_request_("POST", "/api/pineap/deauth/ap", body,
+                           resp, sizeof(resp));
+  }
+
+  bool deauth_client(const char* bssid, const char* mac, uint8_t channel,
+                     int multiplier = 1) {
+    char body[160];
+    std::snprintf(body, sizeof(body),
+        "{\"bssid\":\"%s\",\"mac\":\"%s\",\"channel\":%u,\"multiplier\":%d}",
+        bssid ? bssid : "", mac ? mac : "",
+        static_cast<unsigned>(channel), multiplier);
+    char resp[128];
+    return authed_request_("POST", "/api/pineap/deauth/client", body,
+                           resp, sizeof(resp));
+  }
 
 private:
   bool authed_get_(const char* path, char* resp, size_t cap) {

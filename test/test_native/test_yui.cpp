@@ -54,6 +54,14 @@
 #include "../../src/hal/native/NativeWifiMonitor.hpp"
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
+#include "yui/app/RemoteHeadApp.hpp"
+#include "yui/app/AprsMessageApp.hpp"
+#include "yui/app/HandshakeBrowserApp.hpp"
+#include "yui/app/EvilTwinApp.hpp"
+#include "yui/app/KarmaApp.hpp"
+#include "yui/app/WifiDeauthApp.hpp"
+#include "yui/app/BleSpamApp.hpp"
+#include "../../src/hal/native/NativeBleAdvertiser.hpp"
 #include "yui/proto/Dot11.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
@@ -3944,6 +3952,305 @@ void test_handshake_app_on_exit_stops_and_closes() {
   TEST_ASSERT_FALSE(pcap.is_open());
 }
 
+// ───── v0.2 stretch apps ──────────────────────────────────────────────────
+
+// RemoteHeadApp
+
+void test_remote_head_refreshes_on_enter() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("FQ 0", "FQ 0,0146520000");
+  r.register_reply("MD 0", "MD 0,0");
+  RemoteHeadApp app{r};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_UINT64(146520000ULL, app.freq_hz());
+  TEST_ASSERT_EQUAL_UINT8(0, app.mode());
+}
+
+void test_remote_head_tab_cycles_field() {
+  Fixture f;
+  FakeRadioLink r;
+  RemoteHeadApp app{r};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.field() == RemoteHeadApp::Field::Vfo);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.field() == RemoteHeadApp::Field::Freq);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.field() == RemoteHeadApp::Field::Mode);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.field() == RemoteHeadApp::Field::Vfo);
+}
+
+void test_remote_head_up_adjusts_freq() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  r.register_reply("FQ 0", "FQ 0,0144000000");
+  r.register_reply("MD 0", "MD 0,0");
+  RemoteHeadApp app{r};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Tab));   // Freq field
+  app.on_key(press(Key::Up));    // +10 kHz default step
+  TEST_ASSERT_EQUAL_UINT64(144010000ULL, app.freq_hz());
+}
+
+// AprsMessageApp
+
+void test_aprs_msg_no_callsign_disables_input() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeStorage st;
+  AprsMessageApp app{r, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.status() == AprsMessageApp::Status::NoCallsign);
+}
+
+void test_aprs_msg_loads_call_from_storage() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeStorage st;
+  st.put_str("tx.call", "K1ABC");
+  st.put_int("tx.ssid", 9);
+  AprsMessageApp app{r, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.status() == AprsMessageApp::Status::Idle);
+}
+
+void test_aprs_msg_typed_chars_buffer_correctly() {
+  Fixture f;
+  FakeRadioLink r;
+  FakeStorage st;
+  st.put_str("tx.call", "K1ABC");
+  AprsMessageApp app{r, st};
+  app.on_enter(f.hal);
+  KeyEvent k{}; k.key = Key::Char; k.down = true;
+  k.ch = 'W'; app.on_key(k);
+  k.ch = '1'; app.on_key(k);
+  k.ch = 'X'; app.on_key(k);
+  TEST_ASSERT_EQUAL_STRING("W1X", app.to_text());
+  app.on_key(press(Key::Tab));
+  k.ch = 'h'; app.on_key(k);
+  k.ch = 'i'; app.on_key(k);
+  TEST_ASSERT_EQUAL_STRING("hi", app.msg_text());
+}
+
+void test_aprs_msg_send_writes_kiss_frame() {
+  Fixture f;
+  FakeRadioLink r;
+  r.connect("MAC", "0000");
+  FakeStorage st;
+  st.put_str("tx.call", "K1ABC");
+  AprsMessageApp app{r, st};
+  app.on_enter(f.hal);
+  // Type addressee and message
+  KeyEvent k{}; k.key = Key::Char; k.down = true;
+  k.ch = 'W'; app.on_key(k);
+  k.ch = '1'; app.on_key(k);
+  app.on_key(press(Key::Tab));
+  k.ch = 'h'; app.on_key(k);
+  k.ch = 'i'; app.on_key(k);
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_TRUE(app.status() == AprsMessageApp::Status::Sent);
+  // Frame should be in r.kiss_tx() and contain the message text.
+  const auto& tx = r.kiss_tx();
+  TEST_ASSERT_TRUE(tx.size() > 0);
+  // Look for the literal "hi" inside the wrapped frame
+  bool found = false;
+  for (size_t i = 0; i + 1 < tx.size(); ++i) {
+    if (tx[i] == 'h' && tx[i + 1] == 'i') { found = true; break; }
+  }
+  TEST_ASSERT_TRUE(found);
+}
+
+// Pineapple new endpoints
+
+void test_pineapple_recon_results_parses_aps() {
+  FakeHttp h;
+  h.register_response("POST", "http://h:1471/api/login",
+                      200, "{\"token\":\"T\"}");
+  h.register_response("GET", "http://h:1471/api/recon/scans/3",
+                      200,
+    "{\"APResults\":["
+    "{\"ssid\":\"Net1\",\"bssid\":\"AA:BB:CC:00:00:01\","
+     "\"encryption\":\"wpa2\",\"channel\":6,\"rssi\":-55},"
+    "{\"ssid\":\"Net2\",\"bssid\":\"AA:BB:CC:00:00:02\","
+     "\"encryption\":\"open\",\"channel\":11,\"rssi\":-72}"
+    "]}");
+  pineapple::Client c{h};
+  c.login("h", 1471, "u", "p");
+  pineapple::ApInfo aps[8];
+  size_t n = 0;
+  TEST_ASSERT_TRUE(c.recon_results(3, aps, 8, n));
+  TEST_ASSERT_EQUAL_size_t(2u, n);
+  TEST_ASSERT_EQUAL_STRING("Net1", aps[0].ssid);
+  TEST_ASSERT_EQUAL_STRING("Net2", aps[1].ssid);
+  TEST_ASSERT_EQUAL_UINT8(11, aps[1].channel);
+  TEST_ASSERT_EQUAL_INT8(-72, aps[1].rssi);
+}
+
+void test_pineapple_pineap_set_enabled_sends_put() {
+  FakeHttp h;
+  h.register_response("POST", "http://h:1471/api/login",
+                      200, "{\"token\":\"T\"}");
+  h.register_response("PUT",  "http://h:1471/api/pineap/settings",
+                      200, "{\"success\":true}");
+  pineapple::Client c{h};
+  c.login("h", 1471, "u", "p");
+  TEST_ASSERT_TRUE(c.pineap_set_enabled(true, true));
+  TEST_ASSERT_TRUE(h.last_body().find("\"karma\":true") != std::string::npos);
+}
+
+void test_pineapple_deauth_ap_sends_post() {
+  FakeHttp h;
+  h.register_response("POST", "http://h:1471/api/login",
+                      200, "{\"token\":\"T\"}");
+  h.register_response("POST", "http://h:1471/api/pineap/deauth/ap",
+                      200, "{\"success\":true}");
+  pineapple::Client c{h};
+  c.login("h", 1471, "u", "p");
+  TEST_ASSERT_TRUE(c.deauth_ap("AA:BB:CC:DD:EE:FF", 6));
+  TEST_ASSERT_TRUE(h.last_body().find("\"channel\":6") != std::string::npos);
+}
+
+// HandshakeBrowserApp
+
+void test_handshake_browser_counts_bssids() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("GET",
+      "http://pa.local:1471/api/pineap/handshakes",
+      200,
+      "{\"handshakes\":["
+      "{\"bssid\":\"a\",\"foo\":1},"
+      "{\"bssid\":\"b\",\"foo\":2}"
+      "]}");
+  HandshakeBrowserApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.last_ok());
+  TEST_ASSERT_EQUAL_size_t(2u, app.count());
+}
+
+// EvilTwinApp
+
+void test_evil_twin_fn_enter_enables() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("PUT",  "http://pa.local:1471/api/pineap/settings",
+                      200, "{\"success\":true}");
+  EvilTwinApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.enabled());
+  TEST_ASSERT_TRUE(app.last_ok());
+}
+
+void test_evil_twin_plain_enter_does_nothing() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  EvilTwinApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press(Key::Enter));   // no Fn modifier
+  TEST_ASSERT_FALSE(app.enabled());
+}
+
+// KarmaApp
+
+void test_karma_fn_enter_enables() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("PUT",  "http://pa.local:1471/api/pineap/settings",
+                      200, "{\"success\":true}");
+  KarmaApp app{h, st};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.enabled());
+}
+
+// WifiDeauthApp
+
+void test_deauth_armed_required_to_fire() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  seed_pineapple_creds(st);
+  register_login_ok(h);
+  h.register_response("POST", "http://pa.local:1471/api/pineap/deauth/ap",
+                      200, "{\"success\":true}");
+  WifiDeauthApp app{h, st};
+  app.on_enter(f.hal);
+  app.set_target("AA:BB:CC:DD:EE:FF", 6);
+  app.on_key(press_fn(Key::Enter));   // not armed → no fire
+  TEST_ASSERT_FALSE(app.fired());
+  app.on_key(press(Key::Tab));        // arm
+  TEST_ASSERT_TRUE(app.armed());
+  app.on_key(press_fn(Key::Enter));   // fire
+  TEST_ASSERT_TRUE(app.fired());
+  TEST_ASSERT_TRUE(app.last_ok());
+}
+
+// BleSpamApp
+
+void test_ble_spam_off_by_default() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleSpamApp app{adv};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.enabled());
+  app.tick(0);
+  app.tick(500);
+  TEST_ASSERT_FALSE(adv.active());
+}
+
+void test_ble_spam_fn_enter_toggles_and_advertises() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleSpamApp app{adv};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.enabled());
+  app.tick(0);
+  TEST_ASSERT_TRUE(adv.active());
+  TEST_ASSERT_TRUE(adv.set_count() >= 1);
+}
+
+void test_ble_spam_cycles_payloads() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleSpamApp app{adv};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  app.tick(0);
+  const size_t first = app.cycle_idx();
+  app.tick(500);
+  TEST_ASSERT_TRUE(app.cycle_idx() != first);
+}
+
+void test_ble_spam_disable_stops_advertiser() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleSpamApp app{adv};
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  app.tick(0);
+  TEST_ASSERT_TRUE(adv.active());
+  app.on_key(press_fn(Key::Enter));   // toggle off
+  TEST_ASSERT_FALSE(app.enabled());
+  TEST_ASSERT_FALSE(adv.active());
+}
+
 void test_recon_app_done_state_enter_rescans() {
   Fixture f;
   FakeHttp h;
@@ -4268,5 +4575,27 @@ int main(int, char**) {
   RUN_TEST(test_handshake_app_increments_eapol_count_on_key_frame);
   RUN_TEST(test_handshake_app_tick_hops_channels);
   RUN_TEST(test_handshake_app_on_exit_stops_and_closes);
+  // v0.2 stretch — Track A
+  RUN_TEST(test_remote_head_refreshes_on_enter);
+  RUN_TEST(test_remote_head_tab_cycles_field);
+  RUN_TEST(test_remote_head_up_adjusts_freq);
+  RUN_TEST(test_aprs_msg_no_callsign_disables_input);
+  RUN_TEST(test_aprs_msg_loads_call_from_storage);
+  RUN_TEST(test_aprs_msg_typed_chars_buffer_correctly);
+  RUN_TEST(test_aprs_msg_send_writes_kiss_frame);
+  // v0.2 stretch — Track B
+  RUN_TEST(test_pineapple_recon_results_parses_aps);
+  RUN_TEST(test_pineapple_pineap_set_enabled_sends_put);
+  RUN_TEST(test_pineapple_deauth_ap_sends_post);
+  RUN_TEST(test_handshake_browser_counts_bssids);
+  RUN_TEST(test_evil_twin_fn_enter_enables);
+  RUN_TEST(test_evil_twin_plain_enter_does_nothing);
+  RUN_TEST(test_karma_fn_enter_enables);
+  RUN_TEST(test_deauth_armed_required_to_fire);
+  // v0.2 stretch — Track C
+  RUN_TEST(test_ble_spam_off_by_default);
+  RUN_TEST(test_ble_spam_fn_enter_toggles_and_advertises);
+  RUN_TEST(test_ble_spam_cycles_payloads);
+  RUN_TEST(test_ble_spam_disable_stops_advertiser);
   return UNITY_END();
 }

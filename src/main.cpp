@@ -37,6 +37,13 @@
 #include "yui/app/PineappleReconApp.hpp"
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
+#include "yui/app/RemoteHeadApp.hpp"
+#include "yui/app/AprsMessageApp.hpp"
+#include "yui/app/HandshakeBrowserApp.hpp"
+#include "yui/app/EvilTwinApp.hpp"
+#include "yui/app/KarmaApp.hpp"
+#include "yui/app/WifiDeauthApp.hpp"
+#include "yui/app/BleSpamApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -53,6 +60,7 @@
 #include "hal/esp32/Esp32Http.hpp"
 #include "hal/esp32/Esp32Pcap.hpp"
 #include "hal/esp32/Esp32WifiMonitor.hpp"
+#include "hal/esp32/Esp32BleAdvertiser.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <cstring>
@@ -78,6 +86,7 @@ yui::Esp32Gnss      gnss_;    // GPS feed via radio_ NMEA (stub until v0.2)
 yui::Esp32Http      http_;    // HTTPClient wrapper for Pineapple REST
 yui::Esp32Pcap      pcap_;    // libpcap writer to SD (stub until v0.2)
 yui::Esp32WifiMonitor wmon_;  // promiscuous-mode RX (stub until v0.2)
+yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (stub until v0.2)
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
 yui::SysProbe make_sys_probe() {
@@ -124,6 +133,13 @@ yui::PineappleApp        pa_app{http_, store_};
 yui::PineappleReconApp   pa_recon_app{http_, store_};
 yui::WifiProbeApp        probe_app{wmon_};
 yui::WifiHandshakeApp    handshake_app{wmon_, pcap_, clock_};
+yui::RemoteHeadApp       remote_head_app{radio_};
+yui::AprsMessageApp      aprs_msg_app{radio_, store_};
+yui::HandshakeBrowserApp pa_handshakes_app{http_, store_};
+yui::EvilTwinApp         evil_twin_app{http_, store_};
+yui::KarmaApp            karma_app{http_, store_};
+yui::WifiDeauthApp       deauth_app{http_, store_};
+yui::BleSpamApp          ble_spam_app{ble_adv_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -158,16 +174,24 @@ void setup() {
     net_.ntp_sync(saved_ntp, saved_tz);
   }
 
-  // RADIO category (v0.2 Track A)
+  // RADIO category (v0.2)
   registry.add(&kenwood_app);
   registry.add(&aprs_app);
   registry.add(&gps_app);
+  registry.add(&remote_head_app);
+  registry.add(&aprs_msg_app);
   // WIFI category
   registry.add(&wifi_app);
   registry.add(&pa_app);
   registry.add(&pa_recon_app);
   registry.add(&probe_app);
   registry.add(&handshake_app);
+  registry.add(&pa_handshakes_app);
+  registry.add(&evil_twin_app);
+  registry.add(&karma_app);
+  registry.add(&deauth_app);
+  // BLUETOOTH category
+  registry.add(&ble_spam_app);
   registry.add(&ble_app);
   registry.add(&ir_app);
   registry.add(&imu_app);
