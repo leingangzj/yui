@@ -71,6 +71,12 @@
 #include "yui/app/CaptivePortalApp.hpp"
 #include "../../src/hal/native/NativeWifiAp.hpp"
 #include "../../src/hal/native/NativeBleCentral.hpp"
+#include "yui/sat/Tle.hpp"
+#include "yui/sat/Time.hpp"
+#include "yui/sat/Vec3.hpp"
+#include "yui/sat/Propagator.hpp"
+#include "yui/sat/Topo.hpp"
+#include "yui/sat/Pass.hpp"
 #include "yui/proto/Dot11.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
 #include "yui/app/ToneApp.hpp"
@@ -4610,6 +4616,203 @@ void test_captive_portal_tab_writes_captures_to_sd() {
   TEST_ASSERT_TRUE(fs.exists("/captures.txt"));
 }
 
+// ───── SatTracker — TLE parser ────────────────────────────────────────────
+
+void test_tle_parses_iss_sample() {
+  // A representative ISS TLE (epoch 2024 day 1.5).
+  const char* l1 =
+    "1 25544U 98067A   24001.50000000  .00012345  00000-0  22345-3 0  9999";
+  const char* l2 =
+    "2 25544  51.6400 123.4567 0001234 234.5678 125.4321 15.50000000123456";
+  sat::TleElements el;
+  TEST_ASSERT_TRUE(sat::parse_tle(l1, l2, el));
+  TEST_ASSERT_EQUAL_UINT32(25544u, el.norad_id);
+  TEST_ASSERT_EQUAL_INT('U', el.classification);
+  TEST_ASSERT_EQUAL_STRING("98067A", el.intl_designator);
+  TEST_ASSERT_EQUAL_INT(2024, el.epoch_year);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.5, el.epoch_day);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 51.6400, el.inclination_deg);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0001234, el.eccentricity);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 15.50000000, el.mean_motion);
+}
+
+void test_tle_compressed_exp_decode() {
+  bool ok = false;
+  // " 12345-3" → 0.12345e-3 = 0.00012345
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.00012345,
+      sat::tle_detail::parse_compressed(" 12345-3", ok));
+  TEST_ASSERT_TRUE(ok);
+  // "-12345+0" → -0.12345
+  ok = false;
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.12345,
+      sat::tle_detail::parse_compressed("-12345+0", ok));
+  TEST_ASSERT_TRUE(ok);
+  // " 00000+0" → 0
+  ok = false;
+  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0,
+      sat::tle_detail::parse_compressed(" 00000+0", ok));
+  TEST_ASSERT_TRUE(ok);
+}
+
+void test_tle_rejects_mismatched_catalog() {
+  const char* l1 =
+    "1 25544U 98067A   24001.50000000  .00012345  00000-0  22345-3 0  9999";
+  const char* l2 =
+    "2 25555  51.6400 123.4567 0001234 234.5678 125.4321 15.50000000123456";
+  sat::TleElements el;
+  TEST_ASSERT_FALSE(sat::parse_tle(l1, l2, el));
+}
+
+void test_tle_year_window() {
+  const char* l1 =
+    "1 25544U 98067A   97001.50000000  .00012345  00000-0  22345-3 0  9999";
+  const char* l2 =
+    "2 25544  51.6400 123.4567 0001234 234.5678 125.4321 15.50000000123456";
+  sat::TleElements el;
+  TEST_ASSERT_TRUE(sat::parse_tle(l1, l2, el));
+  TEST_ASSERT_EQUAL_INT(1997, el.epoch_year);
+}
+
+// ───── SatTracker — Vec3 math ─────────────────────────────────────────────
+
+void test_vec3_basic_ops() {
+  sat::Vec3 a{1, 2, 3}, b{4, 5, 6};
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 32.0, a.dot(b));
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, std::sqrt(14.0), a.mag());
+  sat::Vec3 c = a + b;
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, c.x);
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, c.z);
+}
+
+void test_vec3_normalized_unit() {
+  sat::Vec3 v{3, 4, 0};
+  sat::Vec3 n = v.normalized();
+  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, n.mag());
+}
+
+// ───── SatTracker — time helpers ──────────────────────────────────────────
+
+void test_jd_from_unix_epoch_match() {
+  // 1970-01-01 00:00:00 UTC = JD 2440587.5
+  TEST_ASSERT_DOUBLE_WITHIN(1e-6, 2440587.5, sat::jd_from_unix(0));
+}
+
+void test_gstime_known_value() {
+  // GMST at J2000 should be ~280.46° (= 4.894... rad).
+  // Vallado example, very rough check.
+  const double gmst = sat::gstime(sat::kJ2000);
+  // 280.4606° in rad
+  TEST_ASSERT_DOUBLE_WITHIN(0.05, 4.8949612, gmst);
+}
+
+// ───── SatTracker — Propagator ────────────────────────────────────────────
+
+namespace {
+const char* iss_tle_l1 =
+  "1 25544U 98067A   24001.50000000  .00012345  00000-0  22345-3 0  9999";
+const char* iss_tle_l2 =
+  "2 25544  51.6400 123.4567 0001234 234.5678 125.4321 15.50000000123456";
+}
+
+void test_propagator_init_succeeds() {
+  sat::TleElements el;
+  sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
+  sat::Propagator p;
+  TEST_ASSERT_TRUE(p.init(el));
+  TEST_ASSERT_TRUE(p.inited());
+}
+
+void test_propagator_position_at_epoch_is_finite_and_leo() {
+  sat::TleElements el;
+  sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
+  sat::Propagator p;
+  p.init(el);
+  sat::StateVector sv;
+  TEST_ASSERT_TRUE(p.propagate(0.0, sv));
+  // ISS altitude ~420 km → distance from Earth center ~6798 km
+  const double r = sv.position.mag();
+  TEST_ASSERT_TRUE(r > 6700.0 && r < 6900.0);
+  // Velocity ~7.66 km/s for LEO
+  const double v = sv.velocity.mag();
+  TEST_ASSERT_TRUE(v > 7.0 && v < 8.5);
+}
+
+void test_propagator_position_changes_with_time() {
+  sat::TleElements el;
+  sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
+  sat::Propagator p;
+  p.init(el);
+  sat::StateVector a, b;
+  p.propagate(0.0,    a);
+  p.propagate(60.0,   b);   // one minute later
+  // Distance moved should be roughly v * 60s ~= 460 km
+  const double moved = (b.position - a.position).mag();
+  TEST_ASSERT_TRUE(moved > 200.0 && moved < 700.0);
+}
+
+void test_propagator_one_orbit_returns_close_to_start() {
+  // After one full orbit (period ~92 min for ISS), position should be
+  // roughly back where it started — within tens of km given J2 secular
+  // drift (only Ω/ω/M precess, not the position itself in absolute terms).
+  sat::TleElements el;
+  sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
+  sat::Propagator p;
+  p.init(el);
+  sat::StateVector a, b;
+  p.propagate(0.0, a);
+  // mean motion 15.5 rev/day → period = 86400 / 15.5 sec
+  const double T = 86400.0 / 15.5;
+  p.propagate(T, b);
+  const double err = (b.position - a.position).mag();
+  TEST_ASSERT_TRUE(err < 200.0);
+}
+
+// ───── SatTracker — topocentric look angles ───────────────────────────────
+
+void test_topo_satellite_overhead_is_90deg_elevation() {
+  // Pick any JD; place a satellite directly overhead an observer at
+  // (0°N, 0°E) by computing the corresponding ECI vector from ECEF.
+  // Observer ECEF at (0,0,0)° = (aE, 0, 0). Apply ECEF→ECI = inverse
+  // of eci_to_ecef (rotate +z by gmst).
+  const double jd = sat::kJ2000 + 1.234;
+  const double g  = sat::gstime(jd);
+  const double r  = sat::kEarthRadius_km + 400.0;   // 400 km up
+  // ECEF (r, 0, 0) → ECI:
+  sat::StateVector sv;
+  sv.position = {r * std::cos(g), r * std::sin(g), 0.0};
+  sv.velocity = {0, 1, 0};
+  sat::ObserverGeodetic obs{0.0, 0.0, 0.0};
+  sat::LookAngles la = sat::look_angles(sv, obs, jd);
+  TEST_ASSERT_TRUE(la.elevation_deg > 85.0);
+}
+
+void test_topo_doppler_sign_convention() {
+  // Receding (vr > 0) → red shift → negative Doppler
+  TEST_ASSERT_TRUE(sat::doppler_hz(437.8e6, +1.0) < 0);
+  TEST_ASSERT_TRUE(sat::doppler_hz(437.8e6, -1.0) > 0);
+  // Magnitude: |Δf| = f * |vr| / c
+  // 1 km/s on 437.8 MHz → ~1.46 kHz
+  const double df = sat::doppler_hz(437.8e6, -1.0);
+  TEST_ASSERT_DOUBLE_WITHIN(50.0, 1460.0, df);
+}
+
+// ───── SatTracker — pass predictor ────────────────────────────────────────
+
+void test_pass_predictor_finds_a_pass_within_24h() {
+  sat::TleElements el;
+  sat::parse_tle(iss_tle_l1, iss_tle_l2, el);
+  sat::Propagator p;
+  p.init(el);
+  // Observer at 49°N (similar to test TLE epoch's likely visibility window)
+  sat::ObserverGeodetic obs{49.0, -72.0, 0};
+  const double jd_epoch = sat::jd_from_year_day(el.epoch_year, el.epoch_day);
+  sat::PassInfo info = sat::predict_next_pass(p, obs, jd_epoch, 24.0, 0.0, 30.0);
+  TEST_ASSERT_TRUE(info.found);
+  TEST_ASSERT_TRUE(info.aos_jd > jd_epoch);
+  TEST_ASSERT_TRUE(info.los_jd > info.aos_jd);
+  TEST_ASSERT_TRUE(info.max_elevation_deg >= 0.0);
+}
+
 void test_captive_portal_backspace_stops_ap() {
   Fixture f;
   FakeWifiAp ap;
@@ -5011,5 +5214,21 @@ int main(int, char**) {
   RUN_TEST(test_captive_portal_captures_form_submissions);
   RUN_TEST(test_captive_portal_tab_writes_captures_to_sd);
   RUN_TEST(test_captive_portal_backspace_stops_ap);
+  // SatTracker
+  RUN_TEST(test_tle_parses_iss_sample);
+  RUN_TEST(test_tle_compressed_exp_decode);
+  RUN_TEST(test_tle_rejects_mismatched_catalog);
+  RUN_TEST(test_tle_year_window);
+  RUN_TEST(test_vec3_basic_ops);
+  RUN_TEST(test_vec3_normalized_unit);
+  RUN_TEST(test_jd_from_unix_epoch_match);
+  RUN_TEST(test_gstime_known_value);
+  RUN_TEST(test_propagator_init_succeeds);
+  RUN_TEST(test_propagator_position_at_epoch_is_finite_and_leo);
+  RUN_TEST(test_propagator_position_changes_with_time);
+  RUN_TEST(test_propagator_one_orbit_returns_close_to_start);
+  RUN_TEST(test_topo_satellite_overhead_is_90deg_elevation);
+  RUN_TEST(test_topo_doppler_sign_convention);
+  RUN_TEST(test_pass_predictor_finds_a_pass_within_24h);
   return UNITY_END();
 }
