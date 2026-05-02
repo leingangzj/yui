@@ -9,19 +9,24 @@
 
 ---
 
-## 🚨 Critical correction to v0.2 plan
+## 🚨 Critical corrections to plan
 
-**The TH-D75 uses Bluetooth Classic (RFCOMM/SPP), not BLE.**
+**The TH-D75 uses Bluetooth Classic (RFCOMM/SPP), not BLE** — and **the ESP32-S3 doesn't support BT-Classic.** Linking `BluetoothSerial.h` against the S3 toolchain produces 30+ undefined references (`esp_spp_*`, `esp_bt_gap_*`); those Bluedroid Classic symbols only exist on the original ESP32. So Cardputer ADV cannot pair with the TH-D75 directly.
 
-This was an incorrect assumption in `yui-v0.2-scope.md`. Implications:
+**Resolution (decided 2026-05-01):** use a `bb-link` bridge (`islandmagic/bb-link`) — a separate ESP32 (original) running the open-source bridge firmware. Cardputer talks to bb-link over BLE; bb-link talks to TH-D75 over BT-Classic. ~$5 of additional hardware.
 
-- Our HAL needs to be `IRadioLink` over `BluetoothSerial` (Bluedroid Classic stack), **not** NimBLE.
-- ESP32-S3 supports BT Classic + WiFi co-existence, but the Bluedroid stack must be enabled in `sdkconfig` — Arduino-IDF's default does include it via `BluetoothSerial.h`.
-- BT Classic costs ~50 KB more SRAM than BLE-only. We have ~243 KB free → still fine.
-- Pairing is PIN-based (default `"0000"`), not BLE Just-Works.
-- Flash impact: Bluedroid is heavier than NimBLE; expect another ~150 KB flash. We're at 1.59 MB / 6.4 MB partition → still fine.
+`Esp32RadioLink` is now a **BLE central** that connects to bb-link's GATT service:
 
-**Action:** update `yui-v0.2-scope.md` "IRadio (BLE-serial backend)" → "IRadioLink (BT-Classic SPP)".
+|                              | Value                                  |
+| ---------------------------- | -------------------------------------- |
+| Bridge advertised name       | `B.B. Link`                            |
+| Service UUID                 | `00000001-ba2a-46c9-ae49-01b0961f68bb` |
+| TX char (write w/o response) | `00000002-ba2a-46c9-ae49-01b0961f68bb` |
+| RX char (notify)             | `00000003-ba2a-46c9-ae49-01b0961f68bb` |
+
+Bytes flow transparently: Cardputer writes → bb-link forwards to TH-D75; TH-D75 replies → bb-link notifies → Cardputer reads. ASCII `\r`-terminated commands, KISS frames after `TN 2,0\r`, and NMEA from the GP command all use the same byte pipe.
+
+The Cardputer-side connect() argument is the **bridge's** BLE MAC. Pairing the bridge to the radio (PIN 0000) is a one-time bb-link setup step, separate from anything Yui does.
 
 ---
 
