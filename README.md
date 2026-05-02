@@ -148,3 +148,14 @@ the answer is no.
 
 `docs/ROADMAP.md`. Short version: v0.1 / v0.2 / v0.3 / v1.0 all shipped
 in the firmware. Real-hardware validation is the next thing.
+
+## Support development
+
+Yui is built and maintained in spare time. If it's useful to you and
+you'd like to chip in toward more hardware, more features, and the
+caffeine that makes both happen:
+
+[**☕ Buy me a coffee**](https://buymeacoffee.com/leingangzj)
+
+Stars on the repo also help — they make the project easier to find for
+the next person.
