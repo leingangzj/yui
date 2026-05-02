@@ -1,7 +1,6 @@
-# Yui CI — runs on the shared shell-executor runner on CT 135.
-# Native unit tests only. ESP32 build is too slow (~40 s + first-run toolchain
-# download) and contributes little signal beyond the local pre-push check, so
-# we keep CI tight to keep PR feedback fast.
+# Yui CI — native unit tests only. The ESP32 build is too slow (~40 s
+# plus a first-run toolchain download) to be worth running on every push;
+# the local pre-push build covers it.
 
 stages:
   - test
