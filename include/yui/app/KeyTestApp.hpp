@@ -6,6 +6,8 @@
 #include "yui/types.hpp"
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class KeyTestApp : public App {
@@ -27,9 +29,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Key Test", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "Key Test");
     d.draw_text(d.width() - 90, 4, "press any key", kWhite, kJapanRed);
 
     if (count_ == 0) {

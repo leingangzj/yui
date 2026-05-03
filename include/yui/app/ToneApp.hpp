@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 struct TonePresetNote { uint16_t freq_hz; uint16_t duration_ms; };
@@ -81,9 +83,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Tone Player", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "Tone Player");
     d.draw_text(d.width() - 80, 4, playing_ ? "playing" : "Enter", kWhite, kJapanRed);
 
     const size_t cur = menu_.cursor();

@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class WifiApp : public App {
@@ -95,9 +97,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "WiFi", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "WiFi");
 
     switch (state_) {
       case State::Scanning:   render_scanning_(d);   break;

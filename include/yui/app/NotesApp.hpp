@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class NotesApp : public App {
@@ -56,9 +58,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, dirty_ ? "Notes *" : "Notes",  kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, dirty_ ? "Notes *" : "Notes");
     d.draw_text(d.width() - 60, 4, "Tab=save", kWhite, kJapanRed);
 
     const size_t cur_line = current_line_();

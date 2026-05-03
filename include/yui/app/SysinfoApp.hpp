@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <ctime>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class SysinfoApp : public App {
@@ -17,9 +19,8 @@ public:
   Category    category() const override { return Category::System; }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Sysinfo", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "Sysinfo");
 
     int y = 22;
     char line[40];

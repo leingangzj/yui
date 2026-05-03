@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <ctime>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 #if !defined(YUI_TARGET_CARDPUTER_ADV)
 #include <cstdlib>  // setenv on native so localtime_r honors TZ
 #endif
@@ -100,12 +102,11 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     const char* title = "Stopwatch";
     if (mode_ == Mode::Timer)      title = "Timer";
     if (mode_ == Mode::TimeOfDay)  title = "Time";
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     if (mode_ == Mode::TimeOfDay) {
       render_time_of_day_(d);

@@ -12,6 +12,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class WpsScanApp : public App {
@@ -63,15 +65,14 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[32];
     int wps_count = 0;
     for (size_t i = 0; i < count_; ++i) if (entries_[i].wps) ++wps_count;
     std::snprintf(title, sizeof(title), "WPS  ch%u  %d/%u",
                   static_cast<unsigned>(cur_channel_),
                   wps_count, static_cast<unsigned>(count_));
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     if (count_ == 0) {
       d.draw_text(8, 40, "Scanning...", kJapanRedDark, kWhite);

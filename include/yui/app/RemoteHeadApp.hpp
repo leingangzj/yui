@@ -15,6 +15,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class RemoteHeadApp : public App {
@@ -54,9 +56,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Remote Head", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "Remote Head");
 
     char line[40];
     int y = 24;

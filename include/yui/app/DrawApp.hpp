@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class DrawApp : public App {
@@ -49,11 +51,10 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[40];
     std::snprintf(title, sizeof(title), "Draw  %d,%d", cx_, cy_);
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
     if (saved_flash_ > 0) d.draw_text(d.width() - 50, 4, "saved", kWhite, kJapanRed);
 
     d.fill_rect({kBoardX, kBoardY,

@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class TodoApp : public App {
@@ -54,11 +56,10 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[40];
     std::snprintf(title, sizeof(title), "Todo (%u)", static_cast<unsigned>(count_));
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     if (mode_ == Mode::Editing) {
       d.draw_text(8, 30, "new item:", kJapanRedDark, kWhite);

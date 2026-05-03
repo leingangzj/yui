@@ -19,6 +19,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class GpsApp : public App {
@@ -78,9 +80,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, recording_ ? "GPS  REC" : "GPS", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, recording_ ? "GPS  REC" : "GPS");
 
     GnssFix f = gnss_.latest();
     char line[40];

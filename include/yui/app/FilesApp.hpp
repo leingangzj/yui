@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class FilesApp : public App {
@@ -59,15 +61,14 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[40];
     if (mode_ == Mode::View) {
       std::snprintf(title, sizeof(title), "View %s", view_path_);
     } else {
       std::snprintf(title, sizeof(title), "Files %s", cwd_);
     }
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     if (mode_ == Mode::View) {
       render_view_(d);

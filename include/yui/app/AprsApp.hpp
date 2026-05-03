@@ -18,6 +18,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class AprsApp : public App {
@@ -87,12 +89,11 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[24];
     std::snprintf(title, sizeof(title), "APRS  %u",
                   static_cast<unsigned>(station_count_));
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     if (radio_.state() != RadioLinkState::KissMode) {
       d.draw_text(8, 40, "Radio not in KISS", kJapanRedDark, kWhite);

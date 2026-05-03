@@ -15,6 +15,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class WifiProbeApp : public App {
@@ -64,13 +66,12 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[32];
     std::snprintf(title, sizeof(title), "Probes  ch%u  %u",
                   static_cast<unsigned>(cur_channel_),
                   static_cast<unsigned>(count_));
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     if (count_ == 0) {
       d.draw_text(8, 40, "Listening...", kJapanRedDark, kWhite);

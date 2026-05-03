@@ -34,9 +34,20 @@ public:
     last_text_ = s ? s : "";
     last_text_x_ = x;
     last_text_y_ = y;
+    if (s && *s) {
+      if (!all_text_.empty()) all_text_ += '\n';
+      all_text_ += s;
+    }
   }
 
-  void flush() override { ++flush_count_; }
+  void flush() override {
+    ++flush_count_;
+    // Each flush starts a fresh accumulation window — tests that drive a
+    // full render() then assert on all_text() see exactly that frame's
+    // text without contamination from earlier setup renders.
+    all_text_for_last_frame_ = all_text_;
+    all_text_.clear();
+  }
 
   // Test inspection
   Color pixel_at(int x, int y) const {
@@ -44,12 +55,18 @@ public:
     return buf_[y * w_ + x];
   }
   const std::string& last_text() const { return last_text_; }
+  // All text drawn during the most-recently-completed frame, joined by \n.
+  // Use this instead of last_text() when asserting on body content — Chrome
+  // helpers may draw the footer or other chrome after the value of interest.
+  const std::string& all_text() const { return all_text_for_last_frame_; }
   int flush_count() const { return flush_count_; }
 
 private:
   int w_, h_;
   std::vector<Color> buf_;
   std::string last_text_;
+  std::string all_text_;
+  std::string all_text_for_last_frame_;
   int last_text_x_ = 0, last_text_y_ = 0;
   int flush_count_ = 0;
 };

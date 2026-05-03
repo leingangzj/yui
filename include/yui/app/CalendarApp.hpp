@@ -6,6 +6,8 @@
 #include "yui/util/Date.hpp"
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class CalendarApp : public App {
@@ -37,12 +39,11 @@ public:
     static constexpr const char* kMonth[] = {
       "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
     };
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[32];
     std::snprintf(title, sizeof(title), "%s %d",
                   kMonth[selected_.m - 1], selected_.y);
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
 
     // Day-of-week header.
     static constexpr const char* kDow[] = {"S","M","T","W","T","F","S"};

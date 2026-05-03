@@ -6,6 +6,8 @@
 #include "yui/types.hpp"
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class LifeApp : public App {
@@ -67,13 +69,12 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
+    d.clear(ui::kSurface);
     char title[40];
     std::snprintf(title, sizeof(title), "Life g%u  pop %u",
                   engine_.generation(),
                   static_cast<unsigned>(engine_.population()));
-    d.draw_text(8, 4, title, kWhite, kJapanRed);
+    ui::Chrome::header(d, title);
     d.draw_text(d.width() - 50, 4, paused_ ? "PAUSE" : "RUN",
                 kWhite, kJapanRed);
 

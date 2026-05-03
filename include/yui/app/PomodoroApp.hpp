@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class PomodoroApp : public App {
@@ -79,10 +81,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, phase_ == Phase::Work ? "Pomodoro WORK" : "Pomodoro BREAK",
-                kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, phase_ == Phase::Work ? "Pomodoro WORK" : "Pomodoro BREAK");
     d.draw_text(d.width() - 60, 4, kPresets[preset_].label, kWhite, kJapanRed);
 
     const uint32_t remaining = (elapsed_ >= phase_target_()) ? 0

@@ -20,6 +20,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class AprsMessageApp : public App {
@@ -63,9 +65,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "APRS TX", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "APRS TX");
 
     if (status_ == Status::NoCallsign) {
       d.draw_text(8, 36, "Set tx.call in NVS", kJapanRedBright, kWhite);

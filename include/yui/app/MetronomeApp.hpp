@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class MetronomeApp : public App {
@@ -58,10 +60,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, running_ ? "Metronome ON" : "Metronome",
-                kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, running_ ? "Metronome ON" : "Metronome");
 
     char big[16];
     std::snprintf(big, sizeof(big), "%d BPM", bpm_);

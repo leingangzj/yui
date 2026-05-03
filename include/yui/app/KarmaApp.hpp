@@ -11,6 +11,8 @@
 #include "yui/types.hpp"
 #include <cstdio>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 namespace yui {
 
 class KarmaApp : public App {
@@ -39,9 +41,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Karma (PA)", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "Karma (PA)");
 
     char line[40];
     std::snprintf(line, sizeof(line), "Karma: %s", enabled_ ? "ON" : "off");

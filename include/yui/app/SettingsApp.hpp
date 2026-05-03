@@ -9,6 +9,8 @@
 #include <cstring>
 #include <algorithm>
 
+#include "yui/ui/Chrome.hpp"
+#include "yui/ui/Tokens.hpp"
 #if !defined(YUI_TARGET_CARDPUTER_ADV)
 #include <cstdlib>  // setenv on native
 #include <ctime>    // tzset
@@ -55,9 +57,8 @@ public:
   }
 
   void render(IDisplay& d) override {
-    d.clear(kWhite);
-    d.fill_rect({0, 0, d.width(), 16}, kJapanRed);
-    d.draw_text(8, 4, "Settings", kWhite, kJapanRed);
+    d.clear(ui::kSurface);
+    ui::Chrome::header(d, "Settings");
 
     char line[40];
     size_t tz_n = 0;
