@@ -12,6 +12,7 @@
 #include "yui/sys/SysProbe.hpp"
 #include "yui/types.hpp"
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 
 namespace yui {
@@ -157,33 +158,46 @@ private:
     app_menu_.set_count(apps_in_(current_category_()));
   }
 
-  // Flipper-style fullscreen carousel: one category per page. The icon is
-  // a 56-px tile composed from fill_rect calls (no font scaling needed, no
-  // bitmap deps), label below it, app count under the label, dot pager at
-  // the bottom. Status strip floats top-right.
+  // Fullscreen carousel: one category per page. Tile and label both
+  // grew from the v0 layout — the previous 56-px tile + size-1 label
+  // wasted half the panel, hard to read at arm's length.
+  //
+  //   ┌──────────────────────────┐  y=0
+  //   │  status strip top-right  │
+  //   │                          │  y=10
+  //   │     ▓▓▓▓▓▓▓▓▓▓▓          │  y=12     icon tile (88×72)
+  //   │     ▓ glyph    ▓          │
+  //   │     ▓▓▓▓▓▓▓▓▓▓▓          │  y=84
+  //   │                          │
+  //   │      RADIO   (size 2)    │  y=92
+  //   │      6 apps              │  y=110
+  //   │      ● ○ ○ ○ ○ ○         │  y=128
+  //   └──────────────────────────┘  y=135
   void render_carousel_(IDisplay& d) {
     const Category c = current_category_();
     const std::size_t n = apps_in_(c);
     const int W = d.width();
     const int H = d.height();
 
-    constexpr int kTile = 56;
-    const int tile_x = (W - kTile) / 2;
-    const int tile_y = 14;
+    constexpr int kTileW = 88;
+    constexpr int kTileH = 72;
+    const int tile_x = (W - kTileW) / 2;
+    const int tile_y = 12;
 
-    // Tile backplate: red rounded-ish square (chamfer corners with two
-    // fill_rects inset 2px each side).
-    d.fill_rect({tile_x + 2, tile_y,     kTile - 4, kTile},     kJapanRed);
-    d.fill_rect({tile_x,     tile_y + 2, kTile,     kTile - 4}, kJapanRed);
+    // Backplate: red rounded-ish square (chamfered with two interlocking
+    // fill_rects so the corners read soft, not pixelated).
+    d.fill_rect({tile_x + 3, tile_y,     kTileW - 6, kTileH},     kJapanRed);
+    d.fill_rect({tile_x,     tile_y + 3, kTileW,     kTileH - 6}, kJapanRed);
 
-    draw_category_glyph_(d, c, tile_x, tile_y, kTile);
+    draw_category_glyph_(d, c, tile_x, tile_y, kTileW, kTileH);
 
-    // Category name, centered under tile (default 6px-wide font).
+    // Big category label (size 2). 12-px-wide glyphs.
     const char* label = category_label(c);
-    const int   lw    = label_pixel_width_(label);
-    d.draw_text((W - lw) / 2, tile_y + kTile + 6, label, kJapanRed, kWhite);
+    const int   lw_2x = static_cast<int>(std::strlen(label)) * 12;
+    d.draw_text_scaled((W - lw_2x) / 2, tile_y + kTileH + 4,
+                       label, kJapanRed, kWhite, 2);
 
-    // App count.
+    // App count, size 1.
     char count_buf[20];
     if (n == 0) {
       std::snprintf(count_buf, sizeof(count_buf), "(empty)");
@@ -194,26 +208,20 @@ private:
                     static_cast<unsigned>(n));
     }
     const int cw = label_pixel_width_(count_buf);
-    d.draw_text((W - cw) / 2, tile_y + kTile + 18, count_buf,
+    d.draw_text((W - cw) / 2, tile_y + kTileH + 22, count_buf,
                 kJapanRedDark, kWhite);
 
-    // Dot pager: filled red dot for current, hollow (small red square) for
-    // others. Spacing 10 px, bottom-centered with 6 px margin.
-    constexpr int kDotR = 3;
-    constexpr int kDotGap = 10;
-    const int pager_w = static_cast<int>(kCategoryCount - 1) * kDotGap +
-                        2 * kDotR;
+    // Dot pager — tucked at the bottom. Bigger filled dot, smaller dim
+    // pips for the others.
+    constexpr int kDotGap = 11;
+    const int pager_w = static_cast<int>(kCategoryCount - 1) * kDotGap;
     const int pager_x = (W - pager_w) / 2;
-    const int pager_y = H - 8;
+    const int pager_y = H - 7;
     for (std::size_t i = 0; i < kCategoryCount; ++i) {
       const int cx = pager_x + static_cast<int>(i) * kDotGap;
       const bool sel = (i == cat_menu_.cursor());
-      if (sel) {
-        d.fill_rect({cx - kDotR, pager_y - kDotR,
-                     2 * kDotR + 1, 2 * kDotR + 1}, kJapanRed);
-      } else {
-        d.fill_rect({cx - 1, pager_y - 1, 3, 3}, kJapanRedDark);
-      }
+      if (sel) d.fill_rect({cx - 4, pager_y - 2, 9, 5}, kJapanRed);
+      else     d.fill_rect({cx - 1, pager_y,     3, 3}, kJapanRedDark);
     }
 
     render_status_floating_(d);
@@ -228,79 +236,72 @@ private:
 
   // Per-category iconography painted from fill_rect primitives so we don't
   // need bitmaps or text scaling. Drawn inside a kTile×kTile red tile in
-  // white; cx/cy is the tile's top-left corner.
+  // white; cx/cy is the tile's top-left corner. Glyphs scaled up for
+  // the new 88×72 tile so they read at arm's length.
   void draw_category_glyph_(IDisplay& d, Category c, int cx, int cy,
-                            int tile) {
-    const int mid_x = cx + tile / 2;
-    const int mid_y = cy + tile / 2;
+                            int tw, int th) {
+    const int mid_x = cx + tw / 2;
+    const int mid_y = cy + th / 2;
     switch (c) {
       case Category::Radio: {
-        // Antenna mast + 3 concentric "broadcast" arches (rectangles).
-        d.fill_rect({mid_x - 1, cy + 8, 3, tile - 16}, kWhite);
-        for (int i = 0; i < 3; ++i) {
-          const int r = 8 + i * 6;
-          d.fill_rect({mid_x - r, cy + 6 - i * 2, 2 * r, 2}, kWhite);
+        // Antenna mast + 4 concentric "broadcast" arches.
+        d.fill_rect({mid_x - 2, cy + 14, 4, th - 28}, kWhite);
+        for (int i = 0; i < 4; ++i) {
+          const int r = 12 + i * 8;
+          d.fill_rect({mid_x - r, cy + 10 - i * 3, 2 * r, 3}, kWhite);
         }
-        d.fill_rect({mid_x - 4, cy + tile - 10, 9, 4}, kWhite);
+        d.fill_rect({mid_x - 6, cy + th - 14, 13, 6}, kWhite);
         break;
       }
       case Category::WiFi: {
-        // Three signal arcs of increasing width, stacked at the bottom.
+        // Three signal arcs of increasing width.
         for (int i = 0; i < 3; ++i) {
-          const int w = 14 + i * 10;
-          const int y = mid_y + 12 - i * 8;
-          d.fill_rect({mid_x - w / 2, y, w, 3}, kWhite);
+          const int w = 22 + i * 14;
+          const int y = mid_y + 18 - i * 12;
+          d.fill_rect({mid_x - w / 2, y, w, 4}, kWhite);
         }
-        // Origin dot.
-        d.fill_rect({mid_x - 2, mid_y + 16, 5, 5}, kWhite);
+        d.fill_rect({mid_x - 3, mid_y + 22, 7, 7}, kWhite);
         break;
       }
       case Category::Bluetooth: {
-        // Stylized B-rune: vertical bar + two angled cross diamonds.
-        d.fill_rect({mid_x - 1, cy + 8, 3, tile - 16}, kWhite);
-        // top diagonal stroke
-        for (int i = 0; i < 10; ++i) {
-          d.fill_rect({mid_x + i, cy + 10 + i, 2, 2}, kWhite);
-          d.fill_rect({mid_x + i, mid_y + 6 - i, 2, 2}, kWhite);
-        }
-        // bottom diagonal stroke (mirror)
-        for (int i = 0; i < 10; ++i) {
-          d.fill_rect({mid_x + i, mid_y + i,    2, 2}, kWhite);
-          d.fill_rect({mid_x + i, cy + tile - 12 - i, 2, 2}, kWhite);
+        // Stylized B-rune: vertical bar + crossed diagonals.
+        d.fill_rect({mid_x - 2, cy + 12, 4, th - 24}, kWhite);
+        for (int i = 0; i < 14; ++i) {
+          d.fill_rect({mid_x + i, cy + 14 + i,           3, 3}, kWhite);
+          d.fill_rect({mid_x + i, mid_y + 10 - i,        3, 3}, kWhite);
+          d.fill_rect({mid_x + i, mid_y + i,             3, 3}, kWhite);
+          d.fill_rect({mid_x + i, cy + th - 16 - i,      3, 3}, kWhite);
         }
         break;
       }
       case Category::Tools: {
-        // Crossed wrench/screwdriver: two thick rotated bars (axis-aligned
-        // approximation — diagonal via stair-stepping).
-        for (int i = 0; i < 16; ++i) {
-          d.fill_rect({cx + 8 + i, cy + 8 + i, 4, 4}, kWhite);
-          d.fill_rect({cx + tile - 12 - i, cy + 8 + i, 4, 4}, kWhite);
+        // Crossed wrench/screwdriver — axis-aligned stair-step diagonals.
+        for (int i = 0; i < 22; ++i) {
+          d.fill_rect({cx + 10 + i,         cy + 10 + i, 5, 5}, kWhite);
+          d.fill_rect({cx + tw - 15 - i,    cy + 10 + i, 5, 5}, kWhite);
         }
-        // Handles
-        d.fill_rect({cx + 6, cy + 6, 6, 6}, kWhite);
-        d.fill_rect({cx + tile - 12, cy + 6, 6, 6}, kWhite);
+        d.fill_rect({cx + 6,        cy + 6, 9, 9}, kWhite);
+        d.fill_rect({cx + tw - 15,  cy + 6, 9, 9}, kWhite);
         break;
       }
       case Category::System: {
-        // Gear: square center + 4 cardinal teeth + 4 diagonal teeth.
-        d.fill_rect({mid_x - 8, mid_y - 8, 16, 16}, kWhite);
-        d.fill_rect({mid_x - 3, cy + 6,  6, 6}, kWhite);
-        d.fill_rect({mid_x - 3, cy + tile - 12, 6, 6}, kWhite);
-        d.fill_rect({cx + 6,  mid_y - 3, 6, 6}, kWhite);
-        d.fill_rect({cx + tile - 12, mid_y - 3, 6, 6}, kWhite);
-        // Hub hole
-        d.fill_rect({mid_x - 3, mid_y - 3, 6, 6}, kJapanRed);
+        // Gear: hub + 4 cardinal teeth + 4 corner teeth.
+        d.fill_rect({mid_x - 12, mid_y - 12, 24, 24}, kWhite);
+        d.fill_rect({mid_x - 4,  cy + 8,           8, 8}, kWhite);
+        d.fill_rect({mid_x - 4,  cy + th - 16,     8, 8}, kWhite);
+        d.fill_rect({cx + 8,     mid_y - 4,        8, 8}, kWhite);
+        d.fill_rect({cx + tw - 16, mid_y - 4,      8, 8}, kWhite);
+        d.fill_rect({mid_x - 4,  mid_y - 4, 8, 8}, kJapanRed);  // hub hole
         break;
       }
       case Category::Fun: {
-        // Smiley: round face (square) + eyes + mouth.
-        d.fill_rect({mid_x - 16, mid_y - 16, 32, 32}, kWhite);
-        d.fill_rect({mid_x - 9,  mid_y - 8,  4,  4}, kJapanRed);
-        d.fill_rect({mid_x + 5,  mid_y - 8,  4,  4}, kJapanRed);
-        d.fill_rect({mid_x - 8,  mid_y + 4, 16,  3}, kJapanRed);
-        d.fill_rect({mid_x - 9,  mid_y + 2,  2,  3}, kJapanRed);
-        d.fill_rect({mid_x + 7,  mid_y + 2,  2,  3}, kJapanRed);
+        // Smiley: face + eyes + mouth, sized for the bigger tile.
+        d.fill_rect({mid_x - 24, mid_y - 24, 48, 48}, kWhite);
+        d.fill_rect({mid_x - 14, mid_y - 12, 6, 6}, kJapanRed);
+        d.fill_rect({mid_x + 8,  mid_y - 12, 6, 6}, kJapanRed);
+        d.fill_rect({mid_x - 12, mid_y + 8, 24, 4}, kJapanRed);
+        d.fill_rect({mid_x - 14, mid_y + 6, 3, 4}, kJapanRed);
+        d.fill_rect({mid_x + 11, mid_y + 6, 3, 4}, kJapanRed);
         break;
       }
     }

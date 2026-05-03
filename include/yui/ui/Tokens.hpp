@@ -14,10 +14,13 @@ namespace yui::ui {
 // ── Geometry — fixed at compile time ─────────────────────────────────────
 inline constexpr int kHeaderH   = 20;          // tall enough for size-2 title
 inline constexpr int kBodyTopY  = kHeaderH + 4; // first body baseline = 24
-inline constexpr int kBodyLineH = 14;          // 7 lines fit
+inline constexpr int kBodyLineH = 14;          // size-1 body — 7 lines fit
+inline constexpr int kBodyLineH2 = 22;         // size-2 body — 4-5 lines fit
 inline constexpr int kFooterY   = kScreenHeight - 12;
 inline constexpr int kBodyPadX  = 8;
-inline constexpr int kListRowH  = 16;
+inline constexpr int kListRowH  = 22;          // size-2 list rows — readable
+                                               // from arm's-length on the
+                                               // Cardputer's tiny panel
 
 // Default monospace glyph size for size-1 text (M5GFX 6×8 + 1 px gap).
 inline constexpr int kCharW = 6;

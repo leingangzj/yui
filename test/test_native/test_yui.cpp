@@ -1744,15 +1744,27 @@ void test_adv_make_event_letter_shifted() {
   TEST_ASSERT_EQUAL_CHAR('A', e.ch);
 }
 
-void test_adv_make_event_fn_modifies_arrow_keys() {
-  // ',' lives at row 3, col 10. Find raw: (raw_col+4)%4=3 → raw_col∈{3,7};
-  // raw_row*2 + (raw_col>3?1:0) = 10 → if raw_col=3: raw_row=5; if raw_col=7:
-  // raw_row=4. Keycode = raw_row*10 + raw_col + 1.
-  // We'll test raw_row=5, raw_col=3 → keycode 54.
+void test_adv_arrow_keys_are_primary() {
+  // After the v1.x keymap rework, arrows are the primary action on the
+  // ; , . / cluster (OS is nav-driven). Pressing the ',' position with
+  // no modifiers should yield Left; Fn+, gives the literal comma.
   KeyEvent e{};
-  TEST_ASSERT_TRUE(adv_make_event(54, true, false, true, false, false, e));
+  TEST_ASSERT_TRUE(adv_make_event(54, true, false, false, false, false, e));
   TEST_ASSERT_TRUE(e.key == Key::Left);
-  TEST_ASSERT_TRUE(e.fn);
+
+  KeyEvent e2{};
+  TEST_ASSERT_TRUE(adv_make_event(54, true, false, true, false, false, e2));
+  TEST_ASSERT_TRUE(e2.key == Key::Char);
+  TEST_ASSERT_EQUAL_CHAR(',', e2.ch);
+}
+
+void test_adv_esc_is_primary_on_backtick_key() {
+  // The ` key (row 0 col 0) used to print backtick by default; Esc
+  // required Fn. Now Esc is primary, ` is on the Fn layer. Keycode 1
+  // = raw_row 0, raw_col 0 → logical (0,0).
+  KeyEvent e{};
+  TEST_ASSERT_TRUE(adv_make_event(1, true, false, false, false, false, e));
+  TEST_ASSERT_TRUE(e.key == Key::Esc);
 }
 
 // ───── SettingsApp ──────────────────────────────────────────────────────────
@@ -5548,7 +5560,8 @@ int main(int, char**) {
   RUN_TEST(test_adv_decode_pos_keycode_1_is_tab_row1_col0);
   RUN_TEST(test_adv_make_event_letter_unshifted);
   RUN_TEST(test_adv_make_event_letter_shifted);
-  RUN_TEST(test_adv_make_event_fn_modifies_arrow_keys);
+  RUN_TEST(test_adv_arrow_keys_are_primary);
+  RUN_TEST(test_adv_esc_is_primary_on_backtick_key);
   RUN_TEST(test_settings_loads_default_brightness);
   RUN_TEST(test_settings_step_persists_to_storage);
   RUN_TEST(test_settings_left_decreases_brightness);

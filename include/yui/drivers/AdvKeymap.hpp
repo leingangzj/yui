@@ -27,7 +27,9 @@ constexpr int kAdvCols = 14;
 
 constexpr AdvCell kAdvKeyMap[kAdvRows * kAdvCols] = {
   // ── Row 0: ` 1 2 3 4 5 6 7 8 9 0 - = del ──
-  {Key::Char, '`',  '~',  Key::Esc,        0},
+  // Esc is the primary because OS navigation is the dominant use-case;
+  // the literal ` / ~ characters live on the Fn layer.
+  {Key::Esc,  0,    0,    Key::Char,       '`'},
   {Key::Char, '1',  '!',  Key::None,       0},
   {Key::Char, '2',  '@',  Key::None,       0},
   {Key::Char, '3',  '#',  Key::None,       0},
@@ -68,7 +70,7 @@ constexpr AdvCell kAdvKeyMap[kAdvRows * kAdvCols] = {
   {Key::Char, 'j', 'J',   Key::None,       0},
   {Key::Char, 'k', 'K',   Key::None,       0},
   {Key::Char, 'l', 'L',   Key::None,       0},
-  {Key::Char, ';', ':',   Key::Up,         0},
+  {Key::Up,    0,   0,    Key::Char,       ';'},
   {Key::Char, '\'','"',   Key::None,       0},
   {Key::Enter,  0,   0,   Key::Enter,      0},
   // ── Row 3: ctrl opt alt z x c v b n m , . / space ──
@@ -82,9 +84,11 @@ constexpr AdvCell kAdvKeyMap[kAdvRows * kAdvCols] = {
   {Key::Char, 'b', 'B',   Key::None,       0},
   {Key::Char, 'n', 'N',   Key::None,       0},
   {Key::Char, 'm', 'M',   Key::None,       0},
-  {Key::Char, ',', '<',   Key::Left,       0},
-  {Key::Char, '.', '>',   Key::Down,       0},
-  {Key::Char, '/', '?',   Key::Right,      0},
+  // Arrows are primary because the OS is overwhelmingly nav-driven;
+  // punctuation (',' '.' '/') still works via the Fn layer when typing.
+  {Key::Left,  0,   0,    Key::Char,       ','},
+  {Key::Down,  0,   0,    Key::Char,       '.'},
+  {Key::Right, 0,   0,    Key::Char,       '/'},
   {Key::Space,  0,   0,   Key::Space,      0},
 };
 

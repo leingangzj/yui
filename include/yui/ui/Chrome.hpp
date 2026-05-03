@@ -47,16 +47,15 @@ public:
     d.draw_text(kBodyPadX, kFooterY, hint, kHint, kSurface);
   }
 
-  // Highlighted list-row bar at index `row` (0-based). Used by any app
-  // that has a vertical list of selectable items — settings, files,
-  // todo, IR presets, etc. Matches the launcher's sub-view styling.
+  // Highlighted list-row bar at index `row` (0-based). Size-2 text so
+  // labels read at arm's-length on the Cardputer's tiny panel.
   static void list_row(IDisplay& d, int row, const char* label,
                        bool selected) {
     const int y_top  = kBodyTopY + row * kListRowH;
     const Color bg   = selected ? kAccent : kSurface;
     const Color fg   = selected ? kOnAccent : kAccent;
     if (selected) d.fill_rect({0, y_top - 2, d.width(), kListRowH}, bg);
-    d.draw_text(kBodyPadX, y_top + 4, label, fg, bg);
+    d.draw_text_scaled(kBodyPadX, y_top + 3, label, fg, bg, 2);
   }
 
   // Small inline pill at (x,y). Useful for toggles, "REC" indicators,
