@@ -30,8 +30,7 @@ public:
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
-    ui::Chrome::header(d, "Key Test");
-    d.draw_text(d.width() - 90, 4, "press any key", kWhite, kJapanRed);
+    ui::Chrome::header(d, "Key Test", "press any key");
 
     if (count_ == 0) {
       d.draw_text(8, 40, "(waiting for input)", kJapanRedDark, kWhite);

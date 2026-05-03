@@ -59,8 +59,7 @@ public:
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
-    ui::Chrome::header(d, dirty_ ? "Notes *" : "Notes");
-    d.draw_text(d.width() - 60, 4, "Tab=save", kWhite, kJapanRed);
+    ui::Chrome::header(d, dirty_ ? "Notes *" : "Notes", "Tab=save");
 
     const size_t cur_line = current_line_();
     const size_t cur_col  = current_col_();

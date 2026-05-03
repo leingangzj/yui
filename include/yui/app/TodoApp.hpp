@@ -66,8 +66,7 @@ public:
       char line[kItemMaxLen + 4];
       std::snprintf(line, sizeof(line), "> %s_", edit_buf_);
       d.draw_text(8, 50, line, kBlack, kWhite);
-      d.draw_text(8, d.height() - 14, "Enter=add  Bksp=back",
-                  kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Sp:done  Bksp:del  Tab:add  Esc:back");
       d.flush();
       return;
     }
@@ -93,9 +92,6 @@ public:
                     items_[i].text);
       d.draw_text(4, y + 2, line, fg, bg);
     }
-    d.draw_text(8, d.height() - 14,
-                "Sp=done Bksp=del Tab=add",
-                kJapanRedDark, kWhite);
     d.flush();
   }
 

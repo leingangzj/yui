@@ -52,14 +52,13 @@ public:
 
     if (state_ == State::Scanning) {
       d.draw_text(8, 40, "Listening...", kJapanRed, kWhite);
-      d.draw_text(8, 110, "Esc to go back", kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Esc:back");
       d.flush();
       return;
     }
     if (state_ == State::Empty) {
       d.draw_text(8, 40, "No devices found", kJapanRedDark, kWhite);
       d.draw_text(8, 60, "Enter to retry",   kJapanRed,     kWhite);
-      d.draw_text(8, 110, "Esc to go back",   kJapanRedDark, kWhite);
       d.flush();
       return;
     }

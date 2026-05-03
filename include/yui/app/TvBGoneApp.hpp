@@ -92,9 +92,7 @@ public:
                   static_cast<unsigned>(n));
     d.draw_text(8, 44, line, kBlack, kWhite);
     d.draw_text(8, 64, "Tab: toggle", kJapanRed, kWhite);
-    d.draw_text(8, d.height() - 14,
-                "Use only on YOUR TVs",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Use only on YOUR TVs");
     d.flush();
   }
 

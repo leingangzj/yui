@@ -97,7 +97,7 @@ public:
 
     if (radio_.state() != RadioLinkState::KissMode) {
       d.draw_text(8, 40, "Radio not in KISS", kJapanRedDark, kWhite);
-      d.draw_text(8, d.height() - 14, "Esc: back", kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Esc:back");
       d.flush();
       return;
     }

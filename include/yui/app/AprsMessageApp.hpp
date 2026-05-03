@@ -71,7 +71,7 @@ public:
     if (status_ == Status::NoCallsign) {
       d.draw_text(8, 36, "Set tx.call in NVS", kJapanRedBright, kWhite);
       d.draw_text(8, 56, "(your station's call)", kJapanRedDark, kWhite);
-      d.draw_text(8, d.height() - 14, "Esc: back", kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:field  Enter:send  Esc:back");
       d.flush();
       return;
     }
@@ -100,8 +100,6 @@ public:
     if (status[0]) d.draw_text(8, y + 4, status,
         status_ == Status::Failed ? kJapanRedBright : kJapanRed, kWhite);
 
-    d.draw_text(8, d.height() - 14, "Tab:field Enter:send",
-                kJapanRedDark, kWhite);
     d.flush();
   }
 

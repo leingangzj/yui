@@ -72,6 +72,7 @@ public:
 
     if (mode_ == Mode::View) {
       render_view_(d);
+    ui::Chrome::footer(d, "Bksp=back  Tab=hex");
       d.flush();
       return;
     }
@@ -189,7 +190,6 @@ private:
   void render_view_(IDisplay& d) {
     if (view_len_ == 0) {
       d.draw_text(8, 40, "(empty)", kJapanRedDark, kWhite);
-      d.draw_text(8, d.height() - 14, "Bksp=back  Tab=hex", kJapanRedDark, kWhite);
       return;
     }
     if (hex_) { render_hex_(d); return; }

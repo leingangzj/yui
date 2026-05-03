@@ -76,8 +76,7 @@ public:
     d.fill_rect({kBoardX + cx_ * kCellPx + kCellPx - 1, kBoardY + cy_ * kCellPx,
                  1, kCellPx}, kJapanRedBright);
 
-    d.draw_text(8, d.height() - 14, "Ent=tgl Tab=save Bksp=clr",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Ent=tgl Tab=save Bksp=clr");
     d.flush();
   }
 

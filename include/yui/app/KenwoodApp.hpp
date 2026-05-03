@@ -65,9 +65,7 @@ public:
       d.draw_text(8, y, "Tab to (re)connect", kJapanRedDark, kWhite); y += 14;
     }
 
-    d.draw_text(8, d.height() - 14,
-                "Enter:refresh Tab:connect Esc:back",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Enter:refresh Tab:connect Esc:back");
     d.flush();
   }
 

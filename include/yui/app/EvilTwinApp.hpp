@@ -71,9 +71,7 @@ public:
       d.draw_text(8, y, line, last_ok_ ? kJapanRed : kJapanRedBright, kWhite);
     }
 
-    d.draw_text(8, d.height() - 14,
-                "Use only on YOUR network",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Use only on YOUR network");
     d.flush();
   }
 

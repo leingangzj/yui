@@ -109,8 +109,7 @@ public:
       std::snprintf(line, sizeof(line), "Now: %.20s", ssids_[idx_]);
       d.draw_text(8, 70, line, kJapanRed, kWhite);
     }
-    d.draw_text(8, d.height() - 14,
-                "Tab:toggle Up/Dn:ch", kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:toggle Up/Dn:ch");
     d.flush();
   }
 

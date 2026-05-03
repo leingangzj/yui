@@ -94,7 +94,7 @@ public:
       d.draw_text(8, y + 3, line, fg, bg);
     }
 
-    d.draw_text(8, d.height() - 14, "<-/->  to change", kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "<-/->  to change");
     d.flush();
   }
 

@@ -46,8 +46,7 @@ public:
       d.draw_text(8, 40, line, kBlack, kWhite);
       d.draw_text(8, 60, "(Use PA web UI to view)", kJapanRedDark, kWhite);
     }
-    d.draw_text(8, d.height() - 14, "Tab:refresh Esc:back",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:refresh Esc:back");
     d.flush();
   }
 

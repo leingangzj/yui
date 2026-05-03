@@ -109,6 +109,7 @@ public:
       case State::Connected:  render_connected_(d);  break;
       case State::Failed:     render_failed_(d);     break;
     }
+    ui::Chrome::footer(d, footer_for_state_());
     d.flush();
   }
 
@@ -211,15 +212,26 @@ private:
   }
 
   // ── rendering ─────────────────────────────────────────────────────────
+  const char* footer_for_state_() const {
+    switch (state_) {
+      case State::Scanning:   return "scanning...  Esc:back";
+      case State::Empty:      return "Enter:retry  Esc:back";
+      case State::Done:       return "Enter:join  Tab:rescan  Esc:back";
+      case State::EnterPass:  return "Enter:join  Bksp:edit  Esc:back";
+      case State::Connecting: return "joining...  Esc:back";
+      case State::Connected:  return "Tab:forget  Esc:back";
+      case State::Failed:     return "Enter:retry  Esc:back";
+    }
+    return "Esc:back";
+  }
+
   void render_scanning_(IDisplay& d) {
     d.draw_text(8, 40,  "Scanning...",  kJapanRed,     kWhite);
-    d.draw_text(8, 110, "Esc to go back", kJapanRedDark, kWhite);
   }
 
   void render_empty_(IDisplay& d) {
     d.draw_text(8, 40,  "No networks found", kJapanRedDark, kWhite);
     d.draw_text(8, 60,  "Enter to retry",    kJapanRed,     kWhite);
-    d.draw_text(8, 110, "Esc to go back",    kJapanRedDark, kWhite);
   }
 
   void render_list_(IDisplay& d) {
@@ -242,8 +254,6 @@ private:
       std::snprintf(line, sizeof(line), "%s%-20s %s", lock, ap.ssid, rssi_str);
       d.draw_text(4, y + 2, line, fg, bg);
     }
-    d.draw_text(8, d.height() - 14, "Enter:join Tab:scan Fn+Bk:forget",
-                kJapanRedDark, kWhite);
   }
 
   void render_pass_(IDisplay& d) {
@@ -261,8 +271,6 @@ private:
       masked[pass_len_]     = 0;
     }
     d.draw_text(8, 60, masked, kJapanRed, kWhite);
-    d.draw_text(8, d.height() - 14, "Enter:join Esc:back",
-                kJapanRedDark, kWhite);
   }
 
   void render_connecting_(IDisplay& d) {
@@ -278,15 +286,12 @@ private:
     char ip_line[40];
     std::snprintf(ip_line, sizeof(ip_line), "IP %.16s", net_.wifi_ip());
     d.draw_text(8, 60, ip_line, kBlack, kWhite);
-    d.draw_text(8, d.height() - 14, "Enter:list Fn+Bk:forget",
-                kJapanRedDark, kWhite);
   }
 
   void render_failed_(IDisplay& d) {
     char line[64];
     std::snprintf(line, sizeof(line), "Failed: %.20s", sel_ssid_);
     d.draw_text(8, 50, line, kJapanRedBright, kWhite);
-    d.draw_text(8, d.height() - 14, "Enter:retry", kJapanRedDark, kWhite);
   }
 
   INet&     net_;

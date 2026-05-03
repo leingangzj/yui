@@ -87,9 +87,7 @@ public:
                   static_cast<unsigned>(capture_count_));
     d.draw_text(8, y, line, capture_count_ > 0 ? kJapanRed : kJapanRedDark,
                 kWhite);
-    d.draw_text(8, d.height() - 14,
-                "Fn+Enter:start Bksp:stop Tab:save",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Fn+Enter:start Bksp:stop Tab:save");
     d.flush();
   }
 

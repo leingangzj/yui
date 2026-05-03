@@ -95,9 +95,7 @@ public:
     if (last_failure_)
       d.draw_text(8, y, "TX failed (libnet?)", kJapanRedBright, kWhite);
 
-    d.draw_text(8, d.height() - 14,
-                "Tab:arm Fn+Enter:fire OWN NET ONLY",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:arm Fn+Enter:fire OWN NET ONLY");
     d.flush();
   }
 

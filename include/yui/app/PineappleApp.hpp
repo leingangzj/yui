@@ -50,8 +50,7 @@ public:
     int y = 22;
     if (!host_loaded_) {
       d.draw_text(8, y, "No host configured", kJapanRedDark, kWhite);
-      d.draw_text(8, d.height() - 14, "Set pa.host in NVS  Esc:back",
-                  kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:refresh  Esc:back");
       d.flush();
       return;
     }
@@ -74,8 +73,6 @@ public:
       std::snprintf(line, sizeof(line), "SSIDs: %d", cards_.total_ssids);
       d.draw_text(8, y, line, kBlack, kWhite);
     }
-    d.draw_text(8, d.height() - 14, "Tab:refresh  Esc:back",
-                kJapanRedDark, kWhite);
     d.flush();
   }
 

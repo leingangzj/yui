@@ -77,9 +77,7 @@ public:
     static const char* steps[] = {"100kHz", " 10kHz", "  1kHz"};
     std::snprintf(line, sizeof(line), "Step: %s", steps[step_idx_]);
     d.draw_text(8, y + 3, line, kJapanRedDark, kWhite);
-    d.draw_text(8, d.height() - 14,
-                "Tab:field Up/Dn:adj Enter:set",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:field Up/Dn:adj Enter:set");
     d.flush();
   }
 

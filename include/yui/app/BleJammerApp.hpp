@@ -90,9 +90,7 @@ public:
     d.draw_text(8, 44, line, kBlack, kWhite);
     d.draw_text(8, 64, "Fn+Enter: toggle", kJapanRed, kWhite);
     d.draw_text(8, 84, "Auto-off after 30 sec", kJapanRedDark, kWhite);
-    d.draw_text(8, d.height() - 14,
-                "Use only in your own space",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Use only in your own space");
     d.flush();
   }
 

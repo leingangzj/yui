@@ -64,9 +64,7 @@ public:
       d.draw_text(8, y, last_ok_ ? "Last fire: ok" : "Last fire: FAIL",
                   last_ok_ ? kJapanRed : kJapanRedBright, kWhite);
     }
-    d.draw_text(8, d.height() - 14,
-                "Tab:arm Fn+Enter:fire (own net only)",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Tab:arm Fn+Enter:fire (own net only)");
     d.flush();
   }
 

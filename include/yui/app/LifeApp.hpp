@@ -74,9 +74,7 @@ public:
     std::snprintf(title, sizeof(title), "Life g%u  pop %u",
                   engine_.generation(),
                   static_cast<unsigned>(engine_.population()));
-    ui::Chrome::header(d, title);
-    d.draw_text(d.width() - 50, 4, paused_ ? "PAUSE" : "RUN",
-                kWhite, kJapanRed);
+    ui::Chrome::header(d, title, paused_ ? "PAUSE" : "RUN");
 
     d.fill_rect({kBoardX, kBoardY,
                  LifeEngine::kCols * kCellPx,
@@ -90,9 +88,7 @@ public:
         }
       }
     }
-    d.draw_text(8, d.height() - 14,
-                "Ent=pause Tab=seed Bksp=clear",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Ent=pause Tab=seed Bksp=clear");
     d.flush();
   }
 

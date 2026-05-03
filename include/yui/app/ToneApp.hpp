@@ -84,8 +84,7 @@ public:
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
-    ui::Chrome::header(d, "Tone Player");
-    d.draw_text(d.width() - 80, 4, playing_ ? "playing" : "Enter", kWhite, kJapanRed);
+    ui::Chrome::header(d, "Tone Player", playing_ ? "playing" : "Enter");
 
     const size_t cur = menu_.cursor();
     for (size_t i = 0; i < presets::kCount; ++i) {
@@ -99,7 +98,7 @@ public:
                     sel ? ">" : " ", presets::kAll[i].name);
       d.draw_text(4, y + 2, line, fg, bg);
     }
-    d.draw_text(8, d.height() - 14, "Bksp=stop", kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Bksp=stop");
     d.flush();
   }
 

@@ -98,6 +98,7 @@ public:
       d.draw_text(8, 36, "No TLEs loaded", kJapanRedBright, kWhite);
       d.draw_text(8, 56, "Put 3-line records in", kJapanRedDark, kWhite);
       d.draw_text(8, 70, kTlePath, kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Enter:detail  Tab:live  Esc:back");
       d.flush();
       return;
     }
@@ -272,9 +273,6 @@ private:
       else              std::snprintf(line, sizeof(line), "%-12s   --", f.name);
       d.draw_text(4, y + 3, line, fg, bg);
     }
-    d.draw_text(8, d.height() - 14,
-                "Enter:detail  Esc:back",
-                kJapanRedDark, kWhite);
   }
 
   void render_detail_(IDisplay& d) {
@@ -299,8 +297,6 @@ private:
     } else {
       d.draw_text(8, y, "No pass in 24h", kJapanRedDark, kWhite);
     }
-    d.draw_text(8, d.height() - 14, "Tab:live Esc:back",
-                kJapanRedDark, kWhite);
   }
 
   void render_live_(IDisplay& d) {
@@ -330,8 +326,6 @@ private:
     std::snprintf(line, sizeof(line), "Tunes: %u",
                   static_cast<unsigned>(doppler_writes_));
     d.draw_text(8, y, line, kJapanRedDark, kWhite);
-    d.draw_text(8, d.height() - 14, "Esc: back",
-                kJapanRedDark, kWhite);
   }
 
   IRadioLink& radio_;

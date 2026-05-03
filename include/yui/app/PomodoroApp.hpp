@@ -82,8 +82,7 @@ public:
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
-    ui::Chrome::header(d, phase_ == Phase::Work ? "Pomodoro WORK" : "Pomodoro BREAK");
-    d.draw_text(d.width() - 60, 4, kPresets[preset_].label, kWhite, kJapanRed);
+    ui::Chrome::header(d, phase_ == Phase::Work ? "Pomodoro WORK" : "Pomodoro BREAK", kPresets[preset_].label);
 
     const uint32_t remaining = (elapsed_ >= phase_target_()) ? 0
                                 : (phase_target_() - elapsed_);
@@ -99,8 +98,7 @@ public:
                                               : "paused";
     std::snprintf(status, sizeof(status), "%s  done %u", st, completed_);
     d.draw_text(8, d.height() - 28, status, kJapanRedDark, kWhite);
-    d.draw_text(8, d.height() - 14, "Ent=start/pause Bksp=reset Tab=preset",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Ent=start/pause Bksp=reset Tab=preset");
     d.flush();
   }
 

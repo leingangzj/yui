@@ -52,8 +52,7 @@ public:
     if (last_ok_)  d.draw_text(8, 80, "Last action: ok",   kJapanRed,        kWhite);
     if (!last_ok_ && enabled_) d.draw_text(8, 80, "Last action: FAILED",
                                             kJapanRedBright, kWhite);
-    d.draw_text(8, d.height() - 14, "Use only on YOUR network",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Use only on YOUR network");
     d.flush();
   }
 

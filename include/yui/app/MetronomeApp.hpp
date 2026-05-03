@@ -70,8 +70,7 @@ public:
     char sig[16];
     std::snprintf(sig, sizeof(sig), "%d/%d  beat %d", kSigs[sig_][0], kSigs[sig_][1], beat_ + 1);
     d.draw_text(8, d.height() - 28, sig, kJapanRedDark, kWhite);
-    d.draw_text(8, d.height() - 14, "Up/Dn=BPM Ent=start Tab=sig",
-                kJapanRedDark, kWhite);
+    ui::Chrome::footer(d, "Up/Dn=BPM Ent=start Tab=sig");
     d.flush();
   }
 
