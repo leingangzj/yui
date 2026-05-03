@@ -84,7 +84,7 @@ public:
         if (engine_.alive(x, y)) {
           d.fill_rect({kBoardX + x * kCellPx,
                        kBoardY + y * kCellPx,
-                       kCellPx, kCellPx}, kJapanRedBright);
+                       kCellPx, kCellPx}, ui::kWarn);
         }
       }
     }

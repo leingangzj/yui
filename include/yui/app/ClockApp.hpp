@@ -129,7 +129,7 @@ public:
     d.draw_text(40, 50, big, ui::kAccent, ui::kSurface);
 
     if (mode_ == Mode::Timer && elapsed_ >= target_) {
-      d.draw_text(80, 80, "DONE", kJapanRedBright, ui::kSurface);
+      d.draw_text(80, 80, "DONE", ui::kWarn, ui::kSurface);
     }
 
     d.draw_text(8, d.height() - 14, running_ ? "Enter:stop  Tab:mode"

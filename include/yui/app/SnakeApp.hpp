@@ -80,7 +80,7 @@ public:
     const auto food = engine_.food();
     d.fill_rect({kBoardX + food.x * kCellPx + 1,
                  kBoardY + food.y * kCellPx + 1,
-                 kCellPx - 2, kCellPx - 2}, kJapanRedBright);
+                 kCellPx - 2, kCellPx - 2}, ui::kWarn);
 
     // Body
     for (size_t i = 0; i < engine_.length(); ++i) {

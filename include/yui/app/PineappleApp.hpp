@@ -60,7 +60,7 @@ public:
     if (!last_ok_) {
       std::snprintf(line, sizeof(line), "Error: %.28s",
                     err_msg_[0] ? err_msg_ : "unreachable");
-      d.draw_text(8, y, line, kJapanRedBright, ui::kSurface);
+      d.draw_text(8, y, line, ui::kWarn, ui::kSurface);
     } else {
       std::snprintf(line, sizeof(line), "CPU:%3d%%   Mem:%3d%%",
                     cards_.cpu_pct, cards_.mem_pct);

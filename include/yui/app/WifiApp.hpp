@@ -291,7 +291,7 @@ private:
   void render_failed_(IDisplay& d) {
     char line[64];
     std::snprintf(line, sizeof(line), "Failed: %.20s", sel_ssid_);
-    d.draw_text(8, 50, line, kJapanRedBright, ui::kSurface);
+    d.draw_text(8, 50, line, ui::kWarn, ui::kSurface);
   }
 
   INet&     net_;

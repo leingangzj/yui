@@ -76,7 +76,7 @@ public:
     int y = ui::kBodyTopY;
     if (!file_open_) {
       d.draw_text(ui::kBodyPadX, y, "SD write failed",
-                  kJapanRedBright, ui::kSurface);
+                  ui::kWarn, ui::kSurface);
       y += ui::kBodyLineH;
     }
     char val[24];

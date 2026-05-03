@@ -90,10 +90,10 @@ public:
     d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
     std::snprintf(line, sizeof(line), "Armed:%s  Firing:%s",
                   armed_ ? "Y" : "n", firing_ ? "YES" : "no");
-    d.draw_text(8, y, line, firing_ ? kJapanRedBright : ui::kAccentDark, ui::kSurface);
+    d.draw_text(8, y, line, firing_ ? ui::kWarn : ui::kAccentDark, ui::kSurface);
     y += 13;
     if (last_failure_)
-      d.draw_text(8, y, "TX failed (libnet?)", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, y, "TX failed (libnet?)", ui::kWarn, ui::kSurface);
 
     ui::Chrome::footer(d, "Tab:arm Fn+Enter:fire OWN NET ONLY");
     d.flush();

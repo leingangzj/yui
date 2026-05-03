@@ -46,12 +46,12 @@ public:
 
     char line[40];
     std::snprintf(line, sizeof(line), "Karma: %s", enabled_ ? "ON" : "off");
-    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface);
+    d.draw_text(8, 24, line, enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface);
     d.draw_text(8, 44, "Fn+Enter: ENABLE", ui::kAccent,     ui::kSurface);
     d.draw_text(8, 60, "Backspace: disable", ui::kAccentDark, ui::kSurface);
     if (last_ok_)  d.draw_text(8, 80, "Last action: ok",   ui::kAccent,        ui::kSurface);
     if (!last_ok_ && enabled_) d.draw_text(8, 80, "Last action: FAILED",
-                                            kJapanRedBright, ui::kSurface);
+                                            ui::kWarn, ui::kSurface);
     ui::Chrome::footer(d, "Use only on YOUR network");
     d.flush();
   }

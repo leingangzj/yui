@@ -98,7 +98,7 @@ public:
     char line[40];
     std::snprintf(line, sizeof(line), "State: %s",
                   enabled_ ? "FLOODING" : "idle");
-    d.draw_text(8, 22, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface);
+    d.draw_text(8, 22, line, enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface);
     std::snprintf(line, sizeof(line), "Channel: %u   SSIDs: %u",
                   static_cast<unsigned>(channel_),
                   static_cast<unsigned>(ssid_count_));

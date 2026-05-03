@@ -26,6 +26,11 @@ inline constexpr Color kSurface    = kWhite;
 inline constexpr Color kOnSurface  = kBlack;
 inline constexpr Color kOnAccent   = kWhite;
 inline constexpr Color kHint       = kJapanRedDark;
+// Warn: errors, failed states, and "this is firing right now" indicators.
+// Visually louder than the accent so it pulls the eye to "stop and look."
+// Same shade as the splash shimmer; shares one token because both roles
+// reduce to "attention required."
+inline constexpr Color kWarn       = kJapanRedBright;
 
 // Default monospace glyph size for size-1 text (M5GFX 6×8 + 1 px gap).
 inline constexpr int kCharW = 6;

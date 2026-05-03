@@ -72,7 +72,7 @@ public:
     } else if (view_ == View::Connecting) {
       d.draw_text(8, 40, "Connecting...", ui::kAccent, ui::kSurface);
     } else if (view_ == View::Failed) {
-      d.draw_text(8, 36, "Connect FAILED", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 36, "Connect FAILED", ui::kWarn, ui::kSurface);
       d.draw_text(8, 56, "Enter: retry", ui::kAccent, ui::kSurface);
     } else if (view_ == View::Services) {
       const size_t window = 6;

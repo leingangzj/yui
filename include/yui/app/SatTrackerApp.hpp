@@ -95,7 +95,7 @@ public:
     ui::Chrome::header(d, "SatTracker");
 
     if (count_ == 0) {
-      d.draw_text(8, 36, "No TLEs loaded", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 36, "No TLEs loaded", ui::kWarn, ui::kSurface);
       d.draw_text(8, 56, "Put 3-line records in", ui::kAccentDark, ui::kSurface);
       d.draw_text(8, 70, kTlePath, ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Enter:detail  Tab:live  Esc:back");
@@ -309,7 +309,7 @@ private:
     const double t_sec = (now_jd_ -
         sat::jd_from_year_day(f.tle.epoch_year, f.tle.epoch_day)) * sat::kSecsPerDay;
     if (!f.prop.propagate(t_sec, sv)) {
-      d.draw_text(8, y, "Propagation failed", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, y, "Propagation failed", ui::kWarn, ui::kSurface);
       return;
     }
     const sat::LookAngles la = sat::look_angles(sv, observer_, now_jd_);

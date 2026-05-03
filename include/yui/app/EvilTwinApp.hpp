@@ -57,7 +57,7 @@ public:
     int y = 22;
     std::snprintf(line, sizeof(line), "PineAP: %s",
                   enabled_ ? "ON" : "off");
-    d.draw_text(8, y, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface); y += 14;
+    d.draw_text(8, y, line, enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface); y += 14;
 
     d.draw_text(8, y, "Fn+Enter: ENABLE",  ui::kAccent,     ui::kSurface); y += 14;
     d.draw_text(8, y, "Bksp:     disable", ui::kAccentDark, ui::kSurface); y += 14;
@@ -68,7 +68,7 @@ public:
                       last_action_ == Action::Disable ? "Disable":
                                                         "Clear";
       std::snprintf(line, sizeof(line), "%s: %s", a, last_ok_ ? "ok" : "FAIL");
-      d.draw_text(8, y, line, last_ok_ ? ui::kAccent : kJapanRedBright, ui::kSurface);
+      d.draw_text(8, y, line, last_ok_ ? ui::kAccent : ui::kWarn, ui::kSurface);
     }
 
     ui::Chrome::footer(d, "Use only on YOUR network");

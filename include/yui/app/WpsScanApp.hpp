@@ -87,7 +87,7 @@ public:
       const int y = 22 + static_cast<int>(i - start) * 16;
       const bool sel = (i == cursor_);
       const Color bg = sel ? ui::kAccent : ui::kSurface;
-      const Color fg = sel ? ui::kSurface    : (e.wps ? kJapanRedBright : ui::kOnSurface);
+      const Color fg = sel ? ui::kSurface    : (e.wps ? ui::kWarn : ui::kOnSurface);
       if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
       std::snprintf(line, sizeof(line), "%c %-18s ch%u",
                     e.wps ? 'W' : ' ',

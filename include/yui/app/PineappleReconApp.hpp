@@ -94,7 +94,7 @@ public:
                     ui::kAccentDark, ui::kSurface);
         break;
       case State::Error:
-        d.draw_text(8, y, "Error:", kJapanRedBright, ui::kSurface); y += 14;
+        d.draw_text(8, y, "Error:", ui::kWarn, ui::kSurface); y += 14;
         d.draw_text(8, y, err_msg_, ui::kAccentDark, ui::kSurface);
         break;
     }

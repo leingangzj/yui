@@ -68,13 +68,13 @@ public:
 
     // Cursor outline (single-pixel hot border).
     d.fill_rect({kBoardX + cx_ * kCellPx, kBoardY + cy_ * kCellPx,
-                 kCellPx, 1}, kJapanRedBright);
+                 kCellPx, 1}, ui::kWarn);
     d.fill_rect({kBoardX + cx_ * kCellPx, kBoardY + cy_ * kCellPx + kCellPx - 1,
-                 kCellPx, 1}, kJapanRedBright);
+                 kCellPx, 1}, ui::kWarn);
     d.fill_rect({kBoardX + cx_ * kCellPx, kBoardY + cy_ * kCellPx,
-                 1, kCellPx}, kJapanRedBright);
+                 1, kCellPx}, ui::kWarn);
     d.fill_rect({kBoardX + cx_ * kCellPx + kCellPx - 1, kBoardY + cy_ * kCellPx,
-                 1, kCellPx}, kJapanRedBright);
+                 1, kCellPx}, ui::kWarn);
 
     ui::Chrome::footer(d, "Ent=tgl Tab=save Bksp=clr");
     d.flush();

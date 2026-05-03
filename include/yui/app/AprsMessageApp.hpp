@@ -69,7 +69,7 @@ public:
     ui::Chrome::header(d, "APRS TX");
 
     if (status_ == Status::NoCallsign) {
-      d.draw_text(8, 36, "Set tx.call in NVS", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 36, "Set tx.call in NVS", ui::kWarn, ui::kSurface);
       d.draw_text(8, 56, "(your station's call)", ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Tab:field  Enter:send  Esc:back");
       d.flush();
@@ -98,7 +98,7 @@ public:
       status_ == Status::Sent    ? "Sent OK"    :
       status_ == Status::Failed  ? "Send FAILED": "";
     if (status[0]) d.draw_text(8, y + 4, status,
-        status_ == Status::Failed ? kJapanRedBright : ui::kAccent, ui::kSurface);
+        status_ == Status::Failed ? ui::kWarn : ui::kAccent, ui::kSurface);
 
     d.flush();
   }

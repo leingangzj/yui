@@ -58,11 +58,11 @@ public:
                   static_cast<unsigned>(channel_));
     d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Armed: %s", armed_ ? "YES" : "no");
-    d.draw_text(8, y, line, armed_ ? kJapanRedBright : ui::kAccentDark, ui::kSurface);
+    d.draw_text(8, y, line, armed_ ? ui::kWarn : ui::kAccentDark, ui::kSurface);
     y += 14;
     if (fired_) {
       d.draw_text(8, y, last_ok_ ? "Last fire: ok" : "Last fire: FAIL",
-                  last_ok_ ? ui::kAccent : kJapanRedBright, ui::kSurface);
+                  last_ok_ ? ui::kAccent : ui::kWarn, ui::kSurface);
     }
     ui::Chrome::footer(d, "Tab:arm Fn+Enter:fire (own net only)");
     d.flush();

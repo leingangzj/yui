@@ -40,7 +40,7 @@ public:
 
     char line[40];
     if (!last_ok_) {
-      d.draw_text(8, 40, "Failed to fetch", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 40, "Failed to fetch", ui::kWarn, ui::kSurface);
     } else {
       std::snprintf(line, sizeof(line), "Captured: %u", static_cast<unsigned>(count_));
       d.draw_text(8, 40, line, ui::kOnSurface, ui::kSurface);

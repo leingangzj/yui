@@ -76,7 +76,7 @@ public:
                   state_ == State::Starting ? "starting" :
                   state_ == State::Stopped ? "stopped"  : "idle");
     d.draw_text(8, y, line,
-                state_ == State::Running ? kJapanRedBright : ui::kOnSurface,
+                state_ == State::Running ? ui::kWarn : ui::kOnSurface,
                 ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Clients: %u  DNS: %u  HTTP: %u",
                   static_cast<unsigned>(ap_.client_count()),

@@ -73,6 +73,9 @@ kAccent      #BC002D   header bar, selection, badges-on, primary
 kOnAccent    #FFFFFF   text on accent
 kAccentDark  #780000   hints, footers, dim-on-white
 kHint        kAccentDark   alias — use wherever the role is "hint"
+kWarn        #FF4060   errors, failed states, and "firing right now"
+                       indicators (deauth armed, beacon flood enabled,
+                       etc.) — louder than accent on purpose
 ```
 
 Three rules:
