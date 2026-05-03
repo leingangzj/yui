@@ -55,6 +55,7 @@
 #include "yui/app/CaptivePortalApp.hpp"
 #include "yui/app/SatTrackerApp.hpp"
 #include "yui/app/KoiGotchiApp.hpp"
+#include "yui/app/ThemeApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -174,6 +175,7 @@ yui::BleJammerApp        ble_jammer_app{ble_adv_};
 yui::CaptivePortalApp    captive_app{wifi_ap_, fs_, store_};
 yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
 yui::KoiGotchiApp        koigotchi_app{handshake_app, &store_, &clock_};
+yui::ThemeApp            theme_app{&store_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -203,6 +205,17 @@ void setup() {
   // the join + NTP sync now so ClockApp's TimeOfDay is ready by the time
   // the user opens it. Errors are silent; WifiApp surfaces re-join.
   store_.init();
+
+  // Restore the user's chosen palette before any UI renders. Splash and
+  // every app that follows reads ui::kAccent / ui::kSurface live, so the
+  // first frame already wears the saved theme.
+  {
+    char theme_id[16] = {0};
+    if (store_.get_str(yui::kStorageKeyTheme, theme_id, sizeof(theme_id))) {
+      if (auto* p = yui::ui::find_palette(theme_id)) yui::ui::apply_palette(*p);
+    }
+  }
+
   char saved_ssid[33] = {0};
   char saved_pass[65] = {0};
   char saved_tz[40]   = "UTC0";
@@ -268,6 +281,7 @@ void setup() {
   registry.add(&keytest_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
+  registry.add(&theme_app);
   registry.add(&remote_app);
   registry.add(&about_app);
 

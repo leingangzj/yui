@@ -57,6 +57,7 @@
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
 #include "yui/app/KoiGotchiApp.hpp"
+#include "yui/app/ThemeApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
 #include "yui/app/HandshakeBrowserApp.hpp"
@@ -4110,6 +4111,49 @@ void test_handshake_app_on_exit_stops_and_closes() {
   TEST_ASSERT_FALSE(pcap.is_open());
 }
 
+// ───── ThemeApp ────────────────────────────────────────────────────────────
+
+void test_theme_default_is_kohaku() {
+  // Defaults established in Tokens.hpp.
+  TEST_ASSERT_EQUAL_HEX16(yui::ui::kKohaku.accent, yui::ui::kAccent);
+}
+
+void test_theme_apply_palette_swaps_live_tokens() {
+  yui::ui::apply_palette(yui::ui::kOgon);
+  TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.accent, yui::ui::kAccent);
+  TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.warn,   yui::ui::kWarn);
+  TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.accent_dark, yui::ui::kHint);
+  // Restore so subsequent tests see the default.
+  yui::ui::apply_palette(yui::ui::kKohaku);
+}
+
+void test_theme_app_persists_selection() {
+  Fixture f;
+  FakeStorage store; store.init();
+  ThemeApp app{&store};
+  app.on_enter(f.hal);
+
+  // Move down to Ogon (index 1) and apply.
+  app.on_key(press(Key::Down));
+  app.on_key(press(Key::Enter));
+
+  char id[16] = {0};
+  TEST_ASSERT_TRUE(store.get_str(kStorageKeyTheme, id, sizeof(id)));
+  TEST_ASSERT_EQUAL_STRING("ogon", id);
+  TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.accent, yui::ui::kAccent);
+  // Restore.
+  yui::ui::apply_palette(yui::ui::kKohaku);
+}
+
+void test_theme_app_initial_cursor_matches_active_palette() {
+  Fixture f;
+  FakeStorage store; store.init();
+  store.put_str(kStorageKeyTheme, "asagi");
+  ThemeApp app{&store};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL(2u, app.cursor());  // asagi is index 2 in kPalettes
+}
+
 // ───── KoiGotchiApp ────────────────────────────────────────────────────────
 
 void test_koigotchi_starts_in_sleep_mood() {
@@ -5683,6 +5727,10 @@ int main(int, char**) {
   RUN_TEST(test_handshake_app_opens_pcap_on_enter);
   RUN_TEST(test_handshake_app_writes_every_frame_to_pcap);
   RUN_TEST(test_handshake_app_increments_eapol_count_on_key_frame);
+  RUN_TEST(test_theme_default_is_kohaku);
+  RUN_TEST(test_theme_apply_palette_swaps_live_tokens);
+  RUN_TEST(test_theme_app_persists_selection);
+  RUN_TEST(test_theme_app_initial_cursor_matches_active_palette);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);
