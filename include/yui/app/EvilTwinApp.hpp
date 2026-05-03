@@ -57,18 +57,18 @@ public:
     int y = 22;
     std::snprintf(line, sizeof(line), "PineAP: %s",
                   enabled_ ? "ON" : "off");
-    d.draw_text(8, y, line, enabled_ ? kJapanRedBright : kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface); y += 14;
 
-    d.draw_text(8, y, "Fn+Enter: ENABLE",  kJapanRed,     kWhite); y += 14;
-    d.draw_text(8, y, "Bksp:     disable", kJapanRedDark, kWhite); y += 14;
-    d.draw_text(8, y, "Tab:      clear pool", kJapanRedDark, kWhite); y += 14;
+    d.draw_text(8, y, "Fn+Enter: ENABLE",  ui::kAccent,     ui::kSurface); y += 14;
+    d.draw_text(8, y, "Bksp:     disable", ui::kAccentDark, ui::kSurface); y += 14;
+    d.draw_text(8, y, "Tab:      clear pool", ui::kAccentDark, ui::kSurface); y += 14;
 
     if (last_action_ != Action::None) {
       const char* a = last_action_ == Action::Enable  ? "Enable" :
                       last_action_ == Action::Disable ? "Disable":
                                                         "Clear";
       std::snprintf(line, sizeof(line), "%s: %s", a, last_ok_ ? "ok" : "FAIL");
-      d.draw_text(8, y, line, last_ok_ ? kJapanRed : kJapanRedBright, kWhite);
+      d.draw_text(8, y, line, last_ok_ ? ui::kAccent : kJapanRedBright, ui::kSurface);
     }
 
     ui::Chrome::footer(d, "Use only on YOUR network");

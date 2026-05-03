@@ -90,14 +90,14 @@ public:
     const uint32_t ss = (remaining / 1000u) % 60u;
     char big[16];
     std::snprintf(big, sizeof(big), "%02u:%02u", mm, ss);
-    d.draw_text(d.width() / 2 - 30, 40, big, kBlack, kWhite);
+    d.draw_text(d.width() / 2 - 30, 40, big, ui::kOnSurface, ui::kSurface);
 
     char status[40];
     const char* st = state_ == State::Idle    ? "idle"
                    : state_ == State::Running ? "running"
                                               : "paused";
     std::snprintf(status, sizeof(status), "%s  done %u", st, completed_);
-    d.draw_text(8, d.height() - 28, status, kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 28, status, ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Ent=start/pause Bksp=reset Tab=preset");
     d.flush();
   }

@@ -102,15 +102,15 @@ public:
     char line[40];
     std::snprintf(line, sizeof(line), "State: %s",
                   enabled_ ? "ON" : "off");
-    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : kBlack, kWhite);
+    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface);
 
     size_t n = 0;
     const PayloadInfo* list = payloads(n);
     std::snprintf(line, sizeof(line), "Now:   %s",
                   enabled_ ? list[cycle_idx_].label : "—");
-    d.draw_text(8, 44, line, kBlack, kWhite);
+    d.draw_text(8, 44, line, ui::kOnSurface, ui::kSurface);
 
-    d.draw_text(8, 64, "Fn+Enter: toggle", kJapanRed,     kWhite);
+    d.draw_text(8, 64, "Fn+Enter: toggle", ui::kAccent,     ui::kSurface);
     ui::Chrome::footer(d, "Use only in your own space");
     d.flush();
   }

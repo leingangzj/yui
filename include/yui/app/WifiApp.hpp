@@ -226,12 +226,12 @@ private:
   }
 
   void render_scanning_(IDisplay& d) {
-    d.draw_text(8, 40,  "Scanning...",  kJapanRed,     kWhite);
+    d.draw_text(8, 40,  "Scanning...",  ui::kAccent,     ui::kSurface);
   }
 
   void render_empty_(IDisplay& d) {
-    d.draw_text(8, 40,  "No networks found", kJapanRedDark, kWhite);
-    d.draw_text(8, 60,  "Enter to retry",    kJapanRed,     kWhite);
+    d.draw_text(8, 40,  "No networks found", ui::kAccentDark, ui::kSurface);
+    d.draw_text(8, 60,  "Enter to retry",    ui::kAccent,     ui::kSurface);
   }
 
   void render_list_(IDisplay& d) {
@@ -243,8 +243,8 @@ private:
       const auto& ap = net_.wifi_at(i);
       const int y    = 22 + static_cast<int>(i - start) * 13;
       const bool sel = (i == cur);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 13}, bg);
 
       char rssi_str[8];
@@ -259,8 +259,8 @@ private:
   void render_pass_(IDisplay& d) {
     char line[64];
     std::snprintf(line, sizeof(line), "SSID: %.32s", sel_ssid_);
-    d.draw_text(8, 22, line, kBlack, kWhite);
-    d.draw_text(8, 42, "Passphrase:", kJapanRedDark, kWhite);
+    d.draw_text(8, 22, line, ui::kOnSurface, ui::kSurface);
+    d.draw_text(8, 42, "Passphrase:", ui::kAccentDark, ui::kSurface);
     // Mask all but the most recent character so the user can confirm typing.
     char masked[kMaxPass + 1];
     if (pass_len_ == 0) {
@@ -270,28 +270,28 @@ private:
       masked[pass_len_ - 1] = pass_[pass_len_ - 1];
       masked[pass_len_]     = 0;
     }
-    d.draw_text(8, 60, masked, kJapanRed, kWhite);
+    d.draw_text(8, 60, masked, ui::kAccent, ui::kSurface);
   }
 
   void render_connecting_(IDisplay& d) {
     char line[64];
     std::snprintf(line, sizeof(line), "Joining %.20s ...", sel_ssid_);
-    d.draw_text(8, 50, line, kJapanRed, kWhite);
+    d.draw_text(8, 50, line, ui::kAccent, ui::kSurface);
   }
 
   void render_connected_(IDisplay& d) {
     char line[64];
     std::snprintf(line, sizeof(line), "Connected: %.20s", sel_ssid_);
-    d.draw_text(8, 40, line, kJapanRed, kWhite);
+    d.draw_text(8, 40, line, ui::kAccent, ui::kSurface);
     char ip_line[40];
     std::snprintf(ip_line, sizeof(ip_line), "IP %.16s", net_.wifi_ip());
-    d.draw_text(8, 60, ip_line, kBlack, kWhite);
+    d.draw_text(8, 60, ip_line, ui::kOnSurface, ui::kSurface);
   }
 
   void render_failed_(IDisplay& d) {
     char line[64];
     std::snprintf(line, sizeof(line), "Failed: %.20s", sel_ssid_);
-    d.draw_text(8, 50, line, kJapanRedBright, kWhite);
+    d.draw_text(8, 50, line, kJapanRedBright, ui::kSurface);
   }
 
   INet&     net_;

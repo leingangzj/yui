@@ -40,11 +40,11 @@ public:
 
     char line[40];
     if (!last_ok_) {
-      d.draw_text(8, 40, "Failed to fetch", kJapanRedBright, kWhite);
+      d.draw_text(8, 40, "Failed to fetch", kJapanRedBright, ui::kSurface);
     } else {
       std::snprintf(line, sizeof(line), "Captured: %u", static_cast<unsigned>(count_));
-      d.draw_text(8, 40, line, kBlack, kWhite);
-      d.draw_text(8, 60, "(Use PA web UI to view)", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, line, ui::kOnSurface, ui::kSurface);
+      d.draw_text(8, 60, "(Use PA web UI to view)", ui::kAccentDark, ui::kSurface);
     }
     ui::Chrome::footer(d, "Tab:refresh Esc:back");
     d.flush();

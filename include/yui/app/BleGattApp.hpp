@@ -67,21 +67,21 @@ public:
     char line[40];
     if (view_ == View::Idle) {
       std::snprintf(line, sizeof(line), "MAC: %s", mac_);
-      d.draw_text(8, 36, line, kBlack, kWhite);
-      d.draw_text(8, 56, "Enter: connect", kJapanRed, kWhite);
+      d.draw_text(8, 36, line, ui::kOnSurface, ui::kSurface);
+      d.draw_text(8, 56, "Enter: connect", ui::kAccent, ui::kSurface);
     } else if (view_ == View::Connecting) {
-      d.draw_text(8, 40, "Connecting...", kJapanRed, kWhite);
+      d.draw_text(8, 40, "Connecting...", ui::kAccent, ui::kSurface);
     } else if (view_ == View::Failed) {
-      d.draw_text(8, 36, "Connect FAILED", kJapanRedBright, kWhite);
-      d.draw_text(8, 56, "Enter: retry", kJapanRed, kWhite);
+      d.draw_text(8, 36, "Connect FAILED", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 56, "Enter: retry", ui::kAccent, ui::kSurface);
     } else if (view_ == View::Services) {
       const size_t window = 6;
       const size_t start  = (cursor_ >= window) ? (cursor_ - window + 1) : 0;
       for (size_t i = start; i < services_count_ && i < start + window; ++i) {
         const int y = 22 + static_cast<int>(i - start) * 16;
         const bool sel = (i == cursor_);
-        const Color bg = sel ? kJapanRed : kWhite;
-        const Color fg = sel ? kWhite    : kBlack;
+        const Color bg = sel ? ui::kAccent : ui::kSurface;
+        const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
         if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
         std::snprintf(line, sizeof(line), "S: %.32s", services_[i].uuid);
         d.draw_text(4, y + 3, line, fg, bg);
@@ -90,8 +90,8 @@ public:
       for (size_t i = 0; i < chars_count_ && i < 6; ++i) {
         const int y = 22 + static_cast<int>(i) * 16;
         const bool sel = (i == cursor_);
-        const Color bg = sel ? kJapanRed : kWhite;
-        const Color fg = sel ? kWhite    : kBlack;
+        const Color bg = sel ? ui::kAccent : ui::kSurface;
+        const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
         if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
         std::snprintf(line, sizeof(line), "C: %.24s P:%02X",
                       chars_[i].uuid, chars_[i].properties);
@@ -103,7 +103,7 @@ public:
         view_ == View::Services ? "Enter:open Esc:back" :
         view_ == View::Chars    ? "Bksp:back" :
                                   "Enter:connect Esc:back";
-    d.draw_text(8, d.height() - 14, hint, kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 14, hint, ui::kAccentDark, ui::kSurface);
     d.flush();
   }
 

@@ -270,8 +270,8 @@ public:
     ui::Chrome::header(d, "Calculator");
 
     if (engine_.error()) {
-      d.draw_text(8, 40, "ERR", kJapanRed, kWhite);
-      d.draw_text(8, 60, "Backspace clears", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "ERR", ui::kAccent, ui::kSurface);
+      d.draw_text(8, 60, "Backspace clears", ui::kAccentDark, ui::kSurface);
       d.flush();
       return;
     }
@@ -288,16 +288,16 @@ public:
       } else {
         std::snprintf(line, sizeof(line), "%s:", tag);
       }
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
 
     // Input buffer + memory indicator
     char buf_line[40];
     std::snprintf(buf_line, sizeof(buf_line), "> %s", engine_.buffer());
-    d.draw_text(8, 110, buf_line, kJapanRed, kWhite);
-    if (engine_.m_has()) d.draw_text(d.width() - 18, 4, "M", kWhite, kJapanRed);
+    d.draw_text(8, 110, buf_line, ui::kAccent, ui::kSurface);
+    if (engine_.m_has()) d.draw_text(d.width() - 18, 4, "M", ui::kSurface, ui::kAccent);
     if (engine_.angle_mode() == CalculatorEngine::AngleMode::Degrees)
-      d.draw_text(d.width() - 50, 4, "DEG", kWhite, kJapanRed);
+      d.draw_text(d.width() - 50, 4, "DEG", ui::kSurface, ui::kAccent);
     d.flush();
   }
 

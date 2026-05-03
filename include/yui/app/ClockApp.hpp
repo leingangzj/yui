@@ -126,15 +126,15 @@ public:
     std::snprintf(big, sizeof(big), "%02u:%02u.%02u",
                   static_cast<unsigned>(mm), static_cast<unsigned>(ss),
                   static_cast<unsigned>(ms));
-    d.draw_text(40, 50, big, kJapanRed, kWhite);
+    d.draw_text(40, 50, big, ui::kAccent, ui::kSurface);
 
     if (mode_ == Mode::Timer && elapsed_ >= target_) {
-      d.draw_text(80, 80, "DONE", kJapanRedBright, kWhite);
+      d.draw_text(80, 80, "DONE", kJapanRedBright, ui::kSurface);
     }
 
     d.draw_text(8, d.height() - 14, running_ ? "Enter:stop  Tab:mode"
                                               : "Enter:start Tab:mode",
-                kJapanRedDark, kWhite);
+                ui::kAccentDark, ui::kSurface);
     d.flush();
   }
 
@@ -157,10 +157,10 @@ private:
   void render_time_of_day_(IDisplay& d) {
     const uint64_t epoch = hal_ ? hal_->clock.epoch_seconds() : 0;
     if (epoch == 0) {
-      d.draw_text(20, 50, "--:--:--", kJapanRed, kWhite);
-      d.draw_text(8, 80, "no NTP sync", kJapanRedDark, kWhite);
+      d.draw_text(20, 50, "--:--:--", ui::kAccent, ui::kSurface);
+      d.draw_text(8, 80, "no NTP sync", ui::kAccentDark, ui::kSurface);
       const char* hint = net_ ? "Enter:sync  Tab:mode" : "Tab:mode";
-      d.draw_text(8, d.height() - 14, hint, kJapanRedDark, kWhite);
+      d.draw_text(8, d.height() - 14, hint, ui::kAccentDark, ui::kSurface);
       return;
     }
     const std::time_t t = static_cast<std::time_t>(epoch);
@@ -173,15 +173,15 @@ private:
     char hms[16];
     std::snprintf(hms, sizeof(hms), "%02d:%02d:%02d",
                   tm_buf.tm_hour, tm_buf.tm_min, tm_buf.tm_sec);
-    d.draw_text(40, 50, hms, kJapanRed, kWhite);
+    d.draw_text(40, 50, hms, ui::kAccent, ui::kSurface);
 
     char ymd[16];
     std::snprintf(ymd, sizeof(ymd), "%04d-%02d-%02d",
                   tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday);
-    d.draw_text(60, 80, ymd, kJapanRedDark, kWhite);
+    d.draw_text(60, 80, ymd, ui::kAccentDark, ui::kSurface);
     d.draw_text(8, d.height() - 14,
                 net_ ? "Enter:sync  Tab:mode" : "Tab:mode",
-                kJapanRedDark, kWhite);
+                ui::kAccentDark, ui::kSurface);
   }
 
   Hal*        hal_        = nullptr;

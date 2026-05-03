@@ -70,23 +70,23 @@ public:
     int y = 22;
     std::snprintf(line, sizeof(line), "SSID: %s",
                   ssid_[0] ? ssid_ : "(none — set cp.ssid)");
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "State: %s",
                   state_ == State::Running ? "RUNNING"  :
                   state_ == State::Starting ? "starting" :
                   state_ == State::Stopped ? "stopped"  : "idle");
     d.draw_text(8, y, line,
-                state_ == State::Running ? kJapanRedBright : kBlack,
-                kWhite); y += 14;
+                state_ == State::Running ? kJapanRedBright : ui::kOnSurface,
+                ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Clients: %u  DNS: %u  HTTP: %u",
                   static_cast<unsigned>(ap_.client_count()),
                   static_cast<unsigned>(ap_.dns_queries()),
                   static_cast<unsigned>(ap_.http_requests()));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Captures: %u",
                   static_cast<unsigned>(capture_count_));
-    d.draw_text(8, y, line, capture_count_ > 0 ? kJapanRed : kJapanRedDark,
-                kWhite);
+    d.draw_text(8, y, line, capture_count_ > 0 ? ui::kAccent : ui::kAccentDark,
+                ui::kSurface);
     ui::Chrome::footer(d, "Fn+Enter:start Bksp:stop Tab:save");
     d.flush();
   }

@@ -51,18 +51,18 @@ public:
     char line[40];
     int y = 22;
     std::snprintf(line, sizeof(line), "Link: %s", state_label_());
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
 
     if (radio_.state() == RadioLinkState::CommandMode ||
         radio_.state() == RadioLinkState::KissMode) {
       std::snprintf(line, sizeof(line), "ID:   %s",  id_buf_[0]   ? id_buf_   : "—");
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Freq: %s",  freq_buf_[0] ? freq_buf_ : "—");
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Mode: %s",  mode_buf_[0] ? mode_buf_ : "—");
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     } else {
-      d.draw_text(8, y, "Tab to (re)connect", kJapanRedDark, kWhite); y += 14;
+      d.draw_text(8, y, "Tab to (re)connect", ui::kAccentDark, ui::kSurface); y += 14;
     }
 
     ui::Chrome::footer(d, "Enter:refresh Tab:connect Esc:back");

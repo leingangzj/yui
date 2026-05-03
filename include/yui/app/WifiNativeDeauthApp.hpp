@@ -81,19 +81,19 @@ public:
     char line[40];
     int y = 22;
     std::snprintf(line, sizeof(line), "Tgt:  %s", bssid_str_);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 13;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
     std::snprintf(line, sizeof(line), "Sta:  %s", client_str_);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 13;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
     std::snprintf(line, sizeof(line), "Ch: %u   Sent: %u",
                   static_cast<unsigned>(channel_),
                   static_cast<unsigned>(tx_total_));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 13;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
     std::snprintf(line, sizeof(line), "Armed:%s  Firing:%s",
                   armed_ ? "Y" : "n", firing_ ? "YES" : "no");
-    d.draw_text(8, y, line, firing_ ? kJapanRedBright : kJapanRedDark, kWhite);
+    d.draw_text(8, y, line, firing_ ? kJapanRedBright : ui::kAccentDark, ui::kSurface);
     y += 13;
     if (last_failure_)
-      d.draw_text(8, y, "TX failed (libnet?)", kJapanRedBright, kWhite);
+      d.draw_text(8, y, "TX failed (libnet?)", kJapanRedBright, ui::kSurface);
 
     ui::Chrome::footer(d, "Tab:arm Fn+Enter:fire OWN NET ONLY");
     d.flush();

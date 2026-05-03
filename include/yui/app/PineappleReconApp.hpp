@@ -72,37 +72,37 @@ public:
     int y = 30;
     switch (state_) {
       case State::Idle:
-        d.draw_text(8, y, "Press Enter to scan", kJapanRedDark, kWhite);
+        d.draw_text(8, y, "Press Enter to scan", ui::kAccentDark, ui::kSurface);
         break;
       case State::Starting:
-        d.draw_text(8, y, "Starting scan...", kJapanRed, kWhite);
+        d.draw_text(8, y, "Starting scan...", ui::kAccent, ui::kSurface);
         break;
       case State::Scanning: {
         std::snprintf(line, sizeof(line), "Scanning: %d%%", percent_);
-        d.draw_text(8, y, line, kJapanRed, kWhite); y += 14;
+        d.draw_text(8, y, line, ui::kAccent, ui::kSurface); y += 14;
         // Progress bar
         const int bar_w = 200;
         const int filled = (bar_w * percent_) / 100;
-        d.fill_rect({8, y, bar_w, 8}, kWhite);
-        if (filled > 0) d.fill_rect({8, y, filled, 8}, kJapanRed);
+        d.fill_rect({8, y, bar_w, 8}, ui::kSurface);
+        if (filled > 0) d.fill_rect({8, y, filled, 8}, ui::kAccent);
         break;
       }
       case State::Done:
         std::snprintf(line, sizeof(line), "Scan %d complete", scan_id_);
-        d.draw_text(8, y, line, kJapanRed, kWhite); y += 14;
+        d.draw_text(8, y, line, ui::kAccent, ui::kSurface); y += 14;
         d.draw_text(8, y, "(Results on Pineapple UI)",
-                    kJapanRedDark, kWhite);
+                    ui::kAccentDark, ui::kSurface);
         break;
       case State::Error:
-        d.draw_text(8, y, "Error:", kJapanRedBright, kWhite); y += 14;
-        d.draw_text(8, y, err_msg_, kJapanRedDark, kWhite);
+        d.draw_text(8, y, "Error:", kJapanRedBright, ui::kSurface); y += 14;
+        d.draw_text(8, y, err_msg_, ui::kAccentDark, ui::kSurface);
         break;
     }
     d.draw_text(8, d.height() - 14,
                 state_ == State::Idle ? "Enter:scan  Esc:back"
                 : state_ == State::Scanning ? "Esc:back"
                 : "Enter:rescan Esc:back",
-                kJapanRedDark, kWhite);
+                ui::kAccentDark, ui::kSurface);
     d.flush();
   }
 

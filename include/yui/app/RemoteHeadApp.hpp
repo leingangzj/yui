@@ -63,8 +63,8 @@ public:
     int y = 24;
     auto row = [&](Field f, const char* fmt, auto val) {
       const bool sel = (f == field_);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
       std::snprintf(line, sizeof(line), fmt, val);
       d.draw_text(8, y + 3, line, fg, bg);
@@ -76,7 +76,7 @@ public:
 
     static const char* steps[] = {"100kHz", " 10kHz", "  1kHz"};
     std::snprintf(line, sizeof(line), "Step: %s", steps[step_idx_]);
-    d.draw_text(8, y + 3, line, kJapanRedDark, kWhite);
+    d.draw_text(8, y + 3, line, ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Tab:field Up/Dn:adj Enter:set");
     d.flush();
   }

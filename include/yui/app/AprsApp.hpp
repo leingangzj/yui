@@ -96,13 +96,13 @@ public:
     ui::Chrome::header(d, title);
 
     if (radio_.state() != RadioLinkState::KissMode) {
-      d.draw_text(8, 40, "Radio not in KISS", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "Radio not in KISS", ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Esc:back");
       d.flush();
       return;
     }
     if (station_count_ == 0) {
-      d.draw_text(8, 40, "Listening...", kJapanRed, kWhite);
+      d.draw_text(8, 40, "Listening...", ui::kAccent, ui::kSurface);
       d.flush();
       return;
     }
@@ -114,8 +114,8 @@ public:
       const Station& s = stations_[i];
       const int y = 22 + static_cast<int>(i - start) * 16;
       const bool sel = (i == cursor_);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
       // "K1ABC-9   49.06,-72.03"
       std::snprintf(line, sizeof(line), "%-9s %5.2f,%6.2f",

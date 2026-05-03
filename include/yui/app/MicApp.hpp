@@ -64,9 +64,9 @@ public:
     const int vu_y = 24;
     const int vu_h = 16;
     const int vu_w = d.width() - 16;
-    d.fill_rect({8, vu_y, vu_w, vu_h}, kJapanRedDark);
+    d.fill_rect({8, vu_y, vu_w, vu_h}, ui::kAccentDark);
     const int filled = static_cast<int>(rms_ * vu_w);
-    d.fill_rect({8, vu_y, filled, vu_h}, kJapanRed);
+    d.fill_rect({8, vu_y, filled, vu_h}, ui::kAccent);
 
     // 8-band envelope (lower half)
     const int band_y = vu_y + vu_h + 6;
@@ -77,12 +77,12 @@ public:
       const int v = std::min(100, std::max(0, bands_[b] / 5));  // raw is unclamped log intensity
       const int h = band_h * v / 100;
       const int x = 8 + b * (bw + gap);
-      d.fill_rect({x, band_y + (band_h - h), bw, h}, kJapanRed);
+      d.fill_rect({x, band_y + (band_h - h), bw, h}, ui::kAccent);
     }
 
     char line[32];
     std::snprintf(line, sizeof(line), "rms %.2f peak %.2f", rms_, peak_);
-    d.draw_text(8, d.height() - 14, line, kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 14, line, ui::kAccentDark, ui::kSurface);
     d.flush();
   }
 

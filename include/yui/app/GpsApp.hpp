@@ -89,33 +89,33 @@ public:
     if (!f.valid) {
       d.draw_text(8, y, gnss_.any_data_seen() ? "Searching..."
                                               : "No GPS data",
-                  kJapanRedDark, kWhite);
+                  ui::kAccentDark, ui::kSurface);
       y += 14;
     } else {
       std::snprintf(line, sizeof(line), "Lat: %+10.5f", f.lat_deg);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Lon: %+10.5f", f.lon_deg);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Alt: %7.1f m  Sats: %u",
                     static_cast<double>(f.altitude_m),
                     static_cast<unsigned>(f.satellites));
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Speed: %5.1f kn  Course: %5.1f",
                     static_cast<double>(f.speed_kn),
                     static_cast<double>(f.course_deg));
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     }
 
     std::snprintf(line, sizeof(line), "Track: %u/%u %s",
                   static_cast<unsigned>(point_count_),
                   static_cast<unsigned>(kMaxPoints),
                   last_save_ok_ ? "saved" : "");
-    d.draw_text(8, y, line, kJapanRedDark, kWhite);
+    d.draw_text(8, y, line, ui::kAccentDark, ui::kSurface);
 
     d.draw_text(8, d.height() - 14,
                 recording_ ? "Tab:stop+save  Esc:back"
                            : "Tab:rec        Esc:back",
-                kJapanRedDark, kWhite);
+                ui::kAccentDark, ui::kSurface);
     d.flush();
   }
 

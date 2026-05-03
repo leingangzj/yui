@@ -62,17 +62,17 @@ public:
     ui::Chrome::header(d, title);
 
     if (mode_ == Mode::Editing) {
-      d.draw_text(8, 30, "new item:", kJapanRedDark, kWhite);
+      d.draw_text(8, 30, "new item:", ui::kAccentDark, ui::kSurface);
       char line[kItemMaxLen + 4];
       std::snprintf(line, sizeof(line), "> %s_", edit_buf_);
-      d.draw_text(8, 50, line, kBlack, kWhite);
+      d.draw_text(8, 50, line, ui::kOnSurface, ui::kSurface);
     ui::Chrome::footer(d, "Sp:done  Bksp:del  Tab:add  Esc:back");
       d.flush();
       return;
     }
 
     if (count_ == 0) {
-      d.draw_text(8, 40, "(no items — Tab to add)", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "(no items — Tab to add)", ui::kAccentDark, ui::kSurface);
       d.flush();
       return;
     }
@@ -83,8 +83,8 @@ public:
     for (size_t i = start; i < count_ && i < start + window; ++i) {
       const int  y   = 22 + static_cast<int>(i - start) * 13;
       const bool sel = (i == cur);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : (items_[i].done ? kJapanRedDark : kBlack);
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : (items_[i].done ? ui::kAccentDark : ui::kOnSurface);
       if (sel) d.fill_rect({0, y - 2, d.width(), 13}, bg);
       char line[kItemMaxLen + 8];
       std::snprintf(line, sizeof(line), "%s %s",

@@ -33,7 +33,7 @@ public:
     ui::Chrome::header(d, "Key Test", "press any key");
 
     if (count_ == 0) {
-      d.draw_text(8, 40, "(waiting for input)", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "(waiting for input)", ui::kAccentDark, ui::kSurface);
       d.flush();
       return;
     }
@@ -51,7 +51,7 @@ public:
                     e.shift ? 'S' : '-', e.ctrl ? 'C' : '-',
                     e.alt   ? 'A' : '-', e.fn   ? 'F' : '-');
       const int y = 22 + static_cast<int>(i) * 13;
-      d.draw_text(4, y, line, kBlack, kWhite);
+      d.draw_text(4, y, line, ui::kOnSurface, ui::kSurface);
     }
     d.flush();
   }

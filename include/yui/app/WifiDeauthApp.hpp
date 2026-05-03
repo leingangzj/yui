@@ -53,16 +53,16 @@ public:
     char line[40];
     int y = 22;
     std::snprintf(line, sizeof(line), "BSSID: %s", bssid_);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Channel: %u",
                   static_cast<unsigned>(channel_));
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Armed: %s", armed_ ? "YES" : "no");
-    d.draw_text(8, y, line, armed_ ? kJapanRedBright : kJapanRedDark, kWhite);
+    d.draw_text(8, y, line, armed_ ? kJapanRedBright : ui::kAccentDark, ui::kSurface);
     y += 14;
     if (fired_) {
       d.draw_text(8, y, last_ok_ ? "Last fire: ok" : "Last fire: FAIL",
-                  last_ok_ ? kJapanRed : kJapanRedBright, kWhite);
+                  last_ok_ ? ui::kAccent : kJapanRedBright, ui::kSurface);
     }
     ui::Chrome::footer(d, "Tab:arm Fn+Enter:fire (own net only)");
     d.flush();

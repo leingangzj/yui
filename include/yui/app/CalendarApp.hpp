@@ -51,7 +51,7 @@ public:
     const int gridX = 8;
     const int gridY = 22;
     for (int i = 0; i < 7; ++i)
-      d.draw_text(gridX + i * colW + 10, gridY, kDow[i], kJapanRedDark, kWhite);
+      d.draw_text(gridX + i * colW + 10, gridY, kDow[i], ui::kAccentDark, ui::kSurface);
 
     // Walk the grid: row 0..5, col 0..6. First-of-month aligns to its DOW.
     const int first_dow = date::day_of_week(selected_.y, selected_.m, 1);
@@ -65,8 +65,8 @@ public:
       const int y    = gridY + 14 + row * 14;
       const bool sel = (day == selected_.d);
       const bool today = (selected_.y == today_.y && selected_.m == today_.m && day == today_.d);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : (today ? kJapanRed : kBlack);
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : (today ? ui::kAccent : ui::kOnSurface);
       if (sel) d.fill_rect({x, y - 2, colW - 2, 12}, bg);
       char num[4];
       std::snprintf(num, sizeof(num), "%2d", day);

@@ -78,7 +78,7 @@ public:
 
     d.fill_rect({kBoardX, kBoardY,
                  LifeEngine::kCols * kCellPx,
-                 LifeEngine::kRows * kCellPx}, kJapanRedDark);
+                 LifeEngine::kRows * kCellPx}, ui::kAccentDark);
     for (int y = 0; y < LifeEngine::kRows; ++y) {
       for (int x = 0; x < LifeEngine::kCols; ++x) {
         if (engine_.alive(x, y)) {

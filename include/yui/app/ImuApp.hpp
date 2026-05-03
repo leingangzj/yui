@@ -34,16 +34,16 @@ public:
     const int r  = 36;
 
     // Crosshair lines
-    d.fill_rect({cx - r, cy, 2 * r, 1}, kJapanRedDark);
-    d.fill_rect({cx, cy - r, 1, 2 * r}, kJapanRedDark);
+    d.fill_rect({cx - r, cy, 2 * r, 1}, ui::kAccentDark);
+    d.fill_rect({cx, cy - r, 1, 2 * r}, ui::kAccentDark);
 
     // Outline: draw a square frame as a stand-in for a circle (M5GFX has
     // proper drawCircle but our HAL is intentionally minimal).
     for (int t = 0; t < 4; ++t) {
-      d.fill_rect({cx - r,     cy - r + t, 2 * r, 1}, kJapanRedDark);
-      d.fill_rect({cx - r,     cy + r - t, 2 * r, 1}, kJapanRedDark);
-      d.fill_rect({cx - r + t, cy - r,     1, 2 * r}, kJapanRedDark);
-      d.fill_rect({cx + r - t, cy - r,     1, 2 * r}, kJapanRedDark);
+      d.fill_rect({cx - r,     cy - r + t, 2 * r, 1}, ui::kAccentDark);
+      d.fill_rect({cx - r,     cy + r - t, 2 * r, 1}, ui::kAccentDark);
+      d.fill_rect({cx - r + t, cy - r,     1, 2 * r}, ui::kAccentDark);
+      d.fill_rect({cx + r - t, cy - r,     1, 2 * r}, ui::kAccentDark);
     }
 
     // Bubble: -X tilt → bubble drifts +x (level rule). Map a.x ∈ [-1,1] → ±r.
@@ -51,11 +51,11 @@ public:
     const float ay = clamp01_(last_.y);
     const int bx = cx + static_cast<int>(-ax * (r - 4));
     const int by = cy + static_cast<int>( ay * (r - 4));
-    d.fill_rect({bx - 3, by - 3, 7, 7}, kJapanRed);
+    d.fill_rect({bx - 3, by - 3, 7, 7}, ui::kAccent);
 
     char line[32];
     std::snprintf(line, sizeof(line), "x=%+.2f y=%+.2f", last_.x, last_.y);
-    d.draw_text(8, d.height() - 14, line, kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 14, line, ui::kAccentDark, ui::kSurface);
     d.flush();
   }
 

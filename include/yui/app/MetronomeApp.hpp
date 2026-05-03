@@ -65,11 +65,11 @@ public:
 
     char big[16];
     std::snprintf(big, sizeof(big), "%d BPM", bpm_);
-    d.draw_text(d.width() / 2 - 30, 40, big, kBlack, kWhite);
+    d.draw_text(d.width() / 2 - 30, 40, big, ui::kOnSurface, ui::kSurface);
 
     char sig[16];
     std::snprintf(sig, sizeof(sig), "%d/%d  beat %d", kSigs[sig_][0], kSigs[sig_][1], beat_ + 1);
-    d.draw_text(8, d.height() - 28, sig, kJapanRedDark, kWhite);
+    d.draw_text(8, d.height() - 28, sig, ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Up/Dn=BPM Ent=start Tab=sig");
     d.flush();
   }

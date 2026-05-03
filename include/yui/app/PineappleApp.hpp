@@ -49,29 +49,29 @@ public:
     char line[40];
     int y = 22;
     if (!host_loaded_) {
-      d.draw_text(8, y, "No host configured", kJapanRedDark, kWhite);
+      d.draw_text(8, y, "No host configured", ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Tab:refresh  Esc:back");
       d.flush();
       return;
     }
     std::snprintf(line, sizeof(line), "Host: %.30s", host_);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
 
     if (!last_ok_) {
       std::snprintf(line, sizeof(line), "Error: %.28s",
                     err_msg_[0] ? err_msg_ : "unreachable");
-      d.draw_text(8, y, line, kJapanRedBright, kWhite);
+      d.draw_text(8, y, line, kJapanRedBright, ui::kSurface);
     } else {
       std::snprintf(line, sizeof(line), "CPU:%3d%%   Mem:%3d%%",
                     cards_.cpu_pct, cards_.mem_pct);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Temp: %dC", cards_.temp_c);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Clients: %d",
                     cards_.clients_connected);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "SSIDs: %d", cards_.total_ssids);
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
     d.flush();
   }

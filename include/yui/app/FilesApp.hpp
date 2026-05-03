@@ -78,7 +78,7 @@ public:
     }
 
     if (count_ == 0) {
-      d.draw_text(8, 40, "(empty)", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "(empty)", ui::kAccentDark, ui::kSurface);
       d.flush();
       return;
     }
@@ -89,8 +89,8 @@ public:
     for (size_t i = start; i < count_ && i < start + window; ++i) {
       const int y = 22 + static_cast<int>(i - start) * 13;
       const bool sel = (i == cur);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 13}, bg);
 
       char line[40];
@@ -189,7 +189,7 @@ private:
 
   void render_view_(IDisplay& d) {
     if (view_len_ == 0) {
-      d.draw_text(8, 40, "(empty)", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "(empty)", ui::kAccentDark, ui::kSurface);
       return;
     }
     if (hex_) { render_hex_(d); return; }
@@ -209,7 +209,7 @@ private:
         }
         line[take] = '\0';
         const int y = 22 + static_cast<int>(line_idx - view_top_) * 12;
-        d.draw_text(4, y, line, kBlack, kWhite);
+        d.draw_text(4, y, line, ui::kOnSurface, ui::kSurface);
       }
       ++line_idx;
       ++i;
@@ -218,7 +218,7 @@ private:
     if (line_idx <= view_top_ && view_top_ > 0) {
       view_top_ = (line_idx == 0) ? 0 : line_idx - 1;
     }
-    d.draw_text(d.width() - 90, d.height() - 14, "Bksp=back Tab=hex", kJapanRedDark, kWhite);
+    d.draw_text(d.width() - 90, d.height() - 14, "Bksp=back Tab=hex", ui::kAccentDark, ui::kSurface);
   }
 
   void render_hex_(IDisplay& d) {
@@ -247,9 +247,9 @@ private:
       }
       line[n] = '\0';
       const int y = 22 + row * 12;
-      d.draw_text(4, y, line, kBlack, kWhite);
+      d.draw_text(4, y, line, ui::kOnSurface, ui::kSurface);
     }
-    d.draw_text(d.width() - 95, d.height() - 14, "Bksp=back Tab=text", kJapanRedDark, kWhite);
+    d.draw_text(d.width() - 95, d.height() - 14, "Bksp=back Tab=text", ui::kAccentDark, ui::kSurface);
   }
 
   IFs&    fs_;

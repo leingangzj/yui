@@ -75,7 +75,7 @@ public:
     ui::Chrome::header(d, title);
 
     if (count_ == 0) {
-      d.draw_text(8, 40, "Scanning...", kJapanRedDark, kWhite);
+      d.draw_text(8, 40, "Scanning...", ui::kAccentDark, ui::kSurface);
       d.flush();
       return;
     }
@@ -86,8 +86,8 @@ public:
       const Entry& e = entries_[i];
       const int y = 22 + static_cast<int>(i - start) * 16;
       const bool sel = (i == cursor_);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : (e.wps ? kJapanRedBright : kBlack);
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : (e.wps ? kJapanRedBright : ui::kOnSurface);
       if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
       std::snprintf(line, sizeof(line), "%c %-18s ch%u",
                     e.wps ? 'W' : ' ',

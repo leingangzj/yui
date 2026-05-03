@@ -88,7 +88,7 @@ public:
           std::memcpy(line, buf_ + line_start + off, take);
           line[take] = '\0';
           const int y = 22 + static_cast<int>(line_idx - top_line_) * kLineH;
-          d.draw_text(4, y, line, kBlack, kWhite);
+          d.draw_text(4, y, line, ui::kOnSurface, ui::kSurface);
         }
         line_idx++;
         line_start = i + 1;
@@ -100,11 +100,11 @@ public:
         cur_col >= left_col_ && cur_col < left_col_ + kVisibleCols) {
       const int cx = 4 + static_cast<int>(cur_col - left_col_) * kCharW;
       const int cy = 22 + static_cast<int>(cur_line - top_line_) * kLineH;
-      d.fill_rect({cx, cy, 1, kLineH - 2}, kJapanRed);
+      d.fill_rect({cx, cy, 1, kLineH - 2}, ui::kAccent);
     }
 
     if (saved_flash_ > 0)
-      d.draw_text(d.width() - 50, d.height() - 14, "saved", kJapanRed, kWhite);
+      d.draw_text(d.width() - 50, d.height() - 14, "saved", ui::kAccent, ui::kSurface);
     d.flush();
   }
 

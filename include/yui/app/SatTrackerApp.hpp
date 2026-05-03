@@ -95,9 +95,9 @@ public:
     ui::Chrome::header(d, "SatTracker");
 
     if (count_ == 0) {
-      d.draw_text(8, 36, "No TLEs loaded", kJapanRedBright, kWhite);
-      d.draw_text(8, 56, "Put 3-line records in", kJapanRedDark, kWhite);
-      d.draw_text(8, 70, kTlePath, kJapanRedDark, kWhite);
+      d.draw_text(8, 36, "No TLEs loaded", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 56, "Put 3-line records in", ui::kAccentDark, ui::kSurface);
+      d.draw_text(8, 70, kTlePath, ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Enter:detail  Tab:live  Esc:back");
       d.flush();
       return;
@@ -261,8 +261,8 @@ private:
     for (size_t i = 0; i < count_ && i < 6; ++i) {
       const int y = 22 + static_cast<int>(i) * 16;
       const bool sel = (i == cursor_);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
       const Favorite& f = favs_[i];
       double mins_to = (f.cached_pass.found)
@@ -281,21 +281,21 @@ private:
     char line[40];
     int y = 22;
     std::snprintf(line, sizeof(line), "%s", f.name);
-    d.draw_text(8, y, line, kJapanRed, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kAccent, ui::kSurface); y += 14;
     if (f.cached_pass.found) {
       const double mins_to_aos = (f.cached_pass.aos_jd - now_jd_) * 1440.0;
       const double dur_sec     = (f.cached_pass.los_jd - f.cached_pass.aos_jd)
                                   * sat::kSecsPerDay;
       std::snprintf(line, sizeof(line), "AOS in %.1f min", mins_to_aos);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Az: %.0f deg", f.cached_pass.aos_azimuth_deg);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "MaxEl: %.0f deg", f.cached_pass.max_elevation_deg);
-      d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
       std::snprintf(line, sizeof(line), "Pass: %.0f sec", dur_sec);
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     } else {
-      d.draw_text(8, y, "No pass in 24h", kJapanRedDark, kWhite);
+      d.draw_text(8, y, "No pass in 24h", ui::kAccentDark, ui::kSurface);
     }
   }
 
@@ -309,23 +309,23 @@ private:
     const double t_sec = (now_jd_ -
         sat::jd_from_year_day(f.tle.epoch_year, f.tle.epoch_day)) * sat::kSecsPerDay;
     if (!f.prop.propagate(t_sec, sv)) {
-      d.draw_text(8, y, "Propagation failed", kJapanRedBright, kWhite);
+      d.draw_text(8, y, "Propagation failed", kJapanRedBright, ui::kSurface);
       return;
     }
     const sat::LookAngles la = sat::look_angles(sv, observer_, now_jd_);
     std::snprintf(line, sizeof(line), "%s", f.name);
-    d.draw_text(8, y, line, kJapanRed, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kAccent, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Az: %5.1f  El: %+5.1f", la.azimuth_deg,
                   la.elevation_deg);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Range: %.0f km", la.range_km);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     const double df = sat::doppler_hz(f.freq_hz, la.range_rate_kms);
     std::snprintf(line, sizeof(line), "Df: %+.0f Hz", df);
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Tunes: %u",
                   static_cast<unsigned>(doppler_writes_));
-    d.draw_text(8, y, line, kJapanRedDark, kWhite);
+    d.draw_text(8, y, line, ui::kAccentDark, ui::kSurface);
   }
 
   IRadioLink& radio_;

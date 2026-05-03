@@ -28,12 +28,12 @@ public:
     const int batt = probe_.battery_pct ? probe_.battery_pct() : -1;
     if (batt >= 0) std::snprintf(line, sizeof(line), "Battery   %3d%%", batt);
     else           std::snprintf(line, sizeof(line), "Battery   --");
-    d.draw_text(8, y, line, kBlack, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 14;
 
     if (probe_.free_heap_bytes) {
       const uint32_t fh = probe_.free_heap_bytes();
       std::snprintf(line, sizeof(line), "Free heap %u KB", static_cast<unsigned>(fh / 1024));
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
     y += 14;
 
@@ -44,14 +44,14 @@ public:
                     static_cast<unsigned>(hh),
                     static_cast<unsigned>(mm),
                     static_cast<unsigned>(ss));
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
     y += 14;
 
     if (probe_.ip_or_empty) {
       const char* ip = probe_.ip_or_empty();
       std::snprintf(line, sizeof(line), "IP        %s", (ip && *ip) ? ip : "—");
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
     y += 14;
 
@@ -59,7 +59,7 @@ public:
       const int r = probe_.wifi_rssi();
       if (r) std::snprintf(line, sizeof(line), "WiFi RSSI %d", r);
       else   std::snprintf(line, sizeof(line), "WiFi      off");
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
     y += 14;
 
@@ -78,7 +78,7 @@ public:
         std::snprintf(line, sizeof(line), "Time      %02d:%02d:%02d",
                       tm_buf.tm_hour, tm_buf.tm_min, tm_buf.tm_sec);
       }
-      d.draw_text(8, y, line, kBlack, kWhite);
+      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
     }
 
     d.flush();

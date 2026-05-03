@@ -51,14 +51,14 @@ public:
     ui::Chrome::header(d, "BLE Scan");
 
     if (state_ == State::Scanning) {
-      d.draw_text(8, 40, "Listening...", kJapanRed, kWhite);
+      d.draw_text(8, 40, "Listening...", ui::kAccent, ui::kSurface);
     ui::Chrome::footer(d, "Esc:back");
       d.flush();
       return;
     }
     if (state_ == State::Empty) {
-      d.draw_text(8, 40, "No devices found", kJapanRedDark, kWhite);
-      d.draw_text(8, 60, "Enter to retry",   kJapanRed,     kWhite);
+      d.draw_text(8, 40, "No devices found", ui::kAccentDark, ui::kSurface);
+      d.draw_text(8, 60, "Enter to retry",   ui::kAccent,     ui::kSurface);
       d.flush();
       return;
     }
@@ -71,8 +71,8 @@ public:
       const auto& dev = net_.ble_at(i);
       const int y     = 22 + static_cast<int>(i - start) * 13;
       const bool sel  = (i == cur);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 13}, bg);
 
       const char* label = dev.name[0] ? dev.name : dev.addr;

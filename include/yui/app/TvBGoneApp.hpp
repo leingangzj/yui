@@ -86,12 +86,12 @@ public:
     char line[40];
     size_t n = 0; codes(n);
     std::snprintf(line, sizeof(line), "State: %s", enabled_ ? "BLASTING" : "idle");
-    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : kBlack, kWhite);
+    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface);
     std::snprintf(line, sizeof(line), "Sent:  %u / %u",
                   static_cast<unsigned>(sent_total_),
                   static_cast<unsigned>(n));
-    d.draw_text(8, 44, line, kBlack, kWhite);
-    d.draw_text(8, 64, "Tab: toggle", kJapanRed, kWhite);
+    d.draw_text(8, 44, line, ui::kOnSurface, ui::kSurface);
+    d.draw_text(8, 64, "Tab: toggle", ui::kAccent, ui::kSurface);
     ui::Chrome::footer(d, "Use only on YOUR TVs");
     d.flush();
   }

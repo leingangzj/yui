@@ -74,7 +74,7 @@ public:
     // Board
     d.fill_rect({kBoardX, kBoardY,
                  SnakeEngine::kCols * kCellPx,
-                 SnakeEngine::kRows * kCellPx}, kJapanRedDark);
+                 SnakeEngine::kRows * kCellPx}, ui::kAccentDark);
 
     // Food
     const auto food = engine_.food();
@@ -87,15 +87,15 @@ public:
       const auto c = engine_.at(i);
       d.fill_rect({kBoardX + c.x * kCellPx,
                    kBoardY + c.y * kCellPx,
-                   kCellPx, kCellPx}, kWhite);
+                   kCellPx, kCellPx}, ui::kSurface);
     }
 
     if (engine_.state() == SnakeEngine::State::GameOver) {
       d.draw_text(d.width() / 2 - 40, d.height() - 14,
-                  "GAME OVER  Enter=retry", kWhite, kJapanRed);
+                  "GAME OVER  Enter=retry", ui::kSurface, ui::kAccent);
     } else if (paused_) {
       d.draw_text(d.width() / 2 - 30, d.height() / 2,
-                  "PAUSED  Bksp", kWhite, kJapanRed);
+                  "PAUSED  Bksp", ui::kSurface, ui::kAccent);
     }
     d.flush();
   }

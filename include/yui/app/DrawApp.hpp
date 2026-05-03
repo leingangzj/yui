@@ -55,16 +55,16 @@ public:
     char title[40];
     std::snprintf(title, sizeof(title), "Draw  %d,%d", cx_, cy_);
     ui::Chrome::header(d, title);
-    if (saved_flash_ > 0) d.draw_text(d.width() - 50, 4, "saved", kWhite, kJapanRed);
+    if (saved_flash_ > 0) d.draw_text(d.width() - 50, 4, "saved", ui::kSurface, ui::kAccent);
 
     d.fill_rect({kBoardX, kBoardY,
-                 kCols * kCellPx, kRows * kCellPx}, kJapanRedDark);
+                 kCols * kCellPx, kRows * kCellPx}, ui::kAccentDark);
     for (int y = 0; y < kRows; ++y)
       for (int x = 0; x < kCols; ++x)
         if (cells_[y][x])
           d.fill_rect({kBoardX + x * kCellPx,
                        kBoardY + y * kCellPx,
-                       kCellPx, kCellPx}, kWhite);
+                       kCellPx, kCellPx}, ui::kSurface);
 
     // Cursor outline (single-pixel hot border).
     d.fill_rect({kBoardX + cx_ * kCellPx, kBoardY + cy_ * kCellPx,

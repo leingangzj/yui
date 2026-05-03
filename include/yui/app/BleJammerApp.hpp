@@ -85,11 +85,11 @@ public:
 
     char line[40];
     std::snprintf(line, sizeof(line), "State: %s", enabled_ ? "JAMMING" : "off");
-    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : kBlack, kWhite);
+    d.draw_text(8, 24, line, enabled_ ? kJapanRedBright : ui::kOnSurface, ui::kSurface);
     std::snprintf(line, sizeof(line), "Cycles: %u", static_cast<unsigned>(cycle_n_));
-    d.draw_text(8, 44, line, kBlack, kWhite);
-    d.draw_text(8, 64, "Fn+Enter: toggle", kJapanRed, kWhite);
-    d.draw_text(8, 84, "Auto-off after 30 sec", kJapanRedDark, kWhite);
+    d.draw_text(8, 44, line, ui::kOnSurface, ui::kSurface);
+    d.draw_text(8, 64, "Fn+Enter: toggle", ui::kAccent, ui::kSurface);
+    d.draw_text(8, 84, "Auto-off after 30 sec", ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Use only in your own space");
     d.flush();
   }

@@ -69,8 +69,8 @@ public:
     ui::Chrome::header(d, "APRS TX");
 
     if (status_ == Status::NoCallsign) {
-      d.draw_text(8, 36, "Set tx.call in NVS", kJapanRedBright, kWhite);
-      d.draw_text(8, 56, "(your station's call)", kJapanRedDark, kWhite);
+      d.draw_text(8, 36, "Set tx.call in NVS", kJapanRedBright, ui::kSurface);
+      d.draw_text(8, 56, "(your station's call)", ui::kAccentDark, ui::kSurface);
     ui::Chrome::footer(d, "Tab:field  Enter:send  Esc:back");
       d.flush();
       return;
@@ -79,12 +79,12 @@ public:
     char line[40];
     int y = 22;
     std::snprintf(line, sizeof(line), "From: %s", call_);
-    d.draw_text(8, y, line, kJapanRedDark, kWhite); y += 14;
+    d.draw_text(8, y, line, ui::kAccentDark, ui::kSurface); y += 14;
 
     auto field = [&](Field f, const char* label, const char* val) {
       const bool sel = (f == field_);
-      const Color bg = sel ? kJapanRed : kWhite;
-      const Color fg = sel ? kWhite    : kBlack;
+      const Color bg = sel ? ui::kAccent : ui::kSurface;
+      const Color fg = sel ? ui::kSurface    : ui::kOnSurface;
       if (sel) d.fill_rect({0, y - 2, d.width(), 16}, bg);
       std::snprintf(line, sizeof(line), "%s %s", label, val);
       d.draw_text(8, y + 3, line, fg, bg);
@@ -98,7 +98,7 @@ public:
       status_ == Status::Sent    ? "Sent OK"    :
       status_ == Status::Failed  ? "Send FAILED": "";
     if (status[0]) d.draw_text(8, y + 4, status,
-        status_ == Status::Failed ? kJapanRedBright : kJapanRed, kWhite);
+        status_ == Status::Failed ? kJapanRedBright : ui::kAccent, ui::kSurface);
 
     d.flush();
   }
