@@ -4,19 +4,40 @@ The Cardputer ADV is 240×135 with rotation 1. That's not a lot of room.
 Every app shares the same chrome so the user doesn't have to relearn the
 geometry app-to-app.
 
+## Font system (Phase 1)
+
+Every text path in the firmware lands at
+`IDisplay::draw_text_styled(x, y, s, fg, bg, FontStyle)`. Pick a style
+and the backend picks the font:
+
+| `FontStyle` | Esp32 font            | Native | Use for                         |
+| ----------- | --------------------- | ------ | ------------------------------- |
+| `Title`     | `FreeSansBold12pt7b`  | 12×16  | Page headers, splash titles     |
+| `Body`      | `FreeSans9pt7b`       | 6×8    | Default reading size, list rows |
+| `Caption`   | `Font0` (default 6×8) | 6×8    | Hints, footers, secondary stats |
+| `Mono`      | `Font0`               | 6×8    | Hex / freq / fixed-width values |
+
+Apps that don't pick a style — `d.draw_text(x, y, s, fg, bg)` — get
+Body. Layout queries (`d.text_width(s, style)`,
+`d.line_height(style)`) replace hardcoded `kCharW * strlen()` math when
+you need real pixel sizing.
+
+Legacy `draw_text_scaled(..., scale)` still works: `1 → Caption`, `2 →
+Body`, `≥3 → Title`. Existing callers harmonize automatically.
+
 ## Layout grid
 
 ```
 ┌───────────────────────────────────────┐  y = 0
-│  Header  (red, size-2 title)          │  20 px tall
-├───────────────────────────────────────┤  y = 20
+│  Header  (red, Title-style)           │  24 px tall
+├───────────────────────────────────────┤  y = 24
 │  ↕ 4 px breathing room                │
-│  Body                                 │  y = 24..120
-│  · 7 lines × 14 px line-height        │
+│  Body                                 │  y = 28..120
+│  · Body-style content (~13 px)        │
 │  · 8 px left/right padding            │
 │                                       │
 ├───────────────────────────────────────┤  y = 123
-│  Footer hint (dim red, size-1)        │  12 px
+│  Footer hint (dim red, Caption)       │  12 px
 └───────────────────────────────────────┘  y = 135
 ```
 
@@ -27,20 +48,32 @@ All numbers above are exposed in `include/yui/ui/Tokens.hpp` —
 ## Chrome helpers
 
 Use `include/yui/ui/Chrome.hpp` for everything that paints around your
-content. The five primitives:
+content. Existing primitives (now using the styled-font system):
 
-| Call                                     | When                          |
-| ---------------------------------------- | ----------------------------- |
-| `Chrome::header(d, title, subtitle?)`    | Always, top of every render() |
-| `Chrome::footer(d, hint)`                | Always — even just "Esc:back" |
-| `Chrome::list_row(d, row, label, sel)`   | Any vertical selectable list  |
-| `Chrome::badge(d, x, y, text, on)`       | Inline mode/state indicator   |
-| `Chrome::empty(d, "...", &koi)`          | Empty / pre-data screen       |
-| `Chrome::stat(d, row, "Label", "value")` | Stat-row body                 |
+| Call                                                | When                          |
+| --------------------------------------------------- | ----------------------------- |
+| `Chrome::header(d, title, subtitle?)`               | Always, top of every render() |
+| `Chrome::footer(d, hint)`                           | Always — even just "Esc:back" |
+| `Chrome::list_row(d, row, label, sel, icon?, len?)` | Any vertical selectable list  |
+| `Chrome::badge(d, x, y, text, on)`                  | Inline mode/state indicator   |
+| `Chrome::empty(d, "...", &koi)`                     | Empty / pre-data screen       |
+| `Chrome::stat(d, row, "Label", "value")`            | Stat-row body                 |
 
-The header title prints at size 2 (12×16). Keep titles ≤ 19 chars.
-The optional subtitle prints at size 1, right-aligned — use it for
-mode/state/count, not for description.
+New in Phase 1:
+
+| Call                                                     | When                        |
+| -------------------------------------------------------- | --------------------------- |
+| `Chrome::scrollbar(d, top_y, h, total, visible, top)`    | List overflow indicator     |
+| `Chrome::var_item_row(d, row, label, val, sel, edit)`    | `Setting: < value >` editor |
+| `Chrome::dialog(d, title, msg, primary, secondary, sel)` | Modal alert / confirmation  |
+
+`list_row` now takes optional `icon_png` + `icon_len` — pass PNG bytes
+for a 24×24 left-side icon (Phase 2 wiring). Pass `nullptr, 0` to keep
+the old text-only row.
+
+The header title prints in `FontStyle::Title`. Keep titles ≤ 19 chars.
+The optional subtitle prints in `FontStyle::Caption`, right-aligned —
+use it for mode/state/count, not for description.
 
 ## Mascot rules
 

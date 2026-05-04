@@ -30,7 +30,9 @@ public:
         put_pixel(x, y, c);
   }
 
-  void draw_text(int x, int y, const char* s, Color /*fg*/, Color /*bg*/) override {
+  void draw_text_styled(int x, int y, const char* s,
+                        Color /*fg*/, Color /*bg*/,
+                        FontStyle /*style*/) override {
     last_text_ = s ? s : "";
     last_text_x_ = x;
     last_text_y_ = y;
@@ -38,6 +40,16 @@ public:
       if (!all_text_.empty()) all_text_ += '\n';
       all_text_ += s;
     }
+  }
+
+  int text_width(const char* s, FontStyle style) override {
+    int n = 0;
+    while (s && *s++) ++n;
+    return n * cell_w_(style);
+  }
+
+  int line_height(FontStyle style) override {
+    return cell_h_(style);
   }
 
   void flush() override {
@@ -56,12 +68,19 @@ public:
   }
   const std::string& last_text() const { return last_text_; }
   // All text drawn during the most-recently-completed frame, joined by \n.
-  // Use this instead of last_text() when asserting on body content — Chrome
-  // helpers may draw the footer or other chrome after the value of interest.
   const std::string& all_text() const { return all_text_for_last_frame_; }
   int flush_count() const { return flush_count_; }
 
 private:
+  // Native cell metrics — fixed grid so tests stay deterministic. Title
+  // is 2× the body cell to match the device's relative sizing.
+  static int cell_w_(FontStyle s) {
+    return (s == FontStyle::Title) ? 12 : 6;
+  }
+  static int cell_h_(FontStyle s) {
+    return (s == FontStyle::Title) ? 16 : 8;
+  }
+
   int w_, h_;
   std::vector<Color> buf_;
   std::string last_text_;

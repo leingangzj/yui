@@ -12,17 +12,23 @@
 namespace yui::ui {
 
 // ── Geometry — fixed at compile time ─────────────────────────────────────
-inline constexpr int kHeaderH   = 20;          // tall enough for size-2 title
-inline constexpr int kBodyTopY  = kHeaderH + 4; // first body baseline = 24
-inline constexpr int kBodyLineH = 14;          // size-1 body — 7 lines fit
-inline constexpr int kBodyLineH2 = 22;         // size-2 body — 4-5 lines fit
+// These match the Phase-1 font system (see hal/IDisplay.hpp::FontStyle):
+//   Header band hosts a Title-style label (~17 px tall + descender room).
+//   Body grid lines are sized for Body-style text (~13 px tall).
+//   Footer hint is Caption-style (~8 px tall).
+inline constexpr int kHeaderH   = 24;          // fits FontStyle::Title comfortably
+inline constexpr int kBodyTopY  = kHeaderH + 4;
+inline constexpr int kBodyLineH = 16;          // single Body line
+inline constexpr int kBodyLineH2 = 22;         // legacy alias — keep for callers
 inline constexpr int kFooterY   = kScreenHeight - 12;
 inline constexpr int kBodyPadX  = 8;
-inline constexpr int kListRowH  = 22;          // size-2 list rows — readable
-                                               // from arm's-length on the
-                                               // Cardputer's tiny panel
+inline constexpr int kListRowH  = 24;          // Body-style list rows; large
+                                               // enough to read at arm's length
+                                               // on the Cardputer's 240×135.
 
-// Default monospace glyph size for size-1 text (M5GFX 6×8 + 1 px gap).
+// Legacy 6×8 cell metrics. Still used by the many callers that compute
+// pixel widths from char counts (`text_pixel_width(s) * scale`). For
+// styled text, ask the display: `d.text_width(s, FontStyle::Body)`.
 inline constexpr int kCharW = 6;
 inline constexpr int kCharH = 8;
 

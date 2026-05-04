@@ -23,6 +23,7 @@ public:
       return false;
     }
     canvas_.setTextSize(1);
+    canvas_.setFont(&fonts::Font0);
     canvas_.fillSprite(TFT_BLACK);
     canvas_.pushSprite(0, 0);
     return true;
@@ -38,20 +39,43 @@ public:
   void clear(Color c) override { target_().fillScreen(c); }
   void put_pixel(int x, int y, Color c) override { target_().drawPixel(x, y, c); }
   void fill_rect(Rect r, Color c) override { target_().fillRect(r.x, r.y, r.w, r.h, c); }
-  void draw_text(int x, int y, const char* s, Color fg, Color bg) override {
+
+  // ── Text ─────────────────────────────────────────────────────────────
+  // Single styled entry point. Every other text overload on IDisplay
+  // delegates here.
+  //
+  // We pick a real bundled font per style:
+  //   Title    → FreeSansBold12pt7b  (smooth, ~17 px)
+  //   Body     → FreeSans9pt7b       (smooth, ~13 px)
+  //   Caption  → Font0 size-1        (legacy 6×8, smallest)
+  //   Mono     → Font0 size-1        (legacy 6×8 monospace)
+  //
+  // After drawing we restore Font0 size-1 so legacy callers that skipped
+  // the style API still see the renderer in a known state.
+  void draw_text_styled(int x, int y, const char* s,
+                        Color fg, Color bg, FontStyle style) override {
     auto& t = target_();
+    apply_font_(t, style);
     t.setTextColor(fg, bg);
     t.setCursor(x, y);
     t.print(s);
+    reset_font_(t);
   }
-  void draw_text_scaled(int x, int y, const char* s,
-                        Color fg, Color bg, int scale) override {
+
+  int text_width(const char* s, FontStyle style) override {
     auto& t = target_();
-    t.setTextSize(scale > 0 ? scale : 1);
-    t.setTextColor(fg, bg);
-    t.setCursor(x, y);
-    t.print(s);
-    t.setTextSize(1);  // leave the renderer at the default for callers
+    apply_font_(t, style);
+    const int w = static_cast<int>(t.textWidth(s));
+    reset_font_(t);
+    return w;
+  }
+
+  int line_height(FontStyle style) override {
+    auto& t = target_();
+    apply_font_(t, style);
+    const int h = static_cast<int>(t.fontHeight());
+    reset_font_(t);
+    return h;
   }
 
   void draw_png(const uint8_t* data, std::size_t len, int x, int y) override {
@@ -78,6 +102,33 @@ private:
   lgfx::LGFXBase& target_() {
     if (canvas_init_failed_) return M5.Display;
     return canvas_;
+  }
+
+  // Map a FontStyle to a real M5GFX bundled font. Title and Body get
+  // proportional smooth fonts (FreeSans family — ships with M5GFX);
+  // Caption and Mono use the built-in Font0 6×8 grid for compactness.
+  static void apply_font_(lgfx::LGFXBase& t, FontStyle style) {
+    switch (style) {
+      case FontStyle::Title:
+        t.setFont(&fonts::FreeSansBold12pt7b);
+        t.setTextSize(1);
+        break;
+      case FontStyle::Body:
+        t.setFont(&fonts::FreeSans9pt7b);
+        t.setTextSize(1);
+        break;
+      case FontStyle::Caption:
+      case FontStyle::Mono:
+      default:
+        t.setFont(&fonts::Font0);
+        t.setTextSize(1);
+        break;
+    }
+  }
+
+  static void reset_font_(lgfx::LGFXBase& t) {
+    t.setFont(&fonts::Font0);
+    t.setTextSize(1);
   }
 
   M5Canvas canvas_{&M5.Display};
