@@ -66,11 +66,7 @@ public:
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
     if (mode_ == Mode::CapMissing) {
-      ui::Chrome::header(d, "NRF24 Scan", "no cap");
-      ui::Chrome::dialog(d, "Hydra not found",
-                         "nRF24 did not respond on CS=6. Re-seat the cap.",
-                         "OK", nullptr, true);
-      d.flush();
+      ui::Chrome::cap_missing_dialog(d, "NRF24 Scan", "nRF24", "CS=6");
       return;
     }
 

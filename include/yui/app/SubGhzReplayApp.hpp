@@ -68,11 +68,8 @@ public:
     d.clear(ui::kSurface);
     switch (mode_) {
       case Mode::CapMissing:
-        ui::Chrome::header(d, "Sub-GHz Replay", "no cap");
-        ui::Chrome::dialog(d, "Hydra not found",
-                           "CC1101 did not respond. Re-seat the cap.",
-                           "OK", nullptr, true);
-        break;
+        ui::Chrome::cap_missing_dialog(d, "Sub-GHz Replay", "CC1101", "CS=13");
+        return;
       case Mode::NoFs:
         ui::Chrome::header(d, "Sub-GHz Replay");
         ui::Chrome::dialog(d, "No filesystem",

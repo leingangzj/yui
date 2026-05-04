@@ -94,11 +94,7 @@ public:
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
     if (stage_ == Stage::CapMissing) {
-      ui::Chrome::header(d, "RollJam", "no cap");
-      ui::Chrome::dialog(d, "Hydra not found",
-                         "CC1101 did not respond. Re-seat the cap.",
-                         "OK", nullptr, true);
-      d.flush();
+      ui::Chrome::cap_missing_dialog(d, "RollJam", "CC1101", "CS=13");
       return;
     }
     const char* sub = "Idle";

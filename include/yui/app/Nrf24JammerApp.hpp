@@ -68,11 +68,7 @@ public:
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
     if (cap_missing_) {
-      ui::Chrome::header(d, "NRF24 Jam", "no cap");
-      ui::Chrome::dialog(d, "Hydra not found",
-                         "nRF24 did not respond. Re-seat the cap.",
-                         "OK", nullptr, true);
-      d.flush();
+      ui::Chrome::cap_missing_dialog(d, "NRF24 Jam", "nRF24", "CS=6");
       return;
     }
     ui::Chrome::header(d, "NRF24 Jam", active_ ? "ACTIVE" : nullptr);

@@ -25,6 +25,7 @@
 #include "yui/assets/sprite_frame.hpp"
 
 #include <cstdint>
+#include <cstdio>
 
 namespace yui::ui {
 
@@ -241,6 +242,24 @@ public:
       const int bw = card_w - 2 * kPad;
       draw_btn(card_x + kPad, bw, primary, true);
     }
+  }
+
+  // ── Cap-missing dialog (Hydra-aware shorthand) ───────────────────────
+  // Specialized helper for hardware-cap apps. Paints a header that
+  // signals the app the user just opened, then a single-button dialog
+  // explaining that the chip didn't ACK on its CS pin. The chip and
+  // CS strings flow into the message verbatim — callers pass things
+  // like ("CC1101", "CS=13") for sub-GHz or ("nRF24", "CS=6").
+  static void cap_missing_dialog(IDisplay& d, const char* app_title,
+                                 const char* chip, const char* cs_label) {
+    d.clear(kSurface);
+    Chrome::header(d, app_title, "no cap");
+    char body[80];
+    std::snprintf(body, sizeof(body),
+                  "%s did not respond on %s. Re-seat the cap.",
+                  chip, cs_label);
+    Chrome::dialog(d, "Hydra not found", body, "OK", nullptr, true);
+    d.flush();
   }
 };
 

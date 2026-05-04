@@ -99,11 +99,7 @@ public:
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
     if (mode_ == Mode::CapMissing) {
-      ui::Chrome::header(d, "Sub-GHz Brute", "no cap");
-      ui::Chrome::dialog(d, "Hydra not found",
-                         "CC1101 did not respond. Re-seat the cap.",
-                         "OK", nullptr, true);
-      d.flush();
+      ui::Chrome::cap_missing_dialog(d, "Sub-GHz Brute", "CC1101", "CS=13");
       return;
     }
 
