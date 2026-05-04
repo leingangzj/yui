@@ -13,6 +13,7 @@
 #include "yui/types.hpp"
 #include "yui/ui/Chrome.hpp"
 #include "yui/ui/Tokens.hpp"
+#include "yui/assets/icons.hpp"
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -218,76 +219,31 @@ private:
     render_status_floating_(d);
   }
 
-  // Per-category iconography painted from fill_rect primitives so we don't
-  // need bitmaps yet. Phase 2 swaps these for menu1/menu2 PNG icons via
-  // d.draw_png; the same call site stays.
+  // Category → icon mapping. Returns the IconRef from the Phase-2
+  // bitmap pipeline (PNGs sliced from art/icons/_source/menu*.png).
+  // Renaming a slot only changes tools/gen_assets.py's alias map — the
+  // call sites here stay the same.
+  static const assets::IconRef& category_icon_(Category c) {
+    switch (c) {
+      case Category::Radio:     return assets::icons::kRadio();
+      case Category::WiFi:      return assets::icons::kWiFi();
+      case Category::Bluetooth: return assets::icons::kBluetooth();
+      case Category::Tools:     return assets::icons::kTools();
+      case Category::System:    return assets::icons::kSystem();
+      case Category::Fun:       return assets::icons::kFun();
+    }
+    return assets::icons::kInfo();  // unreachable
+  }
+
+  // Centre the icon inside the (cx,cy,tw,th) tile and draw_png it. The
+  // tile already had its accent backplate painted before this is called,
+  // so the PNG sits over the red square.
   void draw_category_glyph_(IDisplay& d, Category c, int cx, int cy,
                             int tw, int th) {
-    const int mid_x = cx + tw / 2;
-    const int mid_y = cy + th / 2;
-    switch (c) {
-      case Category::Radio: {
-        // Antenna mast + 4 concentric "broadcast" arches.
-        d.fill_rect({mid_x - 2, cy + 14, 4, th - 28}, ui::kSurface);
-        for (int i = 0; i < 4; ++i) {
-          const int r = 12 + i * 8;
-          d.fill_rect({mid_x - r, cy + 10 - i * 3, 2 * r, 3}, ui::kSurface);
-        }
-        d.fill_rect({mid_x - 6, cy + th - 14, 13, 6}, ui::kSurface);
-        break;
-      }
-      case Category::WiFi: {
-        // Three signal arcs of increasing width.
-        for (int i = 0; i < 3; ++i) {
-          const int w = 22 + i * 14;
-          const int y = mid_y + 18 - i * 12;
-          d.fill_rect({mid_x - w / 2, y, w, 4}, ui::kSurface);
-        }
-        d.fill_rect({mid_x - 3, mid_y + 22, 7, 7}, ui::kSurface);
-        break;
-      }
-      case Category::Bluetooth: {
-        // Stylized B-rune: vertical bar + crossed diagonals.
-        d.fill_rect({mid_x - 2, cy + 12, 4, th - 24}, ui::kSurface);
-        for (int i = 0; i < 14; ++i) {
-          d.fill_rect({mid_x + i, cy + 14 + i,           3, 3}, ui::kSurface);
-          d.fill_rect({mid_x + i, mid_y + 10 - i,        3, 3}, ui::kSurface);
-          d.fill_rect({mid_x + i, mid_y + i,             3, 3}, ui::kSurface);
-          d.fill_rect({mid_x + i, cy + th - 16 - i,      3, 3}, ui::kSurface);
-        }
-        break;
-      }
-      case Category::Tools: {
-        // Crossed wrench/screwdriver — axis-aligned stair-step diagonals.
-        for (int i = 0; i < 22; ++i) {
-          d.fill_rect({cx + 10 + i,         cy + 10 + i, 5, 5}, ui::kSurface);
-          d.fill_rect({cx + tw - 15 - i,    cy + 10 + i, 5, 5}, ui::kSurface);
-        }
-        d.fill_rect({cx + 6,        cy + 6, 9, 9}, ui::kSurface);
-        d.fill_rect({cx + tw - 15,  cy + 6, 9, 9}, ui::kSurface);
-        break;
-      }
-      case Category::System: {
-        // Gear: hub + 4 cardinal teeth + 4 corner teeth.
-        d.fill_rect({mid_x - 12, mid_y - 12, 24, 24}, ui::kSurface);
-        d.fill_rect({mid_x - 4,  cy + 8,           8, 8}, ui::kSurface);
-        d.fill_rect({mid_x - 4,  cy + th - 16,     8, 8}, ui::kSurface);
-        d.fill_rect({cx + 8,     mid_y - 4,        8, 8}, ui::kSurface);
-        d.fill_rect({cx + tw - 16, mid_y - 4,      8, 8}, ui::kSurface);
-        d.fill_rect({mid_x - 4,  mid_y - 4, 8, 8}, ui::kAccent);  // hub hole
-        break;
-      }
-      case Category::Fun: {
-        // Smiley: face + eyes + mouth, sized for the bigger tile.
-        d.fill_rect({mid_x - 24, mid_y - 24, 48, 48}, ui::kSurface);
-        d.fill_rect({mid_x - 14, mid_y - 12, 6, 6}, ui::kAccent);
-        d.fill_rect({mid_x + 8,  mid_y - 12, 6, 6}, ui::kAccent);
-        d.fill_rect({mid_x - 12, mid_y + 8, 24, 4}, ui::kAccent);
-        d.fill_rect({mid_x - 14, mid_y + 6, 3, 4}, ui::kAccent);
-        d.fill_rect({mid_x + 11, mid_y + 6, 3, 4}, ui::kAccent);
-        break;
-      }
-    }
+    const auto& ic = category_icon_(c);
+    const int x = cx + (tw - ic.size) / 2;
+    const int y = cy + (th - ic.size) / 2;
+    d.draw_png(ic.data, ic.len, x, y);
   }
 
   void render_apps_(IDisplay& d) {
