@@ -60,7 +60,12 @@ public:
     ch_ = 0;
     sent_ = 0;
     radio_->set_data_rate(NrfDataRate::Rate2Mbps);
-    radio_->set_address(kSeedAddress, kAddrLen);
+    // Try real promiscuous mode (Bastille technique). Falls back to
+    // pipe-0 listen on the seed Logitech address if the backend
+    // doesn't support it (native fakes return false).
+    if (!radio_->set_promiscuous(true)) {
+      radio_->set_address(kSeedAddress, kAddrLen);
+    }
     radio_->start_listening();
   }
 
@@ -68,6 +73,7 @@ public:
     if (radio_) {
       radio_->set_carrier(false);
       radio_->stop_listening();
+      radio_->set_promiscuous(false);  // restore normal address mode
     }
   }
 

@@ -136,6 +136,41 @@ public:
     return true;
   }
 
+  // Promiscuous mode (Bastille / Mousejack technique): the nRF24
+  // doesn't natively support sniffing arbitrary addresses, but if we
+  // configure address-width = 2 (a value the datasheet calls illegal)
+  // and set RX_ADDR_P0 to a constant pattern, the chip's preamble +
+  // CRC matcher still latches valid frames regardless of source
+  // address. RadioLib doesn't expose this — we drop down to the
+  // chip's SPI registers via Module's helpers.
+  //
+  //   SETUP_AW    (0x03) = 0x00   → 2-byte address (illegal)
+  //   RX_ADDR_P0  (0x0A) = 0xAA, 0xAA  → preamble pattern
+  //   EN_AA       (0x01) = 0x00   → no auto-ack
+  //   EN_RXADDR   (0x02) = 0x01   → pipe 0 only
+  //   RX_PW_P0    (0x11) = 32     → max payload
+  //   CONFIG      (0x00) = 0x33   → PWR_UP=1, PRIM_RX=1, CRC=2 byte
+  bool set_promiscuous(bool on) override {
+    if (on) {
+      // SETUP_AW: bits 0-1 = address width. 0b00 = 'illegal' 2 bytes.
+      module_.SPIwriteRegister(0x03, 0x00);
+      const uint8_t addr[2] = {0xAA, 0xAA};
+      module_.SPIwriteRegisterBurst(0x0A, addr, 2);
+      module_.SPIwriteRegister(0x01, 0x00);   // disable auto-ack
+      module_.SPIwriteRegister(0x02, 0x01);   // enable pipe 0
+      module_.SPIwriteRegister(0x11, 0x20);   // 32-byte payload
+      module_.SPIwriteRegister(0x00, 0x33);   // PWR_UP + PRIM_RX
+      promiscuous_ = true;
+    } else {
+      // Restore RadioLib's expected baseline so a subsequent
+      // begin() / set_address() works normally.
+      module_.SPIwriteRegister(0x03, 0x03);   // 5-byte addresses
+      promiscuous_ = false;
+    }
+    return true;
+  }
+  bool is_promiscuous() const override { return promiscuous_; }
+
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
 
@@ -147,6 +182,7 @@ private:
   uint8_t channel_ = 76;
   NrfDataRate rate_ = NrfDataRate::Rate1Mbps;
   bool listening_ = false;
+  bool promiscuous_ = false;
   uint64_t rx_total_ = 0, tx_total_ = 0;
 };
 

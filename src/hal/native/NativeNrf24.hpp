@@ -51,6 +51,11 @@ public:
 
   bool set_carrier(bool on) override { carrier_on_ = on; return true; }
 
+  // Native promiscuous-mode tracking: tests can assert the app
+  // turned it on before scanning.
+  bool set_promiscuous(bool on) override { promiscuous_ = on; return true; }
+  bool is_promiscuous() const override { return promiscuous_; }
+
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
 
@@ -78,6 +83,7 @@ private:
   uint64_t rx_total_ = 0, tx_total_ = 0;
   uint32_t tx_calls_ = 0;
   bool carrier_on_ = false;
+  bool promiscuous_ = false;
 };
 
 }  // namespace yui

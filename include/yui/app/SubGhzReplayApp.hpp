@@ -178,22 +178,11 @@ private:
     mode_ = Mode::Transmitting;
     radio_->set_frequency_hz(h.frequency_hz);
     radio_->set_modulation(CcModulation::Ook);
-    // Pack the RAW timings as bytes (1 bit per pulse, sign → on/off).
-    // Phase 4.5: this is the byte-stream path — fast, but receivers
-    // expecting tight async timing will disagree. Phase 4.6 adds true
-    // edge-toggle TX.
-    std::vector<uint8_t> bytes;
-    bytes.reserve((timings.size() + 7) / 8);
-    uint8_t cur = 0;
-    int bit = 7;
-    for (int32_t t : timings) {
-      const bool on = t > 0;
-      if (on) cur |= (1 << bit);
-      if (--bit < 0) { bytes.push_back(cur); cur = 0; bit = 7; }
-    }
-    if (bit != 7) bytes.push_back(cur);
-    bool tx_ok = bytes.empty() ? true
-                               : radio_->transmit(bytes.data(), bytes.size());
+    // Edge-toggle async TX: hand the µs deltas straight to the HAL,
+    // which on hardware bit-bangs GDO0 with absolute-deadline
+    // timing. Native impl just records the sequence so tests can
+    // assert order + count.
+    bool tx_ok = radio_->transmit_raw_edges(timings.data(), timings.size());
     if (tx_ok) {
       mode_ = Mode::Done;
       std::snprintf(status_, sizeof(status_), "%u edges", static_cast<unsigned>(timings.size()));

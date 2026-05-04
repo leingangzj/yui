@@ -5699,7 +5699,13 @@ void test_subghz_replay_enter_loads_and_transmits() {
   app.on_key(ke);
   TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::Done);
   TEST_ASSERT_TRUE(c.tx_call_count() >= 1);
-  TEST_ASSERT_FALSE(c.last_tx().empty());
+  // Edge-toggle TX path: assert the µs deltas were forwarded
+  // verbatim — order, count, and sign all preserved.
+  TEST_ASSERT_EQUAL_size_t(4, c.last_edges().size());
+  TEST_ASSERT_EQUAL_INT32(320,  c.last_edges()[0]);
+  TEST_ASSERT_EQUAL_INT32(-130, c.last_edges()[1]);
+  TEST_ASSERT_EQUAL_INT32(196,  c.last_edges()[2]);
+  TEST_ASSERT_EQUAL_INT32(-118, c.last_edges()[3]);
 }
 
 void test_subghz_replay_missing_cap_blocks_browsing() {
@@ -5925,6 +5931,66 @@ void test_launcher_status_strip_missing_hydra_badge() {
   launcher.on_enter(f.hal);
   launcher.render(f.d);
   TEST_ASSERT_TRUE(f.d.all_text().find("H-") != std::string::npos);
+}
+
+// ── Phase 4.11 — wire-shape tests for the hardware-timing fixes ────────
+
+void test_subghz_replay_uses_edge_toggle_not_packet_mode() {
+  // Replay must drive transmit_raw_edges (edge-toggle path), not the
+  // packet-mode transmit() it used in 4.5. Confirm by leaving last_tx
+  // (packet mode) empty while last_edges (raw path) gets populated.
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  fs.mkdir("/sub");
+  yui::proto::SubHeader h{};
+  h.frequency_hz = 433'920'000;
+  int32_t t[] = {500, -300, 200, -100, 700};
+  fs.put_file("/sub/x.sub", yui::proto::write_sub(h, t, 5));
+  RfHalFixture f;
+  yui::SubGhzReplayApp app(&c, &fs);
+  app.on_enter(f.hal);
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  // last_tx (packet path) should be untouched.
+  TEST_ASSERT_TRUE(c.last_tx().empty());
+  // last_edges should hold the exact sequence in order.
+  TEST_ASSERT_EQUAL_size_t(5, c.last_edges().size());
+  TEST_ASSERT_EQUAL_INT32(700, c.last_edges()[4]);
+}
+
+void test_mousejack_enables_promiscuous_before_scanning() {
+  // The whole point of the 4.6→4.11 fix: scan must turn on
+  // promiscuous mode so the chip can latch frames regardless of
+  // pre-paired address.
+  yui::NativeNrf24 n;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  TEST_ASSERT_FALSE(n.is_promiscuous());
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(n.is_promiscuous());
+  TEST_ASSERT_TRUE(n.listening());
+}
+
+void test_mousejack_on_exit_disables_promiscuous() {
+  yui::NativeNrf24 n;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(n.is_promiscuous());
+  app.on_exit();
+  TEST_ASSERT_FALSE(n.is_promiscuous());
+}
+
+void test_clock_micros_default_derives_from_millis() {
+  // IClock default impl returns micros = millis * 1000 so backends
+  // that don't override stay sane in tests.
+  yui::FakeClock clock;
+  clock.set(250);
+  TEST_ASSERT_EQUAL_UINT64(250000ULL, clock.micros());
 }
 
 void test_hydra_status_enter_reprobes() {
@@ -6445,6 +6511,11 @@ int main(int, char**) {
   RUN_TEST(test_launcher_status_strip_includes_hydra_badge);
   RUN_TEST(test_launcher_status_strip_partial_hydra_badge);
   RUN_TEST(test_launcher_status_strip_missing_hydra_badge);
+  // Phase 4.11 — wire-shape tests for the hardware-timing fixes
+  RUN_TEST(test_subghz_replay_uses_edge_toggle_not_packet_mode);
+  RUN_TEST(test_mousejack_enables_promiscuous_before_scanning);
+  RUN_TEST(test_mousejack_on_exit_disables_promiscuous);
+  RUN_TEST(test_clock_micros_default_derives_from_millis);
   RUN_TEST(test_hydra_status_enter_reprobes);
   return UNITY_END();
 }

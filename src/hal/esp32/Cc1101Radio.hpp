@@ -131,6 +131,44 @@ public:
     return true;
   }
 
+  // Edge-toggle async TX: assert direct-mode TX, then bit-bang GDO0
+  // by absolute-deadline timing so cumulative jitter doesn't drift.
+  // The CC1101 in async mode uses GDO0 as the data input — TX-on
+  // when high, TX-off when low. Timings are signed µs deltas
+  // (positive = on, negative = off — Flipper RAW convention).
+  bool transmit_raw_edges(const int32_t* timings_us,
+                          std::size_t n) override {
+    if (!timings_us || n == 0) return true;
+    // Configure GDO0 (pins::kCc1101Io0) as a host output and assert
+    // direct-mode TX so the modulator clocks the carrier off our pin.
+    pinMode(pins::kCc1101Io0, OUTPUT);
+    digitalWrite(pins::kCc1101Io0, LOW);
+    const int16_t st = radio_.transmitDirect();
+    if (st != RADIOLIB_ERR_NONE) {
+      last_error_ = "raw TX direct-mode failed";
+      return false;
+    }
+    // Walk the edges with absolute-deadline scheduling — each edge
+    // ends at start + accumulated-µs, so cumulative jitter doesn't
+    // drift the way "delay then toggle" does.
+    const uint64_t t0 = static_cast<uint64_t>(::micros());
+    uint64_t deadline = t0;
+    for (std::size_t i = 0; i < n; ++i) {
+      const int32_t t = timings_us[i];
+      const bool on = t > 0;
+      const uint32_t dur = static_cast<uint32_t>(on ? t : -t);
+      digitalWrite(pins::kCc1101Io0, on ? HIGH : LOW);
+      deadline += dur;
+      // Spin until we hit the deadline. delayMicroseconds rounds
+      // down; this gives more accurate edges for small dt.
+      while (static_cast<uint64_t>(::micros()) < deadline) { /* spin */ }
+    }
+    digitalWrite(pins::kCc1101Io0, LOW);
+    radio_.standby();
+    tx_total_ += n;
+    return true;
+  }
+
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
 

@@ -51,6 +51,17 @@ public:
 
   bool set_carrier(bool on) override { carrier_on_ = on; return true; }
 
+  // Native edge-toggle: record the timing sequence as-is so tests
+  // can verify order + count + sign without modeling real GPIO.
+  bool transmit_raw_edges(const int32_t* timings_us,
+                          std::size_t n) override {
+    last_edges_.assign(timings_us, timings_us + n);
+    tx_total_ += n * 4;  // count edge-bytes for telemetry symmetry
+    ++tx_calls_;
+    return true;
+  }
+  const std::vector<int32_t>& last_edges() const { return last_edges_; }
+
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
 
@@ -73,6 +84,7 @@ private:
   int16_t canned_rssi_ = -80;
   std::vector<std::vector<uint8_t>> rx_queue_;
   std::vector<uint8_t> last_tx_;
+  std::vector<int32_t> last_edges_;
   uint64_t rx_total_ = 0, tx_total_ = 0;
   uint32_t tx_calls_ = 0;
   bool carrier_on_ = false;

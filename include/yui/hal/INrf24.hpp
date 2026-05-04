@@ -68,6 +68,19 @@ public:
   // for narrowband flood. on=true asserts carrier.
   virtual bool set_carrier(bool on) = 0;
 
+  // ── Promiscuous mode (Mousejack) ────────────────────────────────
+  // Reconfigure the chip so it receives any frame on the current
+  // channel regardless of address — the Bastille trick that makes
+  // a real Logitech-Unifying scan work. Implementation pokes the
+  // chip's registers directly (RX_ADDR_P0=0xAA, AW=2, EN_AA=0,
+  // RX_PW_P0=32) outside RadioLib's normal API.
+  //
+  // Default impl returns false — backends that don't support
+  // promiscuous mode signal that scanning is limited to seeded
+  // addresses. Apps check the return and degrade gracefully.
+  virtual bool set_promiscuous(bool /*on*/) { return false; }
+  virtual bool is_promiscuous() const { return false; }
+
   // ── Telemetry ───────────────────────────────────────────────────
   virtual uint64_t rx_bytes() const = 0;
   virtual uint64_t tx_bytes() const = 0;

@@ -70,6 +70,32 @@ public:
   // returns the chip to standby.
   virtual bool set_carrier(bool on) = 0;
 
+  // ── Raw edge-toggle TX ──────────────────────────────────────────
+  // Transmit a sequence of µs edge timings (positive = TX-on,
+  // negative = TX-off — the Flipper RAW format). Goes through the
+  // chip's async TX direct mode + tight GPIO bit-bang on GDO0, so
+  // timing-perfect rolling-code replay works on receivers that won't
+  // accept the packet-mode framing transmit() uses.
+  //
+  // Default impl falls back to packet-mode transmit() for backends
+  // that don't have an async path — gives apps a sane baseline.
+  virtual bool transmit_raw_edges(const int32_t* timings_us,
+                                  std::size_t n) {
+    // Fallback: pack the edges as bits (sign → on/off) and TX as a
+    // standard packet. Same compromise SubGhzReplay used in 4.5.
+    if (!timings_us || n == 0) return true;
+    uint8_t buf[256];
+    std::size_t bytes = 0;
+    uint8_t cur = 0;
+    int bit = 7;
+    for (std::size_t i = 0; i < n && bytes < sizeof(buf); ++i) {
+      if (timings_us[i] > 0) cur |= (1 << bit);
+      if (--bit < 0) { buf[bytes++] = cur; cur = 0; bit = 7; }
+    }
+    if (bit != 7 && bytes < sizeof(buf)) buf[bytes++] = cur;
+    return transmit(buf, bytes);
+  }
+
   // ── Telemetry ───────────────────────────────────────────────────
   // Bytes received / transmitted across this radio's lifetime. Tests
   // assert against these.
