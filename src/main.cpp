@@ -145,6 +145,13 @@ yui::SysProbe make_sys_probe() {
   };
   p.wifi_rssi        = []() -> int { return WiFi.isConnected() ? WiFi.RSSI() : 0; };
   p.epoch_seconds    = []() -> uint64_t { return clock_.epoch_seconds(); };
+  p.hydra_state      = []() -> int {
+    const bool cc = cc1101_present_;
+    const bool nr = nrf24_present_;
+    if (cc && nr) return 1;
+    if (cc || nr) return 2;
+    return 3;
+  };
   return p;
 }
 

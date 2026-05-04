@@ -303,6 +303,19 @@ private:
   int format_status_(char* buf, std::size_t cap) {
     if (!have_probe_) return 0;
     int n = 0;
+    // Hydra cap badge — short, leftmost so it's easy to glance at.
+    //   1 → "H+"   (both radios up)
+    //   2 → "H~"   (partial — only one chip ACK'd)
+    //   3 → "H-"   (cap not seated)
+    //   0 / unbound → suppressed
+    if (probe_.hydra_state) {
+      switch (probe_.hydra_state()) {
+        case 1: n += std::snprintf(buf + n, cap - static_cast<std::size_t>(n), "H+ "); break;
+        case 2: n += std::snprintf(buf + n, cap - static_cast<std::size_t>(n), "H~ "); break;
+        case 3: n += std::snprintf(buf + n, cap - static_cast<std::size_t>(n), "H- "); break;
+        default: break;
+      }
+    }
     if (probe_.battery_pct) {
       const int pct = probe_.battery_pct();
       if (pct >= 0)

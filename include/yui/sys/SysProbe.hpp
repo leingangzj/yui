@@ -14,6 +14,12 @@ struct SysProbe {
   std::function<const char*()>   ip_or_empty;
   std::function<int()>           wifi_rssi;         // dBm, 0 if disconnected
   std::function<uint64_t()>      epoch_seconds;     // 0 if not NTP-synced
+  // Hydra RF cap state — three return values:
+  //   0 = not bound (no cap probe wired into this build)
+  //   1 = both chips present (CC1101 + nRF24)
+  //   2 = partial (one of the two responding)
+  //   3 = neither present (cap absent / not seated)
+  std::function<int()>           hydra_state;
 };
 
 }  // namespace yui

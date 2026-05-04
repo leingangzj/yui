@@ -5892,6 +5892,41 @@ void test_hydra_status_reports_partial_when_one_absent() {
   TEST_ASSERT_TRUE(f.d.all_text().find("PARTIAL") != std::string::npos);
 }
 
+void test_launcher_status_strip_includes_hydra_badge() {
+  yui::AppRegistry reg;
+  yui::SysProbe probe;
+  probe.hydra_state = []() -> int { return 1; };  // both up
+  yui::Launcher launcher(reg, probe);
+  RfHalFixture f;
+  launcher.on_enter(f.hal);
+  launcher.render(f.d);
+  // Carousel mode draws status floating; we just check the rendered
+  // text stream contains the H+ badge.
+  TEST_ASSERT_TRUE(f.d.all_text().find("H+") != std::string::npos);
+}
+
+void test_launcher_status_strip_partial_hydra_badge() {
+  yui::AppRegistry reg;
+  yui::SysProbe probe;
+  probe.hydra_state = []() -> int { return 2; };  // partial
+  yui::Launcher launcher(reg, probe);
+  RfHalFixture f;
+  launcher.on_enter(f.hal);
+  launcher.render(f.d);
+  TEST_ASSERT_TRUE(f.d.all_text().find("H~") != std::string::npos);
+}
+
+void test_launcher_status_strip_missing_hydra_badge() {
+  yui::AppRegistry reg;
+  yui::SysProbe probe;
+  probe.hydra_state = []() -> int { return 3; };
+  yui::Launcher launcher(reg, probe);
+  RfHalFixture f;
+  launcher.on_enter(f.hal);
+  launcher.render(f.d);
+  TEST_ASSERT_TRUE(f.d.all_text().find("H-") != std::string::npos);
+}
+
 void test_hydra_status_enter_reprobes() {
   yui::NativeCc1101 c;
   yui::NativeNrf24  n;
@@ -6407,6 +6442,9 @@ int main(int, char**) {
   // Phase 4.7 — HydraStatus diagnostic
   RUN_TEST(test_hydra_status_reports_both_present);
   RUN_TEST(test_hydra_status_reports_partial_when_one_absent);
+  RUN_TEST(test_launcher_status_strip_includes_hydra_badge);
+  RUN_TEST(test_launcher_status_strip_partial_hydra_badge);
+  RUN_TEST(test_launcher_status_strip_missing_hydra_badge);
   RUN_TEST(test_hydra_status_enter_reprobes);
   return UNITY_END();
 }
