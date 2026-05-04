@@ -121,3 +121,62 @@ Still pending — hardware-gated, will land in v1.0.x patch releases:
 4. **Pcap streaming throughput on SD** — SD writes can stall under load.
    `Esp32Pcap` flushes every 16 KB; if real captures show packet drops,
    ring-buffer in RAM first.
+
+
+## v1.0+ — Hydra RF cap support (DONE, 2026-05-04)
+
+Shipped in the codebase across nine commits the same night:
+
+- **Phase 1 (`aea28a9`)** — Styled-font system in IDisplay
+  (Title/Body/Caption/Mono via real M5GFX bundled fonts) +
+  Chrome widget kit (header/footer/list_row/badge/empty/stat)
+  refit for the new fonts; new Chrome widgets for Phase 4
+  (`scrollbar`, `var_item_row`, `dialog`).
+
+- **Phase 2 (`d69c07e`)** — Bitmap icon pipeline. 32 Japanese-
+  themed icons sliced from `menu1.png` + `menu2.png` via
+  `tools/extract_icons.py` (auto 4×4 grid detect), embedded by
+  `tools/gen_assets.py::gen_icons` into
+  `include/yui/assets/icons.hpp`. Semantic alias namespace
+  (`kRadio()`, `kWiFi()`, etc.) so renaming a slot edits one file.
+
+- **Phase 3 (`276aecc`)** — Hydra HAL. `ICc1101` + `INrf24`
+  abstract interfaces with native fakes for tests; ESP32 impls
+  using RadioLib over a shared `HydraSpiBus` singleton; pin map
+  in `yui::pins` (CS=13/io0=5 for CC1101, CS=6/io0=4 for nRF24);
+  Flipper-compatible `.sub` reader/writer; boot-time cap probe
+  in `main.cpp`.
+
+- **Phase 4 (`394b323`)** — 9 RF apps wired into the launcher,
+  each with cap-detect scaffolding: `SubGhzScan`,
+  `SubGhzCapture`, `SubGhzReplay`, `SubGhzBrute`,
+  `SubGhzJammer`, `Nrf24Scan`, `Nrf24Jammer`, `Mousejack`,
+  `RollJam`. Three live, six functional stubs.
+
+- **Phase 4.5 (`429eb02`)** — Replay file picker + load + transmit;
+  Brute 24-bit dictionary walker; Jammer Noise + Sweep modes.
+
+- **Phase 4.6 (`70b25d9`)** — Mousejack scan/inject and RollJam
+  state machine drive real radio operations.
+
+- **Phase 4.7 (`bc31aa9`)** — `docs/HYDRA.md` operator guide;
+  `HydraStatusApp` diagnostic.
+
+- **Phase 4.8 (`75b0a96`)** — `Chrome::cap_missing_dialog`
+  refactor — 9 apps share one helper now.
+
+- **Phase 4.9 (`054adeb`)** — Hydra cap badge in launcher status
+  strip (`H+` / `H~` / `H-`).
+
+Total: ~50 apps, 423 native tests, RAM 56% / Flash 66%.
+
+### Phase 4.x+ — hardware-gated
+
+- Mousejack promiscuous-mode nRF24 sniff (RadioLib doesn't expose
+  the chip's RPD bit; needs direct register write).
+- Edge-toggle async sub-GHz TX for Flipper-perfect rolling-code
+  replay (needs GDO0 toggling in tight loops).
+- Preamble-detect IRQs to unlock SubGhzJammer Protocol/Reactive
+  modes and tighter RollJam timing.
+- SubGhzScan smarter dwell (currently 1 sample/tick).
+

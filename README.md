@@ -15,6 +15,11 @@ What it does, in plain terms:
 - Uses the Cardputer's onboard radio for native 2.4 GHz work: probe-request
   fingerprinting, passive WPA handshake capture, beacon flood, WPS scan,
   captive portal phishing, BLE GATT enumeration, BLE-spam, IR.
+- With the **Pingequa Hydra RF Cap 424** plugged into EXT-14, adds dual-
+  band sub-GHz + 2.4 GHz (CC1101 + nRF24L01+): spectrum scan, signal
+  capture/replay (Flipper-compatible `.sub`), fixed-code brute, sub-GHz
+  jammer (CW / noise / sweep), 2.4 GHz channel-flood + hop-jam, Mousejack,
+  RollJam state machine. See `docs/HYDRA.md`.
 - Tracks satellites. TLE database, next-pass predictor, polar-plot live
   view, and Doppler-correcting CAT control of the TH-D75 so you can work an
   ISS pass without a phone in the loop.
@@ -24,12 +29,14 @@ memory, mic FFT, IR remote, calendar, todos, Snake, Life, tone/metronome.
 
 ## Status
 
-🛰️ **v1.0 — shipped, awaiting field validation.** `pio run -e
-cardputer_adv` and `pio test -e native` are both green. ~40 apps across 6
-categories. 372 native tests. The firmware hasn't been validated on real
-hardware yet — anyone flashing v1.0 is the first hardware tester. If
-something breaks, please [open an issue](https://github.com/leingangzj/yui/issues)
-with serial logs.
+🛰️ **v1.0+ — shipped, awaiting field validation.** `pio run -e
+cardputer_adv` and `pio test -e native` are both green. ~50 apps across 6
+categories. 423 native tests. The post-v1.0 work added the Phase 1-4.9
+Hydra RF stack (HAL + 9 apps + status diagnostic + cap badge); the
+firmware hasn't been validated on real hardware yet — anyone flashing
+the current head is the first hardware tester. If something breaks,
+please [open an issue](https://github.com/leingangzj/yui/issues) with
+serial logs.
 
 ## Hardware
 
@@ -48,6 +55,12 @@ the protocol detail.
 To drive a Pineapple, point a **Hak5 WiFi Pineapple Mark VII** at your
 network and put its host + creds in NVS via the serial monitor. Yui
 talks to it over the REST API.
+
+For sub-GHz + 2.4 GHz raw RF work (capture/replay/jam/Mousejack/
+RollJam), seat a **Pingequa Hydra RF Cap 424** on the EXT-14 expansion
+header. The launcher status strip shows `H+` / `H~` / `H-` so you can
+confirm the cap responded at boot. Pin map, app catalogue, and
+operator notes in `docs/HYDRA.md`.
 
 ## Flashing
 
@@ -97,7 +110,7 @@ up, and the rest is whichever app you opened last.
 HAL-first C++17. Every byte of hardware access goes through an interface
 under `include/yui/hal/`; apps don't import Arduino headers directly.
 Native and ESP32 backends both implement those interfaces, which is what
-lets the test suite run 372 cases on a desktop machine in five seconds
+lets the test suite run 423 cases on a desktop machine in five seconds
 without any board attached. Hardware checks live on top of that, not in
 place of it. See `docs/ARCHITECTURE.md` for the long version, and
 `docs/HARDWARE_AUDIT.md` for the pin-by-pin verification against
@@ -106,20 +119,24 @@ M5Unified.
 ## Repo layout
 
 ```
+art/icons/        Japanese-themed icon set sliced from menu1/menu2 sheets,
+                  embedded by tools/gen_assets.py into include/yui/assets/icons.hpp
 docs/             ARCHITECTURE, HARDWARE, HARDWARE_AUDIT, INSTALL, USING,
-                  ROADMAP, PRIOR_ART, TEST_ENV, plus protocols/
+                  ROADMAP, PRIOR_ART, TEST_ENV, HYDRA, plus protocols/
 include/yui/
-   app/           ~40 app classes
+   app/           ~50 app classes (incl. Phase 1-4.9 Hydra RF apps)
    hal/           interface headers — IDisplay, IKeyboard, IRadioLink, IGnss,
                   IHttp, IPcap, IWifiMonitor, IBleAdvertiser, IBleCentral,
                   IWifiAp, IFs, IClock, ILog, INet, IImu, IIr, IMic, ISpeaker,
-                  IStorage
-   proto/         AX.25, APRS, KISS, Dot11, Pcap, Pineapple decoders
+                  IStorage, ICc1101, INrf24
+   proto/         AX.25, APRS, KISS, Dot11, Pcap, Pineapple, SubFile decoders
    sat/           Tle, Vec3, Time, Propagator, Topo, Pass — SatTracker math
 src/hal/native/   Fake* backends used by the host tests
-src/hal/esp32/    Esp32* backends against M5Unified, NimBLE, esp_wifi, etc.
-test/test_native/ all 372 native tests, currently in one big file
-tools/            pack-release.sh, bringup-checklist.md, soak-monitor.py
+src/hal/esp32/    Esp32* backends against M5Unified, NimBLE, esp_wifi, etc.,
+                  plus Cc1101Radio + Nrf24Radio (RadioLib over HydraSpiBus)
+test/test_native/ all 423 native tests, currently in one big file
+tools/            extract_icons.py, gen_assets.py, pack-release.sh,
+                  bringup-checklist.md, soak-monitor.py
 platformio.ini    `native` and `cardputer_adv` envs
 ```
 
