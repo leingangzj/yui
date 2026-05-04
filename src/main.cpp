@@ -201,7 +201,7 @@ yui::ThemeApp            theme_app{&store_};
 yui::SubGhzScanApp       subghz_scan_app{&cc1101_};
 yui::SubGhzCaptureApp    subghz_capture_app{&cc1101_, &fs_, clock_};
 yui::SubGhzReplayApp     subghz_replay_app{&cc1101_, &fs_};
-yui::SubGhzBruteApp      subghz_brute_app{&cc1101_};
+yui::SubGhzBruteApp      subghz_brute_app{&cc1101_, clock_};
 yui::SubGhzJammerApp     subghz_jammer_app{&cc1101_};
 yui::Nrf24ScanApp        nrf24_scan_app{&nrf24_};
 yui::Nrf24JammerApp      nrf24_jammer_app{&nrf24_};

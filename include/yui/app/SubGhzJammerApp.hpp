@@ -51,11 +51,39 @@ public:
       case Key::Left:  if (freq_hz_ > 300'000'000) { freq_hz_ -= 100'000; tune_(); } break;
       case Key::Right: if (freq_hz_ < 928'000'000) { freq_hz_ += 100'000; tune_(); } break;
       case Key::Enter:
-        active_ = !active_;
-        // Phase 4 hot path: CW mode lights up the chip immediately;
-        // other modes show the toggle but don't stream until 4.5.
-        if (mode_ == 0 && radio_) radio_->set_carrier(active_);
+        toggle_active_();
         break;
+      default: break;
+    }
+  }
+
+  void tick(uint32_t /*now_ms*/) override {
+    if (!active_ || !radio_) return;
+    switch (mode_) {
+      case 1: {
+        // Noise: blast a random byte stream as fast as the chip will
+        // accept it. Pseudo-random walk seeded from a counter so the
+        // spectrum doesn't degenerate to a tone.
+        uint8_t pkt[16];
+        for (auto& b : pkt) {
+          noise_seed_ = noise_seed_ * 1664525u + 1013904223u;
+          b = static_cast<uint8_t>(noise_seed_ >> 24);
+        }
+        radio_->transmit(pkt, sizeof(pkt));
+        break;
+      }
+      case 2: {
+        // Sweep: hop the frequency up by 100 kHz per tick, wrap at
+        // band edge. Carrier asserted continuously for a saw-tooth
+        // across whichever sub-GHz band we're targeting.
+        sweep_hz_ += 100'000;
+        if (sweep_hz_ > sweep_end_hz_) sweep_hz_ = sweep_start_hz_;
+        radio_->set_frequency_hz(sweep_hz_);
+        break;
+      }
+      // CW (mode 0) just runs the carrier asserted in toggle_active_();
+      // Protocol (3) and Reactive (4) need preamble-detect IRQs we
+      // haven't wired yet — render shows them but tick is a no-op.
       default: break;
     }
   }
@@ -97,11 +125,44 @@ public:
 private:
   void tune_() { if (radio_) radio_->set_frequency_hz(freq_hz_); }
 
+  void toggle_active_() {
+    active_ = !active_;
+    if (!radio_) return;
+    if (!active_) {
+      radio_->set_carrier(false);
+      return;
+    }
+    switch (mode_) {
+      case 0:  // CW — pure carrier
+        radio_->set_carrier(true);
+        break;
+      case 1:  // Noise — packet TX driven from tick()
+        radio_->set_modulation(CcModulation::Ook);
+        radio_->set_bitrate_bps(50'000);
+        break;
+      case 2:  // Sweep — carrier on, freq stepped from tick()
+        sweep_start_hz_ = (freq_hz_ > 500'000) ? freq_hz_ - 500'000 : 300'000'000;
+        sweep_end_hz_   = freq_hz_ + 500'000;
+        sweep_hz_       = sweep_start_hz_;
+        radio_->set_carrier(true);
+        break;
+      case 3:  // Protocol-aware — placeholder, future preamble-IRQ hook
+      case 4:  // Reactive — same
+      default:
+        radio_->set_carrier(true);
+        break;
+    }
+  }
+
   ICc1101* radio_;
   bool     cap_missing_ = false;
   bool     active_      = false;
   int      mode_        = 0;
   uint32_t freq_hz_     = 433'920'000;
+  uint32_t noise_seed_  = 0xdeadbeef;
+  uint32_t sweep_start_hz_ = 433'420'000;
+  uint32_t sweep_end_hz_   = 434'420'000;
+  uint32_t sweep_hz_       = 433'920'000;
 };
 
 }  // namespace yui

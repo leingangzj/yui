@@ -5659,6 +5659,126 @@ void test_nrf24_jammer_channel_flood_asserts_carrier() {
   TEST_ASSERT_TRUE(n.carrier_on());
 }
 
+// ── Phase 4.5 fleshed-out logic ────────────────────────────────────────
+
+#include "yui/app/SubGhzReplayApp.hpp"
+#include "yui/app/SubGhzBruteApp.hpp"
+
+void test_subghz_replay_lists_only_sub_files_in_sub_dir() {
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  fs.mkdir("/sub");
+  // Build a tiny valid .sub on disk.
+  yui::proto::SubHeader h{};
+  h.frequency_hz = 433'920'000;
+  int32_t t[] = {100, -100};
+  fs.put_file("/sub/garage.sub", yui::proto::write_sub(h, t, 2));
+  // And a non-.sub that should be filtered out.
+  fs.put_file("/sub/notes.txt", "hello");
+  RfHalFixture f;
+  yui::SubGhzReplayApp app(&c, &fs);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::Browsing);
+  TEST_ASSERT_EQUAL_INT(1, app.count());
+}
+
+void test_subghz_replay_enter_loads_and_transmits() {
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  fs.mkdir("/sub");
+  yui::proto::SubHeader h{};
+  h.frequency_hz = 433'920'000;
+  int32_t t[] = {320, -130, 196, -118};
+  fs.put_file("/sub/r.sub", yui::proto::write_sub(h, t, 4));
+  RfHalFixture f;
+  yui::SubGhzReplayApp app(&c, &fs);
+  app.on_enter(f.hal);
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::Done);
+  TEST_ASSERT_TRUE(c.tx_call_count() >= 1);
+  TEST_ASSERT_FALSE(c.last_tx().empty());
+}
+
+void test_subghz_replay_missing_cap_blocks_browsing() {
+  yui::NativeCc1101 c;
+  c.set_present(false);
+  yui::FakeFs fs;
+  RfHalFixture f;
+  yui::SubGhzReplayApp app(&c, &fs);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::CapMissing);
+}
+
+void test_subghz_brute_idle_until_enter_then_emits_packets() {
+  yui::NativeCc1101 c;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::SubGhzBruteApp app(&c, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzBruteApp::Mode::Idle);
+
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzBruteApp::Mode::Running);
+
+  // First tick: pace gate fires (clock is at 0; last_step_ms_=0; diff=0;
+  // gate is "< 100ms" → false branch, so it fires once at t=0). Subsequent
+  // ticks within 100 ms get suppressed.
+  app.tick(0);
+  TEST_ASSERT_EQUAL_UINT32(1, app.sent());
+  app.tick(50);
+  TEST_ASSERT_EQUAL_UINT32(1, app.sent());  // still gated
+  app.tick(150);
+  TEST_ASSERT_EQUAL_UINT32(2, app.sent());
+
+  TEST_ASSERT_TRUE(c.tx_call_count() == 2);
+  // Verify a 24-bit packet shape (3 bytes per TX).
+  TEST_ASSERT_EQUAL_size_t(3, c.last_tx().size());
+}
+
+void test_subghz_brute_step_up_doubles() {
+  yui::NativeCc1101 c;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::SubGhzBruteApp app(&c, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_UINT32(1, app.step());
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Up;
+  app.on_key(ke);
+  TEST_ASSERT_EQUAL_UINT32(2, app.step());
+  app.on_key(ke);
+  TEST_ASSERT_EQUAL_UINT32(4, app.step());
+}
+
+void test_subghz_jammer_noise_mode_writes_random_bytes() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzJammerApp app(&c);
+  app.on_enter(f.hal);
+  // Move to Noise (mode 1).
+  yui::KeyEvent down{};
+  down.down = true;
+  down.key = yui::Key::Down;
+  app.on_key(down);
+  TEST_ASSERT_EQUAL_INT(1, app.mode());
+  // Activate.
+  yui::KeyEvent enter{};
+  enter.down = true;
+  enter.key = yui::Key::Enter;
+  app.on_key(enter);
+  TEST_ASSERT_TRUE(app.active());
+  // Tick should TX a 16-byte block.
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(16, c.last_tx().size());
+}
+
 void test_rolljam_walks_state_machine() {
   yui::NativeCc1101 c;
   RfHalFixture f;
@@ -6098,5 +6218,12 @@ int main(int, char**) {
   RUN_TEST(test_nrf24_scan_with_missing_cap_renders_dialog);
   RUN_TEST(test_nrf24_jammer_channel_flood_asserts_carrier);
   RUN_TEST(test_rolljam_walks_state_machine);
+  // Phase 4.5 — fleshed-out RF apps
+  RUN_TEST(test_subghz_replay_lists_only_sub_files_in_sub_dir);
+  RUN_TEST(test_subghz_replay_enter_loads_and_transmits);
+  RUN_TEST(test_subghz_replay_missing_cap_blocks_browsing);
+  RUN_TEST(test_subghz_brute_idle_until_enter_then_emits_packets);
+  RUN_TEST(test_subghz_brute_step_up_doubles);
+  RUN_TEST(test_subghz_jammer_noise_mode_writes_random_bytes);
   return UNITY_END();
 }
