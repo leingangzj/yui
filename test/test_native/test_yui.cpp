@@ -5757,6 +5757,129 @@ void test_subghz_brute_step_up_doubles() {
   TEST_ASSERT_EQUAL_UINT32(4, app.step());
 }
 
+// ── Phase 4.6 — Mousejack + RollJam fleshed out ───────────────────────
+
+#include "yui/app/MousejackApp.hpp"
+
+void test_mousejack_missing_cap_dialog() {
+  yui::NativeNrf24 n;
+  n.set_present(false);
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::MousejackApp::Mode::CapMissing);
+  app.render(f.d);
+  TEST_ASSERT_TRUE(f.d.all_text().find("Hydra not found") != std::string::npos);
+}
+
+void test_mousejack_enters_scan_and_walks_channels() {
+  yui::NativeNrf24 n;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::MousejackApp::Mode::Scanning);
+  TEST_ASSERT_TRUE(n.listening());
+  const int before = app.current_channel();
+  app.tick(0);
+  app.tick(1);
+  TEST_ASSERT_TRUE(app.current_channel() != before);
+}
+
+void test_mousejack_inject_emits_payload_bytes() {
+  yui::NativeNrf24 n;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  app.on_enter(f.hal);
+
+  uint8_t addr[5] = {0xBB, 0x0A, 0xDC, 0xA5, 0x75};
+  app.inject_target_for_test(addr, 5, 5);
+  TEST_ASSERT_EQUAL_INT(1, app.target_count());
+
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);  // Scanning → TargetList
+  TEST_ASSERT_TRUE(app.mode() == yui::MousejackApp::Mode::TargetList);
+  app.on_key(ke);  // TargetList → Injecting
+  TEST_ASSERT_TRUE(app.mode() == yui::MousejackApp::Mode::Injecting);
+
+  uint32_t t = 0;
+  uint32_t fired = 0;
+  while (app.mode() == yui::MousejackApp::Mode::Injecting && fired < 32) {
+    app.tick(t);
+    t += 51;
+    ++fired;
+  }
+  TEST_ASSERT_TRUE(n.tx_call_count() >= 1);
+}
+
+void test_rolljam_idle_to_jam_asserts_carrier() {
+  yui::NativeCc1101 c;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::RollJamApp app(&c, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Idle);
+  TEST_ASSERT_FALSE(c.carrier_on());
+
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Jamming);
+  TEST_ASSERT_TRUE(c.carrier_on());
+}
+
+void test_rolljam_full_walk_drives_radio_through_states() {
+  yui::NativeCc1101 c;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::RollJamApp app(&c, clock);
+  app.on_enter(f.hal);
+
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+
+  app.on_key(ke);
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Captured);
+  TEST_ASSERT_FALSE(c.carrier_on());
+
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(0, app.capture_len());
+
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Replayed);
+  TEST_ASSERT_TRUE(c.tx_call_count() >= 1);
+
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Idle);
+  TEST_ASSERT_FALSE(c.carrier_on());
+}
+
+void test_rolljam_replay_uses_real_capture_when_present() {
+  yui::NativeCc1101 c;
+  yui::FakeClock clock;
+  c.enqueue_rx({0xCA, 0xFE, 0xBA, 0xBE});
+  RfHalFixture f;
+  yui::RollJamApp app(&c, clock);
+  app.on_enter(f.hal);
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  app.on_key(ke);
+  app.tick(0);
+  TEST_ASSERT_EQUAL_size_t(4, app.capture_len());
+  app.on_key(ke);
+  TEST_ASSERT_EQUAL_size_t(4, c.last_tx().size());
+  TEST_ASSERT_EQUAL_HEX8(0xCA, c.last_tx()[0]);
+}
+
 void test_subghz_jammer_noise_mode_writes_random_bytes() {
   yui::NativeCc1101 c;
   RfHalFixture f;
@@ -5781,8 +5904,9 @@ void test_subghz_jammer_noise_mode_writes_random_bytes() {
 
 void test_rolljam_walks_state_machine() {
   yui::NativeCc1101 c;
+  yui::FakeClock clock;
   RfHalFixture f;
-  yui::RollJamApp app(&c);
+  yui::RollJamApp app(&c, clock);
   app.on_enter(f.hal);
   TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Idle);
   yui::KeyEvent ke{};
@@ -6225,5 +6349,12 @@ int main(int, char**) {
   RUN_TEST(test_subghz_brute_idle_until_enter_then_emits_packets);
   RUN_TEST(test_subghz_brute_step_up_doubles);
   RUN_TEST(test_subghz_jammer_noise_mode_writes_random_bytes);
+  // Phase 4.6 — Mousejack + RollJam fleshed out
+  RUN_TEST(test_mousejack_missing_cap_dialog);
+  RUN_TEST(test_mousejack_enters_scan_and_walks_channels);
+  RUN_TEST(test_mousejack_inject_emits_payload_bytes);
+  RUN_TEST(test_rolljam_idle_to_jam_asserts_carrier);
+  RUN_TEST(test_rolljam_full_walk_drives_radio_through_states);
+  RUN_TEST(test_rolljam_replay_uses_real_capture_when_present);
   return UNITY_END();
 }

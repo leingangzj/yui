@@ -205,8 +205,8 @@ yui::SubGhzBruteApp      subghz_brute_app{&cc1101_, clock_};
 yui::SubGhzJammerApp     subghz_jammer_app{&cc1101_};
 yui::Nrf24ScanApp        nrf24_scan_app{&nrf24_};
 yui::Nrf24JammerApp      nrf24_jammer_app{&nrf24_};
-yui::MousejackApp        mousejack_app{&nrf24_};
-yui::RollJamApp          rolljam_app{&cc1101_};
+yui::MousejackApp        mousejack_app{&nrf24_, clock_};
+yui::RollJamApp          rolljam_app{&cc1101_, clock_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
