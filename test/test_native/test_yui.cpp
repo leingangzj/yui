@@ -5861,6 +5861,54 @@ void test_rolljam_full_walk_drives_radio_through_states() {
   TEST_ASSERT_FALSE(c.carrier_on());
 }
 
+// ── Phase 4.7 — HydraStatus diagnostic app ─────────────────────────────
+
+#include "yui/app/HydraStatusApp.hpp"
+
+void test_hydra_status_reports_both_present() {
+  yui::NativeCc1101 c;
+  yui::NativeNrf24  n;
+  RfHalFixture f;
+  yui::HydraStatusApp app(&c, &n);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.cc_present());
+  TEST_ASSERT_TRUE(app.nrf_present());
+  app.render(f.d);
+  TEST_ASSERT_TRUE(f.d.all_text().find("CC1101") != std::string::npos);
+  TEST_ASSERT_TRUE(f.d.all_text().find("NRF24")  != std::string::npos);
+  TEST_ASSERT_TRUE(f.d.all_text().find("OK") != std::string::npos);
+}
+
+void test_hydra_status_reports_partial_when_one_absent() {
+  yui::NativeCc1101 c;
+  yui::NativeNrf24  n;
+  n.set_present(false);
+  RfHalFixture f;
+  yui::HydraStatusApp app(&c, &n);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.cc_present());
+  TEST_ASSERT_FALSE(app.nrf_present());
+  app.render(f.d);
+  TEST_ASSERT_TRUE(f.d.all_text().find("PARTIAL") != std::string::npos);
+}
+
+void test_hydra_status_enter_reprobes() {
+  yui::NativeCc1101 c;
+  yui::NativeNrf24  n;
+  c.set_present(false);
+  RfHalFixture f;
+  yui::HydraStatusApp app(&c, &n);
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.cc_present());
+  // User plugs in the cap (simulated).
+  c.set_present(true);
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.cc_present());
+}
+
 void test_rolljam_replay_uses_real_capture_when_present() {
   yui::NativeCc1101 c;
   yui::FakeClock clock;
@@ -6356,5 +6404,9 @@ int main(int, char**) {
   RUN_TEST(test_rolljam_idle_to_jam_asserts_carrier);
   RUN_TEST(test_rolljam_full_walk_drives_radio_through_states);
   RUN_TEST(test_rolljam_replay_uses_real_capture_when_present);
+  // Phase 4.7 — HydraStatus diagnostic
+  RUN_TEST(test_hydra_status_reports_both_present);
+  RUN_TEST(test_hydra_status_reports_partial_when_one_absent);
+  RUN_TEST(test_hydra_status_enter_reprobes);
   return UNITY_END();
 }

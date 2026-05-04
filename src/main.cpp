@@ -65,6 +65,7 @@
 #include "yui/app/Nrf24JammerApp.hpp"
 #include "yui/app/MousejackApp.hpp"
 #include "yui/app/RollJamApp.hpp"
+#include "yui/app/HydraStatusApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -207,6 +208,7 @@ yui::Nrf24ScanApp        nrf24_scan_app{&nrf24_};
 yui::Nrf24JammerApp      nrf24_jammer_app{&nrf24_};
 yui::MousejackApp        mousejack_app{&nrf24_, clock_};
 yui::RollJamApp          rolljam_app{&cc1101_, clock_};
+yui::HydraStatusApp      hydra_status_app{&cc1101_, &nrf24_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -336,6 +338,7 @@ void setup() {
   registry.add(&nrf24_jammer_app);
   registry.add(&mousejack_app);
   registry.add(&rolljam_app);
+  registry.add(&hydra_status_app);
   registry.add(&remote_app);
   registry.add(&about_app);
 
