@@ -76,6 +76,8 @@
 #include "hal/esp32/Esp32WifiAp.hpp"
 #include "hal/esp32/Esp32BleCentral.hpp"
 #include "hal/esp32/Esp32WebRemote.hpp"
+#include "hal/esp32/Cc1101Radio.hpp"
+#include "hal/esp32/Nrf24Radio.hpp"
 #include "yui/app/RemoteApp.hpp"
 #include <WiFi.h>
 #include <esp_system.h>
@@ -112,6 +114,13 @@ yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (stub until v0.3)
 yui::Esp32WifiAp        wifi_ap_;  // SoftAP + captive portal (stub until v0.3)
 yui::Esp32BleCentral    ble_cent_; // BLE central (stub until v0.3)
 yui::Esp32WebRemote     remote_;   // Browser viewer + key inbox
+
+// Pingequa Hydra RF Cap 424 — sub-GHz + 2.4 GHz radios. Both are
+// nullable in spirit: probed at boot and left disabled if absent.
+yui::Cc1101Radio cc1101_;
+yui::Nrf24Radio  nrf24_;
+bool cc1101_present_ = false;
+bool nrf24_present_  = false;
 
 // Sysinfo probes pull from M5/ESP/WiFi globals.
 yui::SysProbe make_sys_probe() {
@@ -200,6 +209,19 @@ void setup() {
   M5.In_I2C.begin(I2C_NUM_0, yui::pins::kIntSda, yui::pins::kIntScl);
 
   log_.info("Yui boot");
+
+  // Probe the Hydra RF Cap 424 (CC1101 + nRF24L01+). Either chip may
+  // be absent — apps that need them check the present flags and show
+  // a "cap not detected" dialog rather than crashing.
+  cc1101_present_ = cc1101_.begin();
+  nrf24_present_  = nrf24_.begin();
+  {
+    char hbuf[64];
+    std::snprintf(hbuf, sizeof(hbuf), "[hydra] cc1101=%s nrf24=%s",
+                  cc1101_present_ ? "OK" : "absent",
+                  nrf24_present_  ? "OK" : "absent");
+    log_.info(hbuf);
+  }
 
   // Boot-time WiFi auto-connect: if a saved SSID exists in NVS, kick off
   // the join + NTP sync now so ClockApp's TimeOfDay is ready by the time

@@ -55,4 +55,22 @@ constexpr unsigned char kI2cAddrTca8418 = 0x34;
 constexpr unsigned char kI2cAddrBmi270  = 0x68;
 constexpr unsigned char kI2cAddrEs8311  = 0x18;
 
+// ── Pingequa Hydra RF Cap 424 (CC1101 + nRF24 dual-band) ────────────
+// Sits on the EXT-14 expansion connector. Both chips share SCK/MOSI/MISO
+// with the microSD bus; auto-switching of CS happens on the cap itself,
+// so we just drive the per-chip CS + io0 pins from the host.
+//
+// Pingequa's official brucePins.conf:
+//   CC1101: cs=13, io0=5  (io0 carries GDO0 for CC1101)
+//   NRF24:  cs=6,  io0=4  (io0 carries the chip-enable pin)
+constexpr int kHydraSck   = 40;   // shared with kSdClk
+constexpr int kHydraMosi  = 14;   // shared with kSdMosi
+constexpr int kHydraMiso  = 39;   // shared with kSdMiso
+constexpr int kCc1101Cs   = 13;
+constexpr int kCc1101Io0  = 5;    // GDO0 — data + IRQ
+constexpr int kCc1101Io2  = -1;   // unused on this cap
+constexpr int kNrf24Cs    = 6;
+constexpr int kNrf24Io0   = 4;    // chip-enable (CE) on NRF24 side
+constexpr int kNrf24Io2   = -1;   // unused
+
 }  // namespace yui::pins

@@ -5432,6 +5432,143 @@ void test_recon_app_done_state_enter_rescans() {
   TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Scanning);
 }
 
+// ───── Phase 3 — Hydra HAL (CC1101 + nRF24) + .sub format ──────────────────
+#include "yui/hal/ICc1101.hpp"
+#include "yui/hal/INrf24.hpp"
+#include "../../src/hal/native/NativeCc1101.hpp"
+#include "../../src/hal/native/NativeNrf24.hpp"
+#include "yui/proto/SubFile.hpp"
+
+void test_native_cc1101_present_by_default_and_can_be_disabled() {
+  yui::NativeCc1101 c;
+  TEST_ASSERT_TRUE(c.is_present());
+  c.set_present(false);
+  TEST_ASSERT_FALSE(c.is_present());
+  TEST_ASSERT_FALSE(c.begin());
+}
+
+void test_native_cc1101_freq_validates_band() {
+  yui::NativeCc1101 c;
+  TEST_ASSERT_TRUE(c.set_frequency_hz(433'920'000));
+  TEST_ASSERT_EQUAL_UINT32(433'920'000, c.frequency_hz());
+  TEST_ASSERT_FALSE(c.set_frequency_hz(2'400'000'000));  // out of band
+}
+
+void test_native_cc1101_transmit_records_payload() {
+  yui::NativeCc1101 c;
+  uint8_t payload[] = {0xDE, 0xAD, 0xBE, 0xEF};
+  TEST_ASSERT_TRUE(c.transmit(payload, sizeof(payload)));
+  TEST_ASSERT_EQUAL_UINT32(1, c.tx_call_count());
+  TEST_ASSERT_EQUAL_UINT64(4, c.tx_bytes());
+  TEST_ASSERT_EQUAL_size_t(4, c.last_tx().size());
+  TEST_ASSERT_EQUAL_HEX8(0xDE, c.last_tx()[0]);
+}
+
+void test_native_cc1101_carrier_toggles() {
+  yui::NativeCc1101 c;
+  TEST_ASSERT_FALSE(c.carrier_on());
+  c.set_carrier(true);
+  TEST_ASSERT_TRUE(c.carrier_on());
+  c.set_carrier(false);
+  TEST_ASSERT_FALSE(c.carrier_on());
+}
+
+void test_native_cc1101_receive_drains_queue() {
+  yui::NativeCc1101 c;
+  c.enqueue_rx({0x01, 0x02, 0x03});
+  c.enqueue_rx({0xAA, 0xBB});
+  uint8_t buf[16];
+  int n = c.receive(buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(3, n);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf[0]);
+  n = c.receive(buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(2, n);
+  TEST_ASSERT_EQUAL_HEX8(0xAA, buf[0]);
+  n = c.receive(buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_INT(0, n);  // empty
+}
+
+void test_native_nrf24_channel_validates() {
+  yui::NativeNrf24 r;
+  TEST_ASSERT_TRUE(r.set_channel(76));
+  TEST_ASSERT_EQUAL_UINT8(76, r.channel());
+  TEST_ASSERT_FALSE(r.set_channel(126));  // out of range
+}
+
+void test_native_nrf24_address_width_3_to_5() {
+  yui::NativeNrf24 r;
+  uint8_t a3[3] = {0xAA, 0xBB, 0xCC};
+  TEST_ASSERT_TRUE(r.set_address(a3, 3));
+  uint8_t a5[5] = {1, 2, 3, 4, 5};
+  TEST_ASSERT_TRUE(r.set_address(a5, 5));
+  uint8_t a2[2] = {1, 2};
+  TEST_ASSERT_FALSE(r.set_address(a2, 2));  // too short
+  uint8_t a6[6] = {1, 2, 3, 4, 5, 6};
+  TEST_ASSERT_FALSE(r.set_address(a6, 6));  // too long
+}
+
+void test_native_nrf24_listen_toggles_state() {
+  yui::NativeNrf24 r;
+  TEST_ASSERT_FALSE(r.listening());
+  r.start_listening();
+  TEST_ASSERT_TRUE(r.listening());
+  r.stop_listening();
+  TEST_ASSERT_FALSE(r.listening());
+}
+
+void test_subfile_round_trip_raw_timings() {
+  yui::proto::SubHeader h{};
+  h.frequency_hz = 433'920'000;
+  h.preset = yui::proto::SubPreset::Ook650Async;
+  int32_t timings[] = {320, -130, 196, -118, 152, -86};
+  std::string text = yui::proto::write_sub(h, timings, 6);
+
+  TEST_ASSERT_TRUE(text.find("Filetype: Flipper SubGhz RAW File") != std::string::npos);
+  TEST_ASSERT_TRUE(text.find("Frequency: 433920000") != std::string::npos);
+  TEST_ASSERT_TRUE(text.find("Preset: FuriHalSubGhzPresetOok650Async") != std::string::npos);
+  TEST_ASSERT_TRUE(text.find(" 320 -130") != std::string::npos);
+
+  yui::proto::SubHeader hp{};
+  std::vector<int32_t> back;
+  bool ok = yui::proto::read_sub_to_vector(text.data(), text.size(), hp, back);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_UINT32(433'920'000, hp.frequency_hz);
+  TEST_ASSERT_TRUE(hp.preset == yui::proto::SubPreset::Ook650Async);
+  TEST_ASSERT_EQUAL_size_t(6, back.size());
+  TEST_ASSERT_EQUAL_INT32(320, back[0]);
+  TEST_ASSERT_EQUAL_INT32(-130, back[1]);
+  TEST_ASSERT_EQUAL_INT32(-86, back[5]);
+}
+
+void test_subfile_tolerates_unknown_keys_and_multiple_raw_lines() {
+  const char* sample =
+      "Filetype: Flipper SubGhz RAW File\n"
+      "Version: 1\n"
+      "Frequency: 868350000\n"
+      "Preset: FuriHalSubGhzPresetFskDev238Async\n"
+      "Vendor: PingequaCustom\n"      // unknown — should be ignored
+      "Protocol: RAW\n"
+      "RAW_Data: 100 -200 300 -400\n"
+      "RAW_Data: 500 -600\n";
+  yui::proto::SubHeader h{};
+  std::vector<int32_t> v;
+  bool ok = yui::proto::read_sub_to_vector(sample, std::strlen(sample), h, v);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_UINT32(868'350'000, h.frequency_hz);
+  TEST_ASSERT_TRUE(h.preset == yui::proto::SubPreset::FskDev238Async);
+  TEST_ASSERT_EQUAL_size_t(6, v.size());
+  TEST_ASSERT_EQUAL_INT32(500, v[4]);
+  TEST_ASSERT_EQUAL_INT32(-600, v[5]);
+}
+
+void test_subfile_rejects_garbage() {
+  const char* junk = "this is not a sub file\nat all\n";
+  yui::proto::SubHeader h{};
+  std::vector<int32_t> v;
+  bool ok = yui::proto::read_sub_to_vector(junk, std::strlen(junk), h, v);
+  TEST_ASSERT_FALSE(ok);  // missing Filetype tag
+}
+
 // ───── Runner ───────────────────────────────────────────────────────────────
 
 
@@ -5832,5 +5969,17 @@ int main(int, char**) {
   // v0.3 gap fills — fake HAL fixtures
   RUN_TEST(test_fake_ble_central_connect_enumerate_read);
   RUN_TEST(test_fake_wifi_monitor_filters_by_pkt_type);
+  // Phase 3 — Hydra HAL + .sub file format
+  RUN_TEST(test_native_cc1101_present_by_default_and_can_be_disabled);
+  RUN_TEST(test_native_cc1101_freq_validates_band);
+  RUN_TEST(test_native_cc1101_transmit_records_payload);
+  RUN_TEST(test_native_cc1101_carrier_toggles);
+  RUN_TEST(test_native_cc1101_receive_drains_queue);
+  RUN_TEST(test_native_nrf24_channel_validates);
+  RUN_TEST(test_native_nrf24_address_width_3_to_5);
+  RUN_TEST(test_native_nrf24_listen_toggles_state);
+  RUN_TEST(test_subfile_round_trip_raw_timings);
+  RUN_TEST(test_subfile_tolerates_unknown_keys_and_multiple_raw_lines);
+  RUN_TEST(test_subfile_rejects_garbage);
   return UNITY_END();
 }
