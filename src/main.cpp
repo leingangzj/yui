@@ -56,6 +56,15 @@
 #include "yui/app/SatTrackerApp.hpp"
 #include "yui/app/KoiGotchiApp.hpp"
 #include "yui/app/ThemeApp.hpp"
+#include "yui/app/SubGhzScanApp.hpp"
+#include "yui/app/SubGhzCaptureApp.hpp"
+#include "yui/app/SubGhzReplayApp.hpp"
+#include "yui/app/SubGhzBruteApp.hpp"
+#include "yui/app/SubGhzJammerApp.hpp"
+#include "yui/app/Nrf24ScanApp.hpp"
+#include "yui/app/Nrf24JammerApp.hpp"
+#include "yui/app/MousejackApp.hpp"
+#include "yui/app/RollJamApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -186,6 +195,19 @@ yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
 yui::KoiGotchiApp        koigotchi_app{handshake_app, &store_, &clock_};
 yui::ThemeApp            theme_app{&store_};
 
+// Phase 4 — Hydra RF apps. Each takes nullable radio pointers so the
+// app can render a "cap not detected" dialog instead of crashing when
+// the user enters it without the cap plugged in.
+yui::SubGhzScanApp       subghz_scan_app{&cc1101_};
+yui::SubGhzCaptureApp    subghz_capture_app{&cc1101_, &fs_, clock_};
+yui::SubGhzReplayApp     subghz_replay_app{&cc1101_, &fs_};
+yui::SubGhzBruteApp      subghz_brute_app{&cc1101_};
+yui::SubGhzJammerApp     subghz_jammer_app{&cc1101_};
+yui::Nrf24ScanApp        nrf24_scan_app{&nrf24_};
+yui::Nrf24JammerApp      nrf24_jammer_app{&nrf24_};
+yui::MousejackApp        mousejack_app{&nrf24_};
+yui::RollJamApp          rolljam_app{&cc1101_};
+
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
 }  // namespace
@@ -304,6 +326,16 @@ void setup() {
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
   registry.add(&theme_app);
+  // Phase 4 — Hydra RF apps (Pingequa Hydra Cap 424).
+  registry.add(&subghz_scan_app);
+  registry.add(&subghz_capture_app);
+  registry.add(&subghz_replay_app);
+  registry.add(&subghz_brute_app);
+  registry.add(&subghz_jammer_app);
+  registry.add(&nrf24_scan_app);
+  registry.add(&nrf24_jammer_app);
+  registry.add(&mousejack_app);
+  registry.add(&rolljam_app);
   registry.add(&remote_app);
   registry.add(&about_app);
 

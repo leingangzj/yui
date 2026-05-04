@@ -5569,6 +5569,115 @@ void test_subfile_rejects_garbage() {
   TEST_ASSERT_FALSE(ok);  // missing Filetype tag
 }
 
+// ───── Phase 4 — Hydra RF apps (cap-detect smoke tests) ────────────────────
+#include "yui/app/SubGhzScanApp.hpp"
+#include "yui/app/SubGhzJammerApp.hpp"
+#include "yui/app/Nrf24ScanApp.hpp"
+#include "yui/app/Nrf24JammerApp.hpp"
+#include "yui/app/RollJamApp.hpp"
+
+// Helpers — inline Hal builder for these tests (existing tests use a
+// similar pattern further up; we keep ours local to avoid coupling).
+namespace {
+struct RfHalFixture {
+  yui::NativeDisplay  d{240, 135};
+  yui::MockKeyboard   kb;
+  yui::FakeClock      cl;
+  yui::StderrLog      lg;
+  yui::Hal hal{d, kb, cl, lg};
+};
+}  // namespace
+
+void test_subghz_scan_with_present_cap_starts_scanning() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzScanApp app(&c);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzScanApp::Mode::Scanning);
+}
+
+void test_subghz_scan_with_missing_cap_renders_dialog() {
+  yui::NativeCc1101 c;
+  c.set_present(false);
+  RfHalFixture f;
+  yui::SubGhzScanApp app(&c);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzScanApp::Mode::CapMissing);
+  app.render(f.d);
+  // Dialog text should appear in the rendered text stream.
+  TEST_ASSERT_TRUE(f.d.all_text().find("Hydra not found") != std::string::npos);
+}
+
+void test_subghz_scan_null_radio_lands_in_cap_missing() {
+  RfHalFixture f;
+  yui::SubGhzScanApp app(nullptr);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzScanApp::Mode::CapMissing);
+}
+
+void test_subghz_jammer_enter_toggles_carrier_in_cw_mode() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzJammerApp app(&c);
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.active());
+  TEST_ASSERT_FALSE(c.carrier_on());
+  // Press Enter — CW mode is the default (mode_=0); should turn carrier on.
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.active());
+  TEST_ASSERT_TRUE(c.carrier_on());
+  // Press Enter again — back off.
+  app.on_key(ke);
+  TEST_ASSERT_FALSE(app.active());
+  TEST_ASSERT_FALSE(c.carrier_on());
+}
+
+void test_nrf24_scan_with_missing_cap_renders_dialog() {
+  yui::NativeNrf24 n;
+  n.set_present(false);
+  RfHalFixture f;
+  yui::Nrf24ScanApp app(&n);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::Nrf24ScanApp::Mode::CapMissing);
+  app.render(f.d);
+  TEST_ASSERT_TRUE(f.d.all_text().find("Hydra not found") != std::string::npos);
+}
+
+void test_nrf24_jammer_channel_flood_asserts_carrier() {
+  yui::NativeNrf24 n;
+  RfHalFixture f;
+  yui::Nrf24JammerApp app(&n);
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(n.carrier_on());
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);  // mode 0 = channel flood
+  TEST_ASSERT_TRUE(n.carrier_on());
+}
+
+void test_rolljam_walks_state_machine() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::RollJamApp app(&c);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Idle);
+  yui::KeyEvent ke{};
+  ke.down = true;
+  ke.key = yui::Key::Enter;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Jamming);
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Captured);
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Replayed);
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.stage() == yui::RollJamApp::Stage::Idle);
+}
+
 // ───── Runner ───────────────────────────────────────────────────────────────
 
 
@@ -5981,5 +6090,13 @@ int main(int, char**) {
   RUN_TEST(test_subfile_round_trip_raw_timings);
   RUN_TEST(test_subfile_tolerates_unknown_keys_and_multiple_raw_lines);
   RUN_TEST(test_subfile_rejects_garbage);
+  // Phase 4 — Hydra RF apps
+  RUN_TEST(test_subghz_scan_with_present_cap_starts_scanning);
+  RUN_TEST(test_subghz_scan_with_missing_cap_renders_dialog);
+  RUN_TEST(test_subghz_scan_null_radio_lands_in_cap_missing);
+  RUN_TEST(test_subghz_jammer_enter_toggles_carrier_in_cw_mode);
+  RUN_TEST(test_nrf24_scan_with_missing_cap_renders_dialog);
+  RUN_TEST(test_nrf24_jammer_channel_flood_asserts_carrier);
+  RUN_TEST(test_rolljam_walks_state_machine);
   return UNITY_END();
 }
