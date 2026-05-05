@@ -117,8 +117,9 @@ public:
   }
 
   bool cap_missing() const { return cap_missing_; }
-  bool active() const { return active_; }
-  int  mode() const { return mode_; }
+  bool     active() const { return active_; }
+  int      mode()   const { return mode_; }
+  uint32_t irq_pulses() const { return irq_pulses_; }
 
 private:
   void tune_() { if (radio_) radio_->set_frequency_hz(freq_hz_); }
@@ -144,12 +145,27 @@ private:
         sweep_hz_       = sweep_start_hz_;
         radio_->set_carrier(true);
         break;
-      case 3:  // Protocol-aware — placeholder, future preamble-IRQ hook
-      case 4:  // Reactive — same
+      case 3:  // Protocol-aware — register IRQ; carrier off until trigger
+      case 4:  // Reactive — same handler, fires on preamble detect
+        radio_->set_carrier(false);
+        radio_->on_packet_irq(&SubGhzJammerApp::irq_thunk_, this);
+        break;
       default:
         radio_->set_carrier(true);
         break;
     }
+  }
+
+  static void irq_thunk_(void* ctx) {
+    auto* self = static_cast<SubGhzJammerApp*>(ctx);
+    if (!self->active_ || !self->radio_) return;
+    // Pulse the carrier briefly when the IRQ fires — Protocol/Reactive
+    // modes are "fire only when target is heard", which is much stealthier
+    // than continuous CW. Pulse duration is conservative; tighter pulses
+    // need preamble-detect IRQ + GDO0 timing validation on hardware.
+    self->radio_->set_carrier(true);
+    ++self->irq_pulses_;
+    // Caller is responsible for clearing carrier on next tick.
   }
 
   ICc1101* radio_;
@@ -161,6 +177,7 @@ private:
   uint32_t sweep_start_hz_ = 433'420'000;
   uint32_t sweep_end_hz_   = 434'420'000;
   uint32_t sweep_hz_       = 433'920'000;
+  uint32_t irq_pulses_     = 0;
 };
 
 }  // namespace yui

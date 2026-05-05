@@ -5247,6 +5247,48 @@ void test_subghz_cr_no_radio_renders_cap_missing() {
                    yui::SubGhzCaptureReplayApp::TopMode::CapMissing);
 }
 
+// ───── H1 — preamble-detect IRQ + Jammer Protocol mode ────────────────
+
+#include "yui/app/SubGhzJammerApp.hpp"
+
+void test_subghz_jammer_protocol_mode_fires_on_irq() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzJammerApp app(&c);
+  app.on_enter(f.hal);
+  // Move to mode 3 (Protocol).
+  for (int i = 0; i < 3; ++i) {
+    yui::KeyEvent down{}; down.down = true; down.key = yui::Key::Down;
+    app.on_key(down);
+  }
+  TEST_ASSERT_EQUAL_INT(3, app.mode());
+  // Activate.
+  yui::KeyEvent enter{}; enter.down = true; enter.key = yui::Key::Enter;
+  app.on_key(enter);
+  TEST_ASSERT_TRUE(app.active());
+  TEST_ASSERT_EQUAL_UINT32(0, app.irq_pulses());
+  // Simulate a packet IRQ — pulse counter should increment + carrier on.
+  c.simulate_packet_irq();
+  TEST_ASSERT_EQUAL_UINT32(1, app.irq_pulses());
+  TEST_ASSERT_TRUE(c.carrier_on());
+  c.simulate_packet_irq();
+  TEST_ASSERT_EQUAL_UINT32(2, app.irq_pulses());
+}
+
+void test_subghz_jammer_irq_only_fires_when_active() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzJammerApp app(&c);
+  app.on_enter(f.hal);
+  // No mode change, no Enter — app is inactive.
+  TEST_ASSERT_FALSE(app.active());
+  // Reach into the test seam: registering a callback shouldn't have
+  // happened (Protocol mode setup never ran). simulate_packet_irq()
+  // is a no-op if no callback was registered.
+  c.simulate_packet_irq();
+  TEST_ASSERT_EQUAL_UINT32(0, app.irq_pulses());
+}
+
 void test_subghz_brute_idle_until_enter_then_emits_packets() {
   yui::NativeCc1101 c;
   yui::FakeClock clock;
@@ -5905,6 +5947,8 @@ int main(int, char**) {
   RUN_TEST(test_subghz_cr_freq_left_right_steps_100khz);
   RUN_TEST(test_subghz_cr_record_then_save_writes_file);
   RUN_TEST(test_subghz_cr_no_radio_renders_cap_missing);
+  RUN_TEST(test_subghz_jammer_protocol_mode_fires_on_irq);
+  RUN_TEST(test_subghz_jammer_irq_only_fires_when_active);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);

@@ -65,6 +65,16 @@ public:
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
 
+  void on_packet_irq(PacketIrqFn cb, void* ctx) override {
+    irq_cb_  = cb;
+    irq_ctx_ = ctx;
+  }
+  // Test seam: invoke whatever callback the app registered, as if a
+  // GDO0 IRQ had just fired.
+  void simulate_packet_irq() {
+    if (irq_cb_) irq_cb_(irq_ctx_);
+  }
+
   // ── Test scaffolding ────────────────────────────────────────────
   void set_present(bool p) { present_ = p; }
   void set_canned_rssi(int16_t db) { canned_rssi_ = db; }
@@ -87,6 +97,8 @@ private:
   std::vector<int32_t> last_edges_;
   uint64_t rx_total_ = 0, tx_total_ = 0;
   uint32_t tx_calls_ = 0;
+  PacketIrqFn irq_cb_  = nullptr;
+  void*       irq_ctx_ = nullptr;
   bool carrier_on_ = false;
 };
 

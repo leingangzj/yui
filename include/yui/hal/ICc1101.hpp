@@ -96,6 +96,15 @@ public:
     return transmit(buf, bytes);
   }
 
+  // ── Packet / preamble IRQ (H1) ──────────────────────────────────
+  // Register a callback fired when GDO0 IRQ asserts on a packet sync
+  // or preamble detect (CC1101 IOCFG0 modes). Used by SubGhzJammerApp
+  // Protocol/Reactive modes and (future) tighter RollJam timing.
+  // Default impl is a no-op: backends that don't expose the IRQ
+  // simply never fire the callback.
+  using PacketIrqFn = void(*)(void* ctx);
+  virtual void on_packet_irq(PacketIrqFn /*cb*/, void* /*ctx*/) {}
+
   // ── Telemetry ───────────────────────────────────────────────────
   // Bytes received / transmitted across this radio's lifetime. Tests
   // assert against these.
