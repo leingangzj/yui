@@ -6,6 +6,7 @@
 #include "hal/esp32/HydraSpiBus.hpp"
 
 #include <RadioLib.h>
+#include <esp_timer.h>
 
 namespace yui {
 
@@ -150,24 +151,42 @@ public:
     }
     // Walk the edges with absolute-deadline scheduling — each edge
     // ends at start + accumulated-µs, so cumulative jitter doesn't
-    // drift the way "delay then toggle" does.
-    const uint64_t t0 = static_cast<uint64_t>(::micros());
+    // drift the way "delay then toggle" does. Use esp_timer_get_time()
+    // directly (rather than Arduino's ::micros() wrapper) so the
+    // monotonic clock can't be perturbed by the Arduino loop tick.
+    const uint64_t t0 = static_cast<uint64_t>(esp_timer_get_time());
     uint64_t deadline = t0;
+    int32_t worst_jitter = 0;
     for (std::size_t i = 0; i < n; ++i) {
       const int32_t t = timings_us[i];
       const bool on = t > 0;
       const uint32_t dur = static_cast<uint32_t>(on ? t : -t);
       digitalWrite(pins::kCc1101Io0, on ? HIGH : LOW);
       deadline += dur;
-      // Spin until we hit the deadline. delayMicroseconds rounds
-      // down; this gives more accurate edges for small dt.
-      while (static_cast<uint64_t>(::micros()) < deadline) { /* spin */ }
+      // Tight spin for small dt; for >50µs use a coarse delay first
+      // so we don't peg the core entirely. Final tight loop hits the
+      // deadline within ~1µs.
+      const uint64_t now0 = static_cast<uint64_t>(esp_timer_get_time());
+      if (deadline > now0 + 50) {
+        delayMicroseconds(static_cast<uint32_t>(deadline - now0 - 20));
+      }
+      while (static_cast<uint64_t>(esp_timer_get_time()) < deadline) { /* spin */ }
+      const int32_t edge_jitter = static_cast<int32_t>(
+          static_cast<int64_t>(esp_timer_get_time()) - static_cast<int64_t>(deadline));
+      if (edge_jitter > worst_jitter) worst_jitter = edge_jitter;
     }
     digitalWrite(pins::kCc1101Io0, LOW);
     radio_.standby();
-    tx_total_ += n;
+    tx_total_     += n;
+    last_jitter_us_ = worst_jitter;
     return true;
   }
+
+  // G1 — observed worst-case per-edge slip in the most recent
+  // transmit_raw_edges call. Below ~10µs is "Flipper-perfect" for
+  // typical 433 MHz fixed-code remotes; above ~25µs starts to risk
+  // rolling-code timing windows.
+  int32_t last_raw_tx_jitter_us() const { return last_jitter_us_; }
 
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
@@ -181,6 +200,7 @@ private:
   CcModulation mod_ = CcModulation::Ook;
   uint32_t bps_ = 4800;
   uint64_t rx_total_ = 0, tx_total_ = 0;
+  int32_t  last_jitter_us_ = 0;
 };
 
 }  // namespace yui
