@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "current": "F1",
+  "queue": ["F1", "F2", "F3", "F4"],
+  "blocked": [
+    "BLOCKED-A",
+    "BLOCKED-B",
+    "BLOCKED-C",
+    "BLOCKED-D",
+    "BLOCKED-E",
+    "BLOCKED-F",
+    "BLOCKED-G",
+    "BLOCKED-H",
+    "BLOCKED-I"
+  ],
+  "completed": [],
+  "notes": "Final workflow. Software queue runs sequentially without operator input. Hardware-gated jobs are recorded as BLOCKED with explicit blockers — they cannot complete without the bench."
+}

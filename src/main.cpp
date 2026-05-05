@@ -29,6 +29,7 @@
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
 #include "yui/app/RogueApApp.hpp"
+#include "yui/app/RfChaosApp.hpp"
 #include "yui/app/DeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
@@ -174,6 +175,7 @@ yui::Nrf24JammerApp      nrf24_jammer_app{&nrf24_};
 yui::MousejackApp        mousejack_app{&nrf24_, clock_};
 yui::RollJamApp          rolljam_app{&cc1101_, clock_};
 yui::HydraStatusApp      hydra_status_app{&cc1101_, &nrf24_};
+yui::RfChaosApp          chaos_app{fs_, clock_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -287,6 +289,30 @@ void setup() {
   registry.add(&mousejack_app);
   registry.add(&rolljam_app);
   registry.add(&hydra_status_app);
+
+  // RfChaosApp targets — pulse each band's HAL once per fire. Real
+  // duty-cycle scheduling lives in RfChaosApp; these lambdas just
+  // hand-off to the lowest-cost path for "do something on this radio".
+  chaos_app.add_target({"ble_pulse", []{
+    static const uint8_t adv[] = {0x02, 0x01, 0x06};  // adv flags only
+    ble_adv_.set_payload(adv, sizeof(adv));
+    ble_adv_.enable();
+  }, 38});
+  chaos_app.add_target({"cc_carrier_toggle", []{
+    static bool on = false;
+    on = !on;
+    cc1101_.set_carrier(on);
+  }, 433});
+  chaos_app.add_target({"nrf_pulse", []{
+    static const uint8_t pkt[] = {0xAA};
+    nrf24_.transmit(pkt, sizeof(pkt));
+  }, 26});
+  chaos_app.add_target({"wmon_channel_hop", []{
+    static uint8_t ch = 1;
+    ch = (ch >= 13) ? 1 : (ch + 1);
+    wmon_.set_channel(ch);
+  }, 0});
+  registry.add(&chaos_app);
   registry.add(&remote_app);
   registry.add(&about_app);
 
