@@ -2897,6 +2897,81 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── C1 — BbLinkProbeApp ─────────────────────────────────────────────
+
+#include "yui/app/BbLinkProbeApp.hpp"
+
+namespace {
+
+yui::BleDevice make_ble_dev(const char* name, const char* addr) {
+  yui::BleDevice d{};
+  std::strncpy(d.name, name, sizeof(d.name) - 1);
+  std::strncpy(d.addr, addr, sizeof(d.addr) - 1);
+  d.rssi = -55;
+  return d;
+}
+
+}  // namespace
+
+void test_bblink_probe_pending_until_run() {
+  Fixture f;
+  FakeNet net;
+  yui::FakeBleCentral central;
+  yui::BbLinkProbeApp app{net, central};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.result_at(0) == yui::BbLinkProbeApp::Result::Pending);
+  TEST_ASSERT_FALSE(app.bridge_ready());
+}
+
+void test_bblink_probe_no_advertise_marks_scan_fail() {
+  Fixture f;
+  FakeNet net;
+  net.set_ble_results({});  // empty
+  net.simulate_ble_done();
+  yui::FakeBleCentral central;
+  yui::BbLinkProbeApp app{net, central};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  TEST_ASSERT_TRUE(app.result_at(0) == yui::BbLinkProbeApp::Result::Fail);
+  TEST_ASSERT_FALSE(app.bridge_ready());
+}
+
+void test_bblink_probe_full_path_passes_all_three() {
+  Fixture f;
+  FakeNet net;
+  net.set_ble_results({
+    make_ble_dev("OtherDev",  "00:00:00:00:00:01"),
+    make_ble_dev("B.B. Link", "AA:BB:CC:DD:EE:FF"),
+  });
+  net.simulate_ble_done();
+  yui::FakeBleCentral central;
+  central.register_service(
+    "AA:BB:CC:DD:EE:FF",
+    "6E400001-B5A3-F393-E0A9-E50E24DCCA9E",
+    {});
+  yui::BbLinkProbeApp app{net, central};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  TEST_ASSERT_TRUE(app.bridge_ready());
+}
+
+void test_bblink_probe_missing_nus_marks_gatt_fail() {
+  Fixture f;
+  FakeNet net;
+  net.set_ble_results({make_ble_dev("B.B. Link", "AA:BB:CC:DD:EE:FF")});
+  net.simulate_ble_done();
+  yui::FakeBleCentral central;
+  // Register a connection but no NUS service.
+  central.register_service("AA:BB:CC:DD:EE:FF",
+                           "0000180A-0000-1000-8000-00805F9B34FB", {});
+  yui::BbLinkProbeApp app{net, central};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  TEST_ASSERT_TRUE(app.result_at(0) == yui::BbLinkProbeApp::Result::Pass);
+  TEST_ASSERT_TRUE(app.result_at(1) == yui::BbLinkProbeApp::Result::Pass);
+  TEST_ASSERT_TRUE(app.result_at(2) == yui::BbLinkProbeApp::Result::Fail);
+}
+
 // ───── B2 — Boot self-test mode (NVS flag) ─────────────────────────────
 
 void test_settings_boot_selftest_default_off() {
@@ -5679,6 +5754,10 @@ int main(int, char**) {
   RUN_TEST(test_selftest_cap_absent_marks_skip_not_fail);
   RUN_TEST(test_settings_boot_selftest_default_off);
   RUN_TEST(test_settings_boot_selftest_toggle_persists);
+  RUN_TEST(test_bblink_probe_pending_until_run);
+  RUN_TEST(test_bblink_probe_no_advertise_marks_scan_fail);
+  RUN_TEST(test_bblink_probe_full_path_passes_all_three);
+  RUN_TEST(test_bblink_probe_missing_nus_marks_gatt_fail);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);

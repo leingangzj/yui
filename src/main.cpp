@@ -44,6 +44,7 @@
 #include "yui/app/RollJamApp.hpp"
 #include "yui/app/HydraStatusApp.hpp"
 #include "yui/app/SelfTestApp.hpp"
+#include "yui/app/BbLinkProbeApp.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -174,6 +175,7 @@ yui::RfChaosApp          chaos_app{fs_, clock_};
 yui::SelfTestApp         selftest_app{yui::SelfTestApp::Wiring{
   &net_, &ble_adv_, &ir_, &imu_, &mic_, &spk_, &fs_, &store_, &cc1101_, &nrf24_
 }};
+yui::BbLinkProbeApp      bblink_probe_app{net_, ble_cent_};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -304,6 +306,7 @@ void setup() {
   registry.add(&rolljam_app);
   registry.add(&hydra_status_app);
   registry.add(&selftest_app);
+  registry.add(&bblink_probe_app);
 
   // Phase 5.2.x — wire the nRF24-as-BLE rail into the BLE apps if the
   // Hydra cap is present. NativeBleAdvertiser stays as the NimBLE rail.
