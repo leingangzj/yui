@@ -5,7 +5,6 @@
 
 #include <M5Unified.h>
 #include "yui/config/pins.hpp"
-#include "yui/shell/Splash.hpp"
 #include "yui/shell/BootAnimation.hpp"
 #include "yui/shell/Shell.hpp"
 #include "yui/app/AppRegistry.hpp"
@@ -99,10 +98,10 @@ yui::Esp32RadioLink radio_;   // BT-Classic SPP to TH-D75 (stub until v0.2)
 yui::Esp32Gnss      gnss_;    // GPS feed via radio_ NMEA (stub until v0.2)
 yui::Esp32Http      http_;    // HTTPClient wrapper for Pineapple REST
 yui::Esp32Pcap      pcap_;    // libpcap writer to SD (stub until v0.2)
-yui::Esp32WifiMonitor wmon_;  // promiscuous-mode RX (stub until v0.2)
-yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (stub until v0.3)
-yui::Esp32WifiAp        wifi_ap_;  // SoftAP + captive portal (stub until v0.3)
-yui::Esp32BleCentral    ble_cent_; // BLE central (stub until v0.3)
+yui::Esp32WifiMonitor wmon_;  // promiscuous-mode RX
+yui::Esp32BleAdvertiser ble_adv_;  // BLE TX (NimBLE GAP advertise)
+yui::Esp32WifiAp        wifi_ap_;  // SoftAP + captive portal
+yui::Esp32BleCentral    ble_cent_; // BLE central (NimBLE BLEClient)
 yui::Esp32WebRemote     remote_;   // Browser viewer + key inbox
 
 // Pingequa Hydra RF Cap 424 — sub-GHz + 2.4 GHz radios. Both are
