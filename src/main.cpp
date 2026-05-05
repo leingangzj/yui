@@ -32,10 +32,9 @@
 #include "yui/app/HandshakeBrowserApp.hpp"
 #include "yui/app/EvilTwinApp.hpp"
 #include "yui/app/KarmaApp.hpp"
-#include "yui/app/WifiDeauthApp.hpp"
+#include "yui/app/DeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
-#include "yui/app/WifiNativeDeauthApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
 #include "yui/app/BleGattApp.hpp"
 #include "yui/app/BleJammerApp.hpp"
@@ -165,10 +164,9 @@ yui::AprsMessageApp      aprs_msg_app{radio_, store_};
 yui::HandshakeBrowserApp pa_handshakes_app{http_, store_};
 yui::EvilTwinApp         evil_twin_app{http_, store_};
 yui::KarmaApp            karma_app{http_, store_};
-yui::WifiDeauthApp       deauth_app{http_, store_};
+yui::DeauthApp           deauth_app{http_, store_, wmon_};
 yui::BleSpamApp          ble_spam_app{ble_adv_};
 yui::WifiBeaconFloodApp  beacon_flood_app{wmon_};
-yui::WifiNativeDeauthApp native_deauth_app{wmon_};
 yui::WpsScanApp          wps_scan_app{wmon_};
 yui::BleGattApp          ble_gatt_app{ble_cent_};
 yui::BleJammerApp        ble_jammer_app{ble_adv_};
@@ -278,7 +276,6 @@ void setup() {
   registry.add(&evil_twin_app);
   registry.add(&karma_app);
   registry.add(&deauth_app);
-  registry.add(&native_deauth_app);
   registry.add(&beacon_flood_app);
   registry.add(&wps_scan_app);
   registry.add(&captive_app);

@@ -58,11 +58,10 @@
 #include "yui/app/HandshakeBrowserApp.hpp"
 #include "yui/app/EvilTwinApp.hpp"
 #include "yui/app/KarmaApp.hpp"
-#include "yui/app/WifiDeauthApp.hpp"
+#include "yui/app/DeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
-#include "yui/app/WifiNativeDeauthApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
 #include "yui/app/BleGattApp.hpp"
 #include "yui/app/BleJammerApp.hpp"
@@ -3584,19 +3583,21 @@ void test_karma_fn_enter_enables() {
   TEST_ASSERT_TRUE(app.enabled());
 }
 
-// WifiDeauthApp
+// DeauthApp — Pineapple backend
 
 void test_deauth_armed_required_to_fire() {
   Fixture f;
   FakeHttp h;
   FakeStorage st;
+  FakeWifiMonitor mon;
   seed_pineapple_creds(st);
   register_login_ok(h);
   h.register_response("POST", "http://pa.local:1471/api/pineap/deauth/ap",
                       200, "{\"success\":true}");
-  WifiDeauthApp app{h, st};
+  DeauthApp app{h, st, mon};
+  TEST_ASSERT_TRUE(app.backend() == DeauthApp::Backend::Pineapple);
   app.on_enter(f.hal);
-  app.set_target("AA:BB:CC:DD:EE:FF", 6);
+  app.set_target("AA:BB:CC:DD:EE:FF", uint8_t{6});
   app.on_key(press_fn(Key::Enter));   // not armed → no fire
   TEST_ASSERT_FALSE(app.fired());
   app.on_key(press(Key::Tab));        // arm
@@ -3604,6 +3605,21 @@ void test_deauth_armed_required_to_fire() {
   app.on_key(press_fn(Key::Enter));   // fire
   TEST_ASSERT_TRUE(app.fired());
   TEST_ASSERT_TRUE(app.last_ok());
+}
+
+void test_deauth_b_key_toggles_backend() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  FakeWifiMonitor mon;
+  DeauthApp app{h, st, mon};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.backend() == DeauthApp::Backend::Pineapple);
+  KeyEvent kb{}; kb.key = Key::Char; kb.ch = 'b'; kb.down = true;
+  app.on_key(kb);
+  TEST_ASSERT_TRUE(app.backend() == DeauthApp::Backend::Native);
+  app.on_key(kb);
+  TEST_ASSERT_TRUE(app.backend() == DeauthApp::Backend::Pineapple);
 }
 
 // BleSpamApp
@@ -3703,12 +3719,15 @@ void test_beacon_flood_up_down_change_channel() {
   TEST_ASSERT_EQUAL_UINT8(5, app.channel());
 }
 
-// WifiNativeDeauthApp
+// DeauthApp — Native backend
 
 void test_native_deauth_disarmed_by_default() {
   Fixture f;
+  FakeHttp h;
+  FakeStorage st;
   FakeWifiMonitor mon;
-  WifiNativeDeauthApp app{mon};
+  DeauthApp app{h, st, mon};
+  app.set_backend(DeauthApp::Backend::Native);
   app.on_enter(f.hal);
   app.set_target("AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66");
   app.on_key(press_fn(Key::Enter));   // Fn+Enter without Tab → no fire
@@ -3719,8 +3738,11 @@ void test_native_deauth_disarmed_by_default() {
 
 void test_native_deauth_arm_and_fire_emits_frames() {
   Fixture f;
+  FakeHttp h;
+  FakeStorage st;
   FakeWifiMonitor mon;
-  WifiNativeDeauthApp app{mon};
+  DeauthApp app{h, st, mon};
+  app.set_backend(DeauthApp::Backend::Native);
   app.on_enter(f.hal);
   app.set_target("AA:BB:CC:DD:EE:FF", "FF:FF:FF:FF:FF:FF");
   app.on_key(press(Key::Tab));        // arm
@@ -3740,8 +3762,11 @@ void test_native_deauth_arm_and_fire_emits_frames() {
 
 void test_native_deauth_invalid_mac_aborts_fire() {
   Fixture f;
+  FakeHttp h;
+  FakeStorage st;
   FakeWifiMonitor mon;
-  WifiNativeDeauthApp app{mon};
+  DeauthApp app{h, st, mon};
+  app.set_backend(DeauthApp::Backend::Native);
   app.on_enter(f.hal);
   app.set_target("not-a-mac", "FF:FF:FF:FF:FF:FF");
   app.on_key(press(Key::Tab));
@@ -5466,6 +5491,7 @@ int main(int, char**) {
   RUN_TEST(test_evil_twin_plain_enter_does_nothing);
   RUN_TEST(test_karma_fn_enter_enables);
   RUN_TEST(test_deauth_armed_required_to_fire);
+  RUN_TEST(test_deauth_b_key_toggles_backend);
   // v0.2 stretch — Track C
   RUN_TEST(test_ble_spam_off_by_default);
   RUN_TEST(test_ble_spam_fn_enter_toggles_and_advertises);
