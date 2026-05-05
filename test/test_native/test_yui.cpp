@@ -2898,6 +2898,9 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── A5 — SubGhzCaptureReplayApp tests live after RfHalFixture ──────
+// (search for "A5 — SubGhzCaptureReplayApp coverage")
+
 // ───── F1 — nRF24 RPD-bit promiscuous mode ─────────────────────────────
 
 void test_nrf24_promiscuous_acks_by_default() {
@@ -5191,6 +5194,59 @@ void test_subghz_cr_capture_appears_in_saved_listing() {
   TEST_ASSERT_EQUAL_INT(1, app.file_count());
 }
 
+// ───── A5 — SubGhzCaptureReplayApp coverage ────────────────────────────
+
+void test_subghz_cr_freq_left_right_steps_100khz() {
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  yui::FakeClock clock;
+  fs.mkdir("/sub");
+  RfHalFixture f;
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
+  app.on_enter(f.hal);
+  const uint32_t initial = app.frequency_hz();
+  yui::KeyEvent r{}; r.down = true; r.key = yui::Key::Right;
+  app.on_key(r);
+  TEST_ASSERT_EQUAL_UINT32(initial + 100'000, app.frequency_hz());
+  yui::KeyEvent l{}; l.down = true; l.key = yui::Key::Left;
+  app.on_key(l);
+  TEST_ASSERT_EQUAL_UINT32(initial, app.frequency_hz());
+}
+
+void test_subghz_cr_record_then_save_writes_file() {
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  yui::FakeClock clock;
+  fs.mkdir("/sub");
+  RfHalFixture f;
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
+  app.on_enter(f.hal);
+  c.enqueue_rx({0xAB, 0xCD});
+  yui::KeyEvent enter{}; enter.down = true; enter.key = yui::Key::Enter;
+  app.on_key(enter);  // start recording
+  TEST_ASSERT_TRUE(app.capture_mode() ==
+                   yui::SubGhzCaptureReplayApp::CaptureMode::Recording);
+  app.tick(100);
+  TEST_ASSERT_TRUE(app.edge_count() > 0);
+  app.on_key(enter);  // stop + save
+  TEST_ASSERT_TRUE(app.capture_mode() ==
+                   yui::SubGhzCaptureReplayApp::CaptureMode::Idle);
+  TEST_ASSERT_TRUE(app.last_saved_path()[0] != '\0');
+  TEST_ASSERT_TRUE(fs.exists(app.last_saved_path()));
+}
+
+void test_subghz_cr_no_radio_renders_cap_missing() {
+  yui::NativeCc1101 c;
+  c.set_present(false);
+  yui::FakeFs fs;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.top_mode() ==
+                   yui::SubGhzCaptureReplayApp::TopMode::CapMissing);
+}
+
 void test_subghz_brute_idle_until_enter_then_emits_packets() {
   yui::NativeCc1101 c;
   yui::FakeClock clock;
@@ -5846,6 +5902,9 @@ int main(int, char**) {
   RUN_TEST(test_nrf24_promiscuous_acks_by_default);
   RUN_TEST(test_nrf24_promiscuous_fail_propagates);
   RUN_TEST(test_nrf24_promiscuous_disable_resets_state);
+  RUN_TEST(test_subghz_cr_freq_left_right_steps_100khz);
+  RUN_TEST(test_subghz_cr_record_then_save_writes_file);
+  RUN_TEST(test_subghz_cr_no_radio_renders_cap_missing);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);
