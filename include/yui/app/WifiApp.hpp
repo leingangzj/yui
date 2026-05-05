@@ -250,8 +250,8 @@ private:
       char rssi_str[8];
       std::snprintf(rssi_str, sizeof(rssi_str), "%d", ap.rssi);
       const char* lock = ap.secured ? "*" : " ";
-      char line[40];
-      std::snprintf(line, sizeof(line), "%s%-20s %s", lock, ap.ssid, rssi_str);
+      char line[64];
+      std::snprintf(line, sizeof(line), "%s%-20.20s %s", lock, ap.ssid, rssi_str);
       d.draw_text(4, y + 2, line, fg, bg);
     }
   }

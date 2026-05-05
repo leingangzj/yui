@@ -286,10 +286,11 @@ private:
       const Color c = (i == peak_ch) ? ui::kWarn : ui::kAccent;
       d.fill_rect({x, base_y - hh, bw > 0 ? bw : 1, hh}, c);
     }
-    char line[40];
+    char line[48];
     std::snprintf(line, sizeof(line),
                   "peak ch %d  %d MHz  hits=%u",
-                  peak_ch, 2400 + peak_ch, peak_v);
+                  peak_ch, 2400 + peak_ch,
+                  static_cast<unsigned>(peak_v));
     d.draw_text_styled(ui::kBodyPadX, base_y + 2, line,
                        ui::kHint, ui::kSurface, FontStyle::Caption);
   }

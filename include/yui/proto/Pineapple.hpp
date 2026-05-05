@@ -53,8 +53,8 @@ public:
     std::strncpy(pass_, pass, sizeof(pass_) - 1);
     pass_[sizeof(pass_) - 1] = '\0';
 
-    char url[80];
-    std::snprintf(url, sizeof(url), "http://%s:%u/api/login", host_,
+    char url[128];
+    std::snprintf(url, sizeof(url), "http://%.63s:%u/api/login", host_,
                   static_cast<unsigned>(port_));
     char body[160];
     std::snprintf(body, sizeof(body),

@@ -64,9 +64,9 @@ public:
     d.clear(ui::kSurface);
     char title[40];
     if (mode_ == Mode::View) {
-      std::snprintf(title, sizeof(title), "View %s", view_path_);
+      std::snprintf(title, sizeof(title), "View %.34s", view_path_);
     } else {
-      std::snprintf(title, sizeof(title), "Files %s", cwd_);
+      std::snprintf(title, sizeof(title), "Files %.33s", cwd_);
     }
     ui::Chrome::header(d, title);
 
@@ -146,14 +146,17 @@ private:
     const size_t name_len = std::strlen(e.name);
     const size_t need     = cwd_len + 1 + name_len + 1;  // sep + nul
     if (need > sizeof(cwd_)) return;  // path too long, ignore
+    // Use snprintf instead of strncat to avoid -Wrestrict overlap
+    // warnings — strncat's source/dest can alias when both point at
+    // the same buffer slot.
+    char joined[sizeof(cwd_) + 64];   // headroom for separator + child name
     if (at_root_()) {
-      cwd_[1] = '\0';
-      std::strncat(cwd_, e.name, sizeof(cwd_) - 2);
+      std::snprintf(joined, sizeof(joined), "/%s", e.name);
     } else {
-      cwd_[cwd_len]     = '/';
-      cwd_[cwd_len + 1] = '\0';
-      std::strncat(cwd_, e.name, sizeof(cwd_) - cwd_len - 2);
+      std::snprintf(joined, sizeof(joined), "%s/%s", cwd_, e.name);
     }
+    std::strncpy(cwd_, joined, sizeof(cwd_) - 1);
+    cwd_[sizeof(cwd_) - 1] = '\0';
     refresh_();
     menu_.set_cursor(0);
   }

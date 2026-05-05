@@ -122,9 +122,15 @@ private:
     if (!store_.get_str("tx.call", buf, sizeof(buf)) || buf[0] == 0) return false;
     int32_t ssid = 0;
     store_.get_int("tx.ssid", ssid, 0);
-    if (ssid > 0) std::snprintf(call_, sizeof(call_), "%s-%d",
-                                buf, static_cast<int>(ssid));
-    else          std::snprintf(call_, sizeof(call_), "%s", buf);
+    // SSIDs are 0-15 per APRS spec; cap to two digits to keep snprintf
+    // happy. Also clamp the base callsign to 9 chars (call_ is 12 chars
+    // total, leaving room for "-NN\0").
+    // SSIDs are 0-15 per APRS spec; clamp + render as a single hex char.
+    const int ssid_clamped = (ssid < 0) ? 0 : (ssid > 15 ? 15 : ssid);
+    if (ssid_clamped > 0)
+      std::snprintf(call_, sizeof(call_), "%.8s-%X", buf, ssid_clamped);
+    else
+      std::snprintf(call_, sizeof(call_), "%.11s", buf);
     return true;
   }
 

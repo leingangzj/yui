@@ -136,12 +136,12 @@ private:
   void upsert_station_(const ax25::Address& src,
                        const aprs::Position& pos,
                        uint32_t now_ms) {
-    char key[10] = {0};
+    char key[12] = {0};
     if (src.ssid > 0) {
-      std::snprintf(key, sizeof(key), "%s-%u", src.call,
-                    static_cast<unsigned>(src.ssid));
+      std::snprintf(key, sizeof(key), "%.6s-%u", src.call,
+                    static_cast<unsigned>(src.ssid) & 0x0F);
     } else {
-      std::snprintf(key, sizeof(key), "%s", src.call);
+      std::snprintf(key, sizeof(key), "%.10s", src.call);
     }
     // Find existing entry
     for (size_t i = 0; i < station_count_; ++i) {
