@@ -97,19 +97,24 @@ public:
 
     char line[40];
     std::snprintf(line, sizeof(line), "State: %s",
-                  enabled_ ? "FLOODING" : "idle");
-    d.draw_text(8, 22, line, enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface);
+                  enabled_ ? "Flooding" : "idle");
+    d.draw_text_styled(8, 22, line,
+                       enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface,
+                       FontStyle::Body);
     std::snprintf(line, sizeof(line), "Channel: %u   SSIDs: %u",
                   static_cast<unsigned>(channel_),
                   static_cast<unsigned>(ssid_count_));
-    d.draw_text(8, 38, line, ui::kOnSurface, ui::kSurface);
+    d.draw_text_styled(8, 38, line, ui::kOnSurface, ui::kSurface,
+                       FontStyle::Body);
     std::snprintf(line, sizeof(line), "Sent: %u", static_cast<unsigned>(tx_total_));
-    d.draw_text(8, 54, line, ui::kOnSurface, ui::kSurface);
+    d.draw_text_styled(8, 54, line, ui::kOnSurface, ui::kSurface,
+                       FontStyle::Body);
     if (ssid_count_ > 0) {
       std::snprintf(line, sizeof(line), "Now: %.20s", ssids_[idx_]);
-      d.draw_text(8, 70, line, ui::kAccent, ui::kSurface);
+      d.draw_text_styled(8, 70, line, ui::kAccent, ui::kSurface,
+                         FontStyle::Body);
     }
-    ui::Chrome::footer(d, "Tab:toggle Up/Dn:ch");
+    ui::Chrome::footer(d, "Tab:toggle ^/v:ch Esc:back");
     d.flush();
   }
 

@@ -135,16 +135,23 @@ public:
     char line[40];
     std::snprintf(line, sizeof(line), "State: %s",
                   enabled_ ? "ON" : "off");
-    d.draw_text(8, 24, line, enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface);
+    d.draw_text_styled(8, 24, line,
+                       enabled_ ? ui::kWarn : ui::kOnSurface, ui::kSurface,
+                       FontStyle::Body);
 
     size_t n = 0;
     const PayloadInfo* list = payloads(n);
     std::snprintf(line, sizeof(line), "Now:   %s",
                   enabled_ ? list[cycle_idx_].label : "—");
-    d.draw_text(8, 44, line, ui::kOnSurface, ui::kSurface);
+    d.draw_text_styled(8, 44, line, ui::kOnSurface, ui::kSurface,
+                       FontStyle::Body);
 
-    d.draw_text(8, 64, "Fn+Enter: toggle", ui::kAccent,     ui::kSurface);
-    ui::Chrome::footer(d, "Use only in your own space");
+    std::snprintf(line, sizeof(line), "Rail:  %s",
+                  rail_ == Rail::Both   ? "Both"
+                : rail_ == Rail::Nimble ? "NimBLE"
+                                        : "nRF24");
+    d.draw_text_styled(8, 60, line, ui::kHint, ui::kSurface, FontStyle::Caption);
+    ui::Chrome::footer(d, "Tab:rail Fn+Enter:toggle Esc:back");
     d.flush();
   }
 

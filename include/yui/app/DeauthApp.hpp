@@ -116,36 +116,46 @@ class DeauthApp : public App {
     int y = 22;
     std::snprintf(line, sizeof(line), "Backend: %s",
                   backend_ == Backend::Pineapple ? "Pineapple" : "Native");
-    d.draw_text(8, y, line, ui::kAccent, ui::kSurface); y += 13;
+    d.draw_text_styled(8, y, line, ui::kAccent, ui::kSurface,
+                       FontStyle::Body); y += 13;
     std::snprintf(line, sizeof(line), "Tgt:  %s", bssid_str_);
-    d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
+    d.draw_text_styled(8, y, line, ui::kOnSurface, ui::kSurface,
+                       FontStyle::Body); y += 13;
     if (backend_ == Backend::Native) {
       std::snprintf(line, sizeof(line), "Sta:  %s", client_str_);
-      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
+      d.draw_text_styled(8, y, line, ui::kOnSurface, ui::kSurface,
+                         FontStyle::Body); y += 13;
       std::snprintf(line, sizeof(line), "Ch: %u   Sent: %u",
                     static_cast<unsigned>(channel_),
                     static_cast<unsigned>(tx_total_));
-      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
+      d.draw_text_styled(8, y, line, ui::kOnSurface, ui::kSurface,
+                         FontStyle::Body); y += 13;
       std::snprintf(line, sizeof(line), "Armed:%s  Firing:%s",
                     armed_ ? "Y" : "n", firing_ ? "YES" : "no");
-      d.draw_text(8, y, line, firing_ ? ui::kWarn : ui::kAccentDark,
-                  ui::kSurface);
+      d.draw_text_styled(8, y, line,
+                         firing_ ? ui::kWarn : ui::kAccentDark,
+                         ui::kSurface, FontStyle::Body);
       y += 13;
       if (last_failure_)
-        d.draw_text(8, y, "TX failed (libnet?)", ui::kWarn, ui::kSurface);
+        d.draw_text_styled(8, y, "TX failed (libnet?)", ui::kWarn,
+                           ui::kSurface, FontStyle::Caption);
     } else {
       std::snprintf(line, sizeof(line), "Channel: %u",
                     static_cast<unsigned>(channel_));
-      d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface); y += 13;
+      d.draw_text_styled(8, y, line, ui::kOnSurface, ui::kSurface,
+                         FontStyle::Body); y += 13;
       std::snprintf(line, sizeof(line), "Armed: %s", armed_ ? "YES" : "no");
-      d.draw_text(8, y, line, armed_ ? ui::kWarn : ui::kAccentDark,
-                  ui::kSurface);
+      d.draw_text_styled(8, y, line,
+                         armed_ ? ui::kWarn : ui::kAccentDark,
+                         ui::kSurface, FontStyle::Body);
       y += 13;
       if (fired_)
-        d.draw_text(8, y, last_ok_ ? "Last fire: ok" : "Last fire: FAIL",
-                    last_ok_ ? ui::kAccent : ui::kWarn, ui::kSurface);
+        d.draw_text_styled(8, y,
+                           last_ok_ ? "Last fire: ok" : "Last fire: FAIL",
+                           last_ok_ ? ui::kAccent : ui::kWarn,
+                           ui::kSurface, FontStyle::Caption);
     }
-    ui::Chrome::footer(d, "b:backend Tab:arm Fn+Enter:fire OWN NET ONLY");
+    ui::Chrome::footer(d, "b:backend Tab:arm Fn+Enter:fire");
     d.flush();
   }
 
