@@ -261,26 +261,28 @@ private:
                          FontStyle::Caption);
       return;
     }
-    // Window the list to fit ~4-5 visible Body-sized rows below the
+    // Window the list to fit ~4 visible icon-sized rows below the
     // header (240×135 leaves ~107 px below the header for body content).
+    // Each row is a 24×24 icon + name. Icon falls back to category icon
+    // if the app doesn't override App::icon().
     const std::size_t cur    = app_menu_.cursor();
-    const std::size_t window = 4;
+    const std::size_t window = 3;
     const std::size_t start  = (cur >= window) ? (cur - window + 1) : 0;
+    const auto& cat_ic = category_icon_(c);
     for (std::size_t i = start; i < n && i < start + window; ++i) {
       App* a = nth_in_(c, i);
-      const int y    = body_y + static_cast<int>(i - start) * kRowH;
       const bool sel = (i == cur);
-      const Color bg = sel ? ui::kAccent : ui::kSurface;
-      const Color fg = sel ? ui::kOnAccent : ui::kOnSurface;
-      if (sel) d.fill_rect({0, y - 2, d.width(), kRowH}, bg);
+      const int row  = static_cast<int>(i - start);
       const char* label = a ? a->name() : "(null)";
-      const int label_y = y + (kRowH - d.line_height(FontStyle::Body)) / 2;
-      d.draw_text_styled(kRowPadX, label_y, label, fg, bg, FontStyle::Body);
+      const assets::IconRef* app_ic = a ? a->icon() : nullptr;
+      const assets::IconRef& ic = app_ic ? *app_ic : cat_ic;
+      ui::Chrome::list_row(d, row, label, sel, ic.data, ic.len);
     }
 
     // Right-edge scrollbar when the list overflows the window.
     if (n > window) {
-      ui::Chrome::scrollbar(d, body_y, kRowH * static_cast<int>(window),
+      ui::Chrome::scrollbar(d, body_y,
+                            ui::kListRowH * static_cast<int>(window),
                             static_cast<int>(n),
                             static_cast<int>(window),
                             static_cast<int>(start));

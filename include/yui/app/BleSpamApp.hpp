@@ -77,6 +77,7 @@ public:
 
   const char* name() const override { return "BLE Spam"; }
   Category    category() const override { return Category::Bluetooth; }
+  const assets::IconRef* icon() const override { return &assets::icons::kSpoof(); }
 
   void on_enter(Hal& hal) override {
     hal_           = &hal;

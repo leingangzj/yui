@@ -22,6 +22,7 @@ public:
   HydraStatusApp(ICc1101* cc, INrf24* nrf) : cc_(cc), nrf_(nrf) {}
   const char* name() const override { return "Hydra Status"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInfo(); }
 
   void on_enter(Hal& /*hal*/) override {
     cc_present_  = cc_  && cc_->is_present();

@@ -26,6 +26,7 @@ public:
 
   explicit FilesApp(IFs& fs) : fs_(fs), menu_(0) {}
   const char* name() const override { return "Files"; }
+  const assets::IconRef* icon() const override { return &assets::icons::kFiles(); }
 
   void on_enter(Hal& /*hal*/) override {
     fs_.init();

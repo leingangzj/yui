@@ -63,6 +63,7 @@ class SelfTestApp : public App {
 
   const char* name() const override { return "Self-Test"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInfo(); }
 
   void on_enter(Hal& hal) override {
     hal_     = &hal;

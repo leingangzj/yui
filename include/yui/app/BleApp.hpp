@@ -18,6 +18,7 @@ public:
 
   const char* name() const override { return "BLE"; }
   Category    category() const override { return Category::Bluetooth; }
+  const assets::IconRef* icon() const override { return &assets::icons::kScan(); }
 
   void on_enter(Hal& hal) override {
     hal_   = &hal;

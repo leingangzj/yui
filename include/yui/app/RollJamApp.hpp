@@ -45,6 +45,7 @@ public:
   RollJamApp(ICc1101* radio, IClock& clock) : radio_(radio), clock_(clock) {}
   const char* name() const override { return "RollJam"; }
   Category    category() const override { return Category::Radio; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInject(); }
 
   void on_enter(Hal& /*hal*/) override {
     stage_ = (radio_ && radio_->is_present()) ? Stage::Idle : Stage::CapMissing;

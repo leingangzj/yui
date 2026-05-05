@@ -39,6 +39,7 @@ class RfChaosApp : public App {
 
   const char* name() const override { return "RF Chaos"; }
   Category    category() const override { return Category::Radio; }
+  const assets::IconRef* icon() const override { return &assets::icons::kJam(); }
 
   // Wire targets at startup. Call before on_enter or any time the
   // composition changes.

@@ -44,6 +44,7 @@ class BbLinkProbeApp : public App {
 
   const char* name() const override { return "bb-link Probe"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInfo(); }
 
   void on_enter(Hal& hal) override {
     hal_     = &hal;

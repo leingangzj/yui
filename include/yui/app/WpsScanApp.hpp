@@ -35,6 +35,7 @@ public:
 
   const char* name() const override { return "WPS Scan"; }
   Category    category() const override { return Category::WiFi; }
+  const assets::IconRef* icon() const override { return &assets::icons::kScan(); }
 
   void on_enter(Hal& hal) override {
     hal_         = &hal;

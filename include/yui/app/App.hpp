@@ -1,6 +1,7 @@
 #pragma once
 #include "yui/hal/Hal.hpp"
 #include "yui/hal/IKeyboard.hpp"
+#include "yui/assets/icons.hpp"
 
 namespace yui {
 
@@ -38,6 +39,11 @@ public:
 
   // Default bucket is Tools — apps that aren't a clear fit live here.
   virtual Category category() const { return Category::Tools; }
+
+  // Optional 24x24 PNG shown next to the app name in the launcher's
+  // app-list view. Default returns nullptr so the launcher falls back
+  // to the category icon. Override to give an app its own glyph.
+  virtual const assets::IconRef* icon() const { return nullptr; }
 
   virtual void on_enter(Hal& /*hal*/) {}
   virtual void on_key(KeyEvent /*k*/) {}

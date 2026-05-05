@@ -45,6 +45,7 @@ class DeauthApp : public App {
 
   const char* name() const override { return "Deauth"; }
   Category    category() const override { return Category::WiFi; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInject(); }
 
   void on_enter(Hal& hal) override {
     hal_           = &hal;

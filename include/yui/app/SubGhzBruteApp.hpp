@@ -27,6 +27,7 @@ public:
     : radio_(radio), clock_(clock) {}
   const char* name() const override { return "Sub-GHz Brute"; }
   Category    category() const override { return Category::Radio; }
+  const assets::IconRef* icon() const override { return &assets::icons::kBrute(); }
 
   void on_enter(Hal& /*hal*/) override {
     mode_ = (radio_ && radio_->is_present()) ? Mode::Idle : Mode::CapMissing;

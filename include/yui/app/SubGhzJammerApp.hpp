@@ -27,6 +27,7 @@ public:
   explicit SubGhzJammerApp(ICc1101* radio) : radio_(radio) {}
   const char* name() const override { return "Sub-GHz Jam"; }
   Category    category() const override { return Category::Radio; }
+  const assets::IconRef* icon() const override { return &assets::icons::kJam(); }
 
   void on_enter(Hal& /*hal*/) override {
     cap_missing_ = (!radio_ || !radio_->is_present());

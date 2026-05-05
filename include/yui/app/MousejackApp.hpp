@@ -53,6 +53,7 @@ public:
 
   const char* name() const override { return "Mousejack"; }
   Category    category() const override { return Category::Bluetooth; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInject(); }
 
   void on_enter(Hal& /*hal*/) override {
     if (!radio_ || !radio_->is_present()) { mode_ = Mode::CapMissing; return; }

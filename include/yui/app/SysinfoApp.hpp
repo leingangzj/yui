@@ -17,6 +17,7 @@ public:
   explicit SysinfoApp(SysProbe probe) : probe_(std::move(probe)) {}
   const char* name() const override { return "Sysinfo"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInfo(); }
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);

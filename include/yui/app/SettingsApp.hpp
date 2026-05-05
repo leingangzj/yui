@@ -36,6 +36,7 @@ public:
   explicit SettingsApp(IStorage& store) : store_(store) {}
   const char* name() const override { return "Settings"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kSettings(); }
 
   void on_enter(Hal& /*hal*/) override {
     store_.init();

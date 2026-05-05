@@ -12,6 +12,7 @@ public:
 
   const char* name() const override { return "About"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInfo(); }
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);

@@ -38,6 +38,7 @@ class SubGhzCaptureReplayApp : public App {
 
   const char* name() const override { return "Sub-GHz Capt/Replay"; }
   Category    category() const override { return Category::Radio; }
+  const assets::IconRef* icon() const override { return &assets::icons::kCapture(); }
 
   void on_enter(Hal& /*hal*/) override {
     if (!radio_ || !radio_->is_present()) { top_ = TopMode::CapMissing; return; }

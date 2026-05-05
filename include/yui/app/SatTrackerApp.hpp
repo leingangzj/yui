@@ -52,6 +52,7 @@ public:
 
   const char* name() const override { return "SatTracker"; }
   Category    category() const override { return Category::Radio; }
+  const assets::IconRef* icon() const override { return &assets::icons::kMascot(); }
 
   void on_enter(Hal& hal) override {
     hal_     = &hal;

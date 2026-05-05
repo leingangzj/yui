@@ -30,6 +30,7 @@ class IrRemoteApp : public App {
 public:
   explicit IrRemoteApp(IIr& ir) : ir_(ir) {}
   const char* name() const override { return "IR Remote"; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInject(); }
 
   void on_enter(Hal& /*hal*/) override {
     ir_.init();

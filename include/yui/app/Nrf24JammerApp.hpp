@@ -27,6 +27,7 @@ public:
   explicit Nrf24JammerApp(INrf24* radio) : radio_(radio) {}
   const char* name() const override { return "NRF24 Jam"; }
   Category    category() const override { return Category::Bluetooth; }
+  const assets::IconRef* icon() const override { return &assets::icons::kJam(); }
 
   void on_enter(Hal& /*hal*/) override {
     cap_missing_ = (!radio_ || !radio_->is_present());

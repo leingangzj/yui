@@ -42,6 +42,7 @@ class RogueApApp : public App {
 
   const char* name() const override { return "Rogue AP"; }
   Category    category() const override { return Category::WiFi; }
+  const assets::IconRef* icon() const override { return &assets::icons::kSpoof(); }
 
   void on_enter(Hal& hal) override {
     hal_ = &hal;

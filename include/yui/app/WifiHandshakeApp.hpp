@@ -37,6 +37,7 @@ public:
 
   const char* name() const override { return "Handshake"; }
   Category    category() const override { return Category::WiFi; }
+  const assets::IconRef* icon() const override { return &assets::icons::kCapture(); }
 
   void on_enter(Hal& hal) override {
     hal_     = &hal;

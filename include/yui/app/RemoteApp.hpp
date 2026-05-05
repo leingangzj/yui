@@ -28,6 +28,7 @@ public:
 
   const char* name() const override { return "Remote VNC"; }
   Category    category() const override { return Category::System; }
+  const assets::IconRef* icon() const override { return &assets::icons::kInfo(); }
 
   void on_enter(Hal& /*hal*/) override {
     if (store_) store_->get_int(kStorageKeyDevRemote, persist_, 0);
