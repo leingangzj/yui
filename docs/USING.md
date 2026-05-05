@@ -49,13 +49,19 @@ Status strip at the top shows: Hydra cap state (`H+` / `H~` / `H-`), `LAB` badge
 
 ## Bluetooth
 
-| App           | What it does                                                                                                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **BLE**       | Passive scan of nearby BLE devices.                                                                                                                                                         |
-| **BLE Spam**  | Cycles three known nuisance payloads (Apple iBeacon, Samsung Easy Setup, Google Fast Pair). Tab cycles rail (NimBLE / nRF24 / Both — Both only available with Hydra cap), Fn+Enter toggles. |
-| **BLE Jam**   | Rapid empty-payload BLE adv (~100/s). Same Tab-rail picker as BLE Spam. 30s auto-shutoff failsafe.                                                                                          |
-| **GATT**      | Connect to a BLE device by MAC. Walks services, drills into characteristics. Shows UUIDs + properties.                                                                                      |
-| **IR Remote** | Universal IR blast.                                                                                                                                                                         |
+| App          | What it does                                                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BLE**      | Passive scan of nearby BLE devices.                                                                                                                                                         |
+| **BLE Spam** | Cycles three known nuisance payloads (Apple iBeacon, Samsung Easy Setup, Google Fast Pair). Tab cycles rail (NimBLE / nRF24 / Both — Both only available with Hydra cap), Fn+Enter toggles. |
+| **BLE Jam**  | Rapid empty-payload BLE adv (~100/s). Same Tab-rail picker as BLE Spam. 30s auto-shutoff failsafe.                                                                                          |
+| **GATT**     | Connect to a BLE device by MAC. Walks services, drills into characteristics. Shows UUIDs + properties.                                                                                      |
+
+## Tools
+
+| App           | What it does                                                                                                |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| **IR Remote** | NEC TV power-blast over the onboard IR LED. Cycles a built-in code table (Samsung / LG / Sony / Panasonic). |
+| **Files**     | microSD browser. Enter on a file shows its content; Tab toggles hex view.                                   |
 
 ## System
 
@@ -64,7 +70,6 @@ Status strip at the top shows: Hydra cap state (`H+` / `H~` / `H-`), `LAB` badge
 | **Self-Test**     | 14-step programmatic bring-up: display, keyboard, SD, NVS, WiFi, BLE, IR, IMU, mic, speaker, clock, CC1101, nRF24, registry headroom. Press Enter, watch the verdict.       |
 | **Hydra Status**  | (also reachable from Radio) Cap presence + Faraday Mode state.                                                                                                              |
 | **bb-link Probe** | Three-phase chain check for the islandmagic/bb-link bridge: BT scan for "B.B. Link" → BLE connect → GATT walk for the Nordic UART service. `BridgeReady` if all three pass. |
-| **Files**         | microSD browser. Enter on a file shows its content; Tab toggles hex view.                                                                                                   |
 | **Sysinfo**       | Battery, free heap, uptime, IP, RSSI, wallclock, GPS fix status.                                                                                                            |
 | **Settings**      | Brightness / Timezone / NTP / Theme / Faraday Mode / Boot SelfTest. ^/v cycles rows, </> changes the selected row.                                                          |
 | **About**         | Version, build info.                                                                                                                                                        |
