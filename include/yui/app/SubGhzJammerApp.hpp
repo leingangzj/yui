@@ -95,7 +95,7 @@ public:
       return;
     }
     ui::Chrome::radio_header(d, "Sub-GHz Jam",
-                             active_ ? "ACTIVE" : nullptr,
+                             active_ ? "Active" : nullptr,
                              radio_ && radio_->is_present() ? 1 : 0, -1);
 
     // Mode picker (4 visible at a time; arrows scroll selection).

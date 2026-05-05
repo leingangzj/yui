@@ -109,8 +109,8 @@ public:
     const char* sub = nullptr;
     switch (mode_) {
       case Mode::Running: sub = "RUNNING"; break;
-      case Mode::Done:    sub = "DONE";    break;
-      case Mode::Stopped: sub = "STOPPED"; break;
+      case Mode::Done:    sub = "Done";    break;
+      case Mode::Stopped: sub = "Stopped"; break;
       default: break;
     }
     ui::Chrome::radio_header(d, "Sub-GHz Brute", sub,

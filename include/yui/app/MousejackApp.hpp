@@ -210,7 +210,7 @@ public:
         ui::Chrome::footer(d, "Enter:inject  Esc:rescan");
         break;
       case Mode::Injecting:
-        ui::Chrome::radio_header(d, "Mousejack", "INJECTING", -1,
+        ui::Chrome::radio_header(d, "Mousejack", "Injecting", -1,
                                  radio_ && radio_->is_present() ? 1 : 0);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            "Sending payload...",
@@ -222,7 +222,7 @@ public:
         ui::Chrome::footer(d, "Esc:abort");
         break;
       case Mode::Done:
-        ui::Chrome::radio_header(d, "Mousejack", "DONE", -1,
+        ui::Chrome::radio_header(d, "Mousejack", "Done", -1,
                                  radio_ && radio_->is_present() ? 1 : 0);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            target_count_ > 0 ? "Inject complete" : "No targets",

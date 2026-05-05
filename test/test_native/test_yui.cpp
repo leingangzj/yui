@@ -5437,7 +5437,7 @@ void test_hydra_status_reports_both_present() {
   app.render(f.d);
   TEST_ASSERT_TRUE(f.d.all_text().find("CC1101") != std::string::npos);
   TEST_ASSERT_TRUE(f.d.all_text().find("NRF24")  != std::string::npos);
-  TEST_ASSERT_TRUE(f.d.all_text().find("OK") != std::string::npos);
+  TEST_ASSERT_TRUE(f.d.all_text().find("Ok") != std::string::npos);
 }
 
 void test_hydra_status_reports_partial_when_one_absent() {
@@ -5450,7 +5450,7 @@ void test_hydra_status_reports_partial_when_one_absent() {
   TEST_ASSERT_TRUE(app.cc_present());
   TEST_ASSERT_FALSE(app.nrf_present());
   app.render(f.d);
-  TEST_ASSERT_TRUE(f.d.all_text().find("PARTIAL") != std::string::npos);
+  TEST_ASSERT_TRUE(f.d.all_text().find("Partial") != std::string::npos);
 }
 
 void test_launcher_status_strip_includes_hydra_badge() {

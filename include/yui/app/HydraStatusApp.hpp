@@ -39,9 +39,9 @@ public:
 
   void render(IDisplay& d) override {
     d.clear(ui::kSurface);
-    const char* sub = (cc_present_ && nrf_present_) ? "OK"
-                    : (cc_present_ || nrf_present_) ? "PARTIAL"
-                                                    : "MISSING";
+    const char* sub = (cc_present_ && nrf_present_) ? "Ok"
+                    : (cc_present_ || nrf_present_) ? "Partial"
+                                                    : "Missing";
     ui::Chrome::radio_header(d, "Hydra Status", sub,
                              cc_present_ ? 1 : 0,
                              nrf_present_ ? 1 : 0);

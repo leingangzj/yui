@@ -100,7 +100,7 @@ public:
     const char* sub = "Idle";
     switch (stage_) {
       case Stage::Idle:     sub = "Idle";     break;
-      case Stage::Jamming:  sub = "JAMMING";  break;
+      case Stage::Jamming:  sub = "Jamming";  break;
       case Stage::Captured: sub = "Captured"; break;
       case Stage::Replayed: sub = "Replayed"; break;
       default: break;
