@@ -122,7 +122,6 @@ Still pending — hardware-gated, will land in v1.0.x patch releases:
    `Esp32Pcap` flushes every 16 KB; if real captures show packet drops,
    ring-buffer in RAM first.
 
-
 ## v1.0+ — Hydra RF cap support (DONE, 2026-05-04)
 
 Shipped in the codebase across nine commits the same night:
@@ -180,3 +179,273 @@ Total: ~50 apps, 423 native tests, RAM 56% / Flash 66%.
   modes and tighter RollJam timing.
 - SubGhzScan smarter dwell (currently 1 sample/tick).
 
+## v1.1 — Lab Mode (PLANNED)
+
+Operator works exclusively in a Faraday-shielded lab. Goal:
+remove the politeness gates that exist for external-RF-impact
+reasons, and add the apps that only make sense when nothing
+outside the room can hear you. Everything in this phase runs
+on Cardputer ADV + Hydra cap alone. No host-side dependencies.
+
+### Phase 5.0 — Faraday Mode flag
+
+Single NVS key `system.faraday_mode = true` that:
+
+- Strips the Tab-arm-Fn+Enter gate from `WifiNativeDeauthApp`,
+  `BleJammerApp`, `SubGhzJammerApp`, `WifiBeaconFloodApp`,
+  `MousejackApp` (inject path), `SubGhzBruteApp`.
+- Removes duty-cycle caps in jammer apps (currently capped at
+  ~30% to not burn the front-end and not own the band).
+- Surfaces a red `LAB` badge in the launcher status strip,
+  next to the existing `H+/H~/H-` Hydra cap badge.
+- Refuses to flip ON unless either (a) GPS fix is missing OR
+  (b) GPS fix matches a stored "lab location" within 50 m
+  (NVS keys `system.lab_lat` / `system.lab_lon`). Belt-and-
+  suspenders against forgetting to flip back outdoors.
+- Persists to NVS, survives reboot, shown in `SettingsApp` and
+  `HydraStatusApp`.
+
+**Effort:** ~½ evening. **Tests:** ~6 native cases (gate
+strip, GPS guard, persistence, badge render).
+
+### Phase 5.1 — `WifiNativeDeauthApp` ship
+
+Stop holding back the patched-libnet workaround. Drop the
+vendored `libnet80211.a` into `board/lib_extra/` with
+`-zmuldefs` linker flag (technique documented by Bruce /
+ESP32-Marauder). App already exists; this is a build-system
+change to actually let it transmit deauth/disassoc frames.
+
+**Effort:** ~½ evening. Hardware-validation gated until first
+soak.
+
+### Phase 5.2 — Dual-rail BLE (Phase 4.12 spec, formalized)
+
+Drive S3 NimBLE radio AND Hydra nRF24 as independent BLE-band
+TX engines simultaneously.
+
+**HAL:** new `IBleRawTx` interface, two impls (`NimBleRawTx`,
+`Nrf24BleRawTx`). Channel-selectable per-rail (37/38/39).
+
+**Apps touched:** `BleSpamApp`, `BleJammerApp` gain a "Rail:
+NimBLE / nRF24 / Both" Settings line and a 3-row channel
+matrix. Defaults split channels to avoid self-collision
+(NimBLE→37, nRF24→38+39).
+
+**HydraStatusApp:** new line `BLE Dual-Rail: ARMED / IDLE /
+CAP MISSING`.
+
+**Tests:** ~10 native cases — channel split, rail toggle
+across suspend/resume, BLE address whitening per Core spec
+§6.B.3, self-collision detector.
+
+**Effort:** ~1 evening. **Risk:** WiFi STA + BLE + nRF24
+three-radio coex on S3 unvalidated; soak test will tell.
+
+### Phase 5.3 — `RfChaosApp` (lab-only)
+
+Randomly cycles jammer + deauth + BLE spam + beacon flood for
+N minutes against the _operator's own_ WiFi/BLE infrastructure
+in the Faraday room. Logs to SD which RSSI floors collapsed,
+which channels recovered, and timing of TX bursts.
+
+UI: duration picker (1/5/15/60 min), intensity slider (1–10),
+target list (which apps to include), START/STOP. Refuses to
+arm unless `system.faraday_mode == true`.
+
+Output file: `/sd/rfchaos/<timestamp>.log` — CSV of (ms,
+event, channel, rssi). Reviewable on-device via `FilesApp` or
+off-device after SD pull.
+
+**Effort:** ~1 evening. **Tests:** ~8 native cases — schedule
+sanity, faraday-gate refusal, log writer, app composition.
+
+### Phase 5.4 — PMKID capture mode for `WifiHandshakeApp`
+
+Adds a "PMKID-only" mode alongside the existing 4-way
+handshake mode. Sends a single EAPOL request to a target BSSID
+and writes the PMKID-bearing frame to a separate `.pcap` if
+the AP responds (most modern APs, including Eero, do).
+Faster-to-result than waiting for a natural reassoc.
+
+Implementation: existing `Esp32WifiMonitor` already has the
+TX path; this is one new EAPOL builder and a parser to
+extract PMKID from the M1 reply.
+
+**Effort:** ~1 evening. **Tests:** ~6 native cases — EAPOL
+construction, PMKID extraction, pcap framing.
+
+### Phase 5.5 — Aggressive `MousejackApp` + `SubGhzBruteApp`
+
+unlock
+
+In Faraday Mode only:
+
+- Mousejack inject: removes the conservative inter-packet
+  spacing; runs at the chip's max retry rate (~500 pkt/s
+  vs. current ~50). See if Logitech Unifying receivers
+  actually deauth under load.
+- SubGhzBrute: full duty cycle on 24-bit OOK keyspace
+  (current cap ~30%). Finishes `2^24` keys at 5 ms/key in
+  ~23 hours; lab session usually only needs a fraction.
+
+Both already coded; this phase is gate-removal + Settings UI
+exposing the unlocked rate sliders.
+
+**Effort:** ~½ evening. **Tests:** existing apps already
+covered; add ~4 cases for the rate-slider clamp logic.
+
+## v1.2 — On-device LAN/Service Recon (PLANNED)
+
+The actually-useful homelab pentest layer. Cardputer ADV's
+WiFi STA joins the lab SSID and runs everything on-device —
+no host scripts, no R620/T5820 dependence. Hydra cap idle for
+this phase (RF unused). Output goes to SD + on-device UI.
+
+### Phase 6.0 — `LanScanApp` (port + service scanner)
+
+Nmap-lite. Operator picks a CIDR (default = own subnet from
+DHCP lease), picks a port profile (top-20 / top-100 /
+custom), starts scan. Async TCP connect scan via LWIP socket
+API on the S3 — no raw sockets needed.
+
+For each open port, attempts a one-shot service banner read
+(50 ms timeout). HTTP gets a `GET / HTTP/1.0\r\n\r\n` and
+captures `Server:` + first <title>. SSH/FTP/SMTP grab the
+greeting line. Everything else is recorded as
+`open/<size>-byte-banner`.
+
+Result table on screen: IP / port / service-guess / banner
+preview. Persisted to `/sd/lan/<timestamp>.json`. Sortable;
+selectable rows pivot into Phase 6.2 `CredSprayApp`.
+
+Resource budget: 256 in-flight sockets, ~30 KB heap, scan
+rate ~200 ports/sec on a /24 = full top-20 sweep in ~25 s.
+
+**Effort:** ~2 evenings. **Tests:** ~14 native cases — CIDR
+parser, port-profile loader, banner extractor, JSON writer,
+result-table sort.
+
+### Phase 6.1 — `MdnsSsdpApp` (passive discovery)
+
+Listens on 224.0.0.251:5353 (mDNS) + 239.255.255.250:1900
+(SSDP) for 30 s after entering. Builds a service inventory
+table: hostname / IP / service-type / TXT record summary.
+Captures Plex, Jellyfin, Chromecast, AirPlay, Sonos, Eero,
+Proxmox, \*arr, every Bonjour-aware thing on the lab LAN.
+
+Also emits one SSDP M-SEARCH (`ssdp:all`) at start to provoke
+quick replies.
+
+Result persisted to `/sd/mdns/<timestamp>.json`. Selectable
+rows pivot into `LanScanApp` (auto-fills target IP) or open a
+URL preview if HTTP service.
+
+Resource budget: <8 KB heap, fully passive after the single
+M-SEARCH.
+
+**Effort:** ~1 evening. **Tests:** ~10 native cases — mDNS
+parser, SSDP parser, dedup, TXT record decode.
+
+### Phase 6.2 — `CredSprayApp` (default-creds checker)
+
+Takes a target list (manual entry, or auto-imported from
+`LanScanApp` results) and a credential list (built-in
+defaults + user-editable `/sd/creds/wordlist.txt`).
+
+Protocol modules — one connection attempt per (target, creds)
+tuple, conservative timeout, single-threaded:
+
+- HTTP Basic / Digest auth
+- HTTP form-login (configurable POST body template per host
+  profile, e.g. Proxmox, Gitea, Jellyfin, Sonarr)
+- SSH password auth (libssh2 vendored, ~80 KB flash cost)
+- Telnet (banner + login prompt detection)
+
+Built-in defaults wordlist (~50 entries): admin/admin,
+root/root, admin/password, plus the famous vendor defaults
+(ubnt/ubnt, pi/raspberry, etc.). Operator's lab-specific
+list goes in SD.
+
+Hits logged to `/sd/creds/hits-<timestamp>.json` with
+host/port/protocol/creds. **Never echoes successful creds to
+display by default** — Settings toggle to opt-in. Refuses to
+run unless `system.faraday_mode == true` OR a one-time
+"acknowledged scope" prompt (Tab-arm-Fn+Enter) is satisfied
+per session.
+
+Resource budget: ~120 KB flash with libssh2, ~40 KB heap
+during a run, ~2 attempts/sec sustainable.
+
+**Effort:** ~3 evenings (libssh2 vendoring is the bulk).
+**Tests:** ~16 native cases — auth-module dispatch, wordlist
+parser, hit serializer, scope-gate refusal.
+
+### Phase 6.3 — `BadUsbApp` (USB-OTG HID)
+
+Cardputer ADV's S3 has native USB-OTG; no extra hardware.
+App presents Cardputer as a USB HID keyboard (composite
+device with the existing CDC retained for serial).
+
+Payload format: a stripped DuckyScript subset (`STRING`,
+`DELAY`, `ENTER`, `GUI`, `CTRL+ALT+DEL`, `REM`). Payloads
+live on SD as `/sd/badusb/*.duck`. App lists them, operator
+picks one, gets a confirmation screen, presses Fn+Enter to
+fire on next USB host enumeration.
+
+Use case: plug Cardputer into iDRAC USB / Proxmox console /
+any KVM, type a canned command sequence (e.g. drop an SSH
+key, dump `/etc/shadow` hash to a USB-mounted SD partition
+the operator owns).
+
+Layout: US ANSI default, settable in Settings (DE/FR/JP
+included for completeness).
+
+**Effort:** ~1 evening. **Tests:** ~8 native cases —
+DuckyScript parser, keymap translation, payload validator.
+
+### Phase 6.4 — `HttpReconApp` (web service fingerprint)
+
+Targets one URL at a time (autofills from `LanScanApp` /
+`MdnsSsdpApp` selection). Fetches `/`, `/robots.txt`,
+`/.well-known/security.txt`, `/sitemap.xml`, common admin
+paths (`/admin`, `/login`, `/api`, `/swagger`, `/graphql`).
+Records status, server header, content-type, response size,
+first 256 bytes.
+
+Heuristic fingerprinter: matches against ~30 built-in
+signatures (Proxmox, Gitea, GitLab, Jellyfin, Plex, Sonarr,
+Radarr, Prowlarr, Bazarr, Tautulli, qBittorrent, SABnzbd,
+Ollama, Zabbix, Linkding, Memos, ByteStash, Paperless-ngx,
+Radicale, Eero admin, generic nginx/Apache/Caddy).
+
+Output: per-target report on screen + JSON to
+`/sd/httprecon/<timestamp>-<host>.json`.
+
+**Effort:** ~1 evening. **Tests:** ~10 native cases — path
+list iteration, signature matcher, JSON writer.
+
+## v1.x summary
+
+| Phase | What                                  | Effort | Notes                     |
+| ----- | ------------------------------------- | ------ | ------------------------- |
+| 5.0   | Faraday Mode NVS flag                 | ½ ev   | Gate-stripper + GPS guard |
+| 5.1   | Ship patched libnet for native deauth | ½ ev   | Build-system only         |
+| 5.2   | Dual-rail BLE (NimBLE + nRF24)        | 1 ev   | Three-radio coex risk     |
+| 5.3   | `RfChaosApp` lab stress test          | 1 ev   | Faraday-gated             |
+| 5.4   | PMKID capture mode                    | 1 ev   | Faster than 4-way         |
+| 5.5   | Aggressive Mousejack + Brute unlock   | ½ ev   | Gate-removal + sliders    |
+| 6.0   | `LanScanApp`                          | 2 ev   | LWIP TCP connect scan     |
+| 6.1   | `MdnsSsdpApp`                         | 1 ev   | Passive + 1 M-SEARCH      |
+| 6.2   | `CredSprayApp`                        | 3 ev   | libssh2 vendoring is bulk |
+| 6.3   | `BadUsbApp`                           | 1 ev   | USB-OTG HID, no extra HW  |
+| 6.4   | `HttpReconApp`                        | 1 ev   | ~30 service signatures    |
+
+**Total:** ~12 evenings of software work. Adds ~11 apps
+(rough new total ~61, headroom in `kMaxApps=64`). Estimated
++220 native tests. Estimated flash budget +180 KB (libssh2
+dominates).
+
+**Hardware required beyond what's in hand:** none. All v1.1
+
+- v1.2 work runs on Cardputer ADV + Hydra cap alone.
