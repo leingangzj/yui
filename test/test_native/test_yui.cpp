@@ -2897,6 +2897,92 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── B1 — SelfTestApp ────────────────────────────────────────────────
+
+#include "yui/app/SelfTestApp.hpp"
+
+void test_selftest_initial_state_pending() {
+  Fixture f;
+  yui::SelfTestApp::Wiring w{};
+  yui::SelfTestApp app{w};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.started());
+  for (int i = 0; i < yui::SelfTestApp::kProbeCount; ++i) {
+    TEST_ASSERT_TRUE(app.result_at(i) == yui::SelfTestApp::Result::Pending);
+  }
+}
+
+void test_selftest_run_with_no_wiring_marks_skip_for_optional() {
+  Fixture f;
+  yui::SelfTestApp::Wiring w{};
+  yui::SelfTestApp app{w};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  TEST_ASSERT_TRUE(app.started());
+  // Display, Keyboard, Clock, AppRegistry headroom always pass with hal.
+  // FS/Storage/Net/BLE/IR/IMU/Mic/Speaker/CC1101/nRF24 should be Skip.
+  TEST_ASSERT_TRUE(app.skip_count() >= 9);
+  TEST_ASSERT_EQUAL_INT(0, app.fail_count());
+}
+
+void test_selftest_full_wiring_passes_all_present() {
+  Fixture f;
+  FakeFs fs;
+  FakeStorage st;
+  yui::FakeBleAdvertiser ble;
+  yui::SelfTestApp::Wiring w{};
+  w.fs = &fs; w.store = &st; w.ble = &ble;
+  yui::SelfTestApp app{w};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  TEST_ASSERT_EQUAL_INT(0, app.fail_count());
+  TEST_ASSERT_TRUE(app.pass_count() >= 6);
+}
+
+void test_selftest_storage_rw_round_trip() {
+  Fixture f;
+  FakeStorage st;
+  yui::SelfTestApp::Wiring w{};
+  w.store = &st;
+  yui::SelfTestApp app{w};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  // Storage probe is index 3 in the probes array.
+  TEST_ASSERT_TRUE(app.result_at(3) == yui::SelfTestApp::Result::Pass);
+  // Confirm the probe wrote + read the sentinel key.
+  int32_t v = 0;
+  TEST_ASSERT_TRUE(st.get_int("sys.selftest_ping", v, 0));
+  TEST_ASSERT_EQUAL_INT(1, v);
+}
+
+void test_selftest_cap_absent_marks_skip_not_fail() {
+  Fixture f;
+  // NativeCc1101 isn't included this early in the file; instead use a
+  // minimal local stub that pretends absence.
+  struct AbsentCc : yui::ICc1101 {
+    bool begin() override { return false; }
+    bool is_present() override { return false; }
+    bool set_frequency_hz(uint32_t) override { return true; }
+    uint32_t frequency_hz() const override { return 0; }
+    bool set_modulation(yui::CcModulation) override { return true; }
+    bool set_bitrate_bps(uint32_t) override { return true; }
+    int16_t read_rssi_dbm() override { return -100; }
+    int  receive(uint8_t*, std::size_t) override { return 0; }
+    bool transmit(const uint8_t*, std::size_t) override { return true; }
+    bool set_carrier(bool) override { return true; }
+    bool transmit_raw_edges(const int32_t*, std::size_t) override { return true; }
+    uint64_t rx_bytes() const override { return 0; }
+    uint64_t tx_bytes() const override { return 0; }
+  } cc;
+  yui::SelfTestApp::Wiring w{};
+  w.cc = &cc;
+  yui::SelfTestApp app{w};
+  app.on_enter(f.hal);
+  app.run_for_test();
+  TEST_ASSERT_TRUE(app.result_at(11) == yui::SelfTestApp::Result::Skip);
+  TEST_ASSERT_EQUAL_INT(0, app.fail_count());
+}
+
 // ───── Phase 5.2.x — BLE Rail picker integration ───────────────────────
 
 void test_blespam_default_rail_is_nimble() {
@@ -5558,6 +5644,11 @@ int main(int, char**) {
   RUN_TEST(test_faraday_gps_guard_allows_inside_lab_radius);
   RUN_TEST(test_faraday_no_fix_succeeds_even_with_lab_set);
   RUN_TEST(test_settings_faraday_row_toggles);
+  RUN_TEST(test_selftest_initial_state_pending);
+  RUN_TEST(test_selftest_run_with_no_wiring_marks_skip_for_optional);
+  RUN_TEST(test_selftest_full_wiring_passes_all_present);
+  RUN_TEST(test_selftest_storage_rw_round_trip);
+  RUN_TEST(test_selftest_cap_absent_marks_skip_not_fail);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);
