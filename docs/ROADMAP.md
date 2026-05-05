@@ -179,7 +179,27 @@ Total: ~50 apps, 423 native tests, RAM 56% / Flash 66%.
   modes and tighter RollJam timing.
 - SubGhzScan smarter dwell (currently 1 sample/tick).
 
-## v1.1 — Lab Mode (PLANNED)
+## v1.1 — Hydra RF cap + utility prune (SHIPPED, 2026-05-04)
+
+Tagged as `v1.1.0`. Captures everything in `v1.0+ — Hydra RF
+cap support` above plus the `refactor: prune utility/game apps`
+sweep that followed.
+
+- Hydra Phase 1 → 4.11 — 9 RF apps wired to CC1101 + nRF24
+  via `IRadioCC1101` / `INrf24` HALs, `.sub` file format,
+  Replay/Brute/Jammer/Mousejack/RollJam fully driven.
+- `Chrome::cap_missing_dialog` shared helper (Phase 4.8).
+- Hydra cap badge in launcher status strip (Phase 4.9).
+- `HydraStatusApp` diagnostic + `docs/HYDRA.md` operator guide.
+- Pruned 14 utility/game apps (Notes, Todo, Calendar, Pomodoro,
+  Metronome, Tone, Mic, Imu, KeyTest, Snake, Life, Draw,
+  TvBGone) + Snake/Life engines + Date util to focus the device
+  on its RF/security identity. `AppRegistry::kMaxApps` 40 → 64.
+
+**Native tests:** 362/362 passing. **Footprint:** flash trim
+~3000 LOC removed; binary still well under 8 MB.
+
+## v1.2 — Lab Mode (PLANNED)
 
 Operator works exclusively in a Faraday-shielded lab. Goal:
 remove the politeness gates that exist for external-RF-impact
@@ -295,7 +315,7 @@ exposing the unlocked rate sliders.
 **Effort:** ~½ evening. **Tests:** existing apps already
 covered; add ~4 cases for the rate-slider clamp logic.
 
-## v1.2 — On-device LAN/Service Recon (PLANNED)
+## v1.3 — On-device LAN/Service Recon (PLANNED)
 
 The actually-useful homelab pentest layer. Cardputer ADV's
 WiFi STA joins the lab SSID and runs everything on-device —
@@ -425,7 +445,7 @@ Output: per-target report on screen + JSON to
 **Effort:** ~1 evening. **Tests:** ~10 native cases — path
 list iteration, signature matcher, JSON writer.
 
-## v1.x summary
+## v1.2 + v1.3 summary
 
 | Phase | What                                  | Effort | Notes                     |
 | ----- | ------------------------------------- | ------ | ------------------------- |
@@ -446,6 +466,6 @@ list iteration, signature matcher, JSON writer.
 +220 native tests. Estimated flash budget +180 KB (libssh2
 dominates).
 
-**Hardware required beyond what's in hand:** none. All v1.1
+**Hardware required beyond what's in hand:** none. All v1.2
 
-- v1.2 work runs on Cardputer ADV + Hydra cap alone.
+- v1.3 work runs on Cardputer ADV + Hydra cap alone.

@@ -29,14 +29,16 @@ memory, mic FFT, IR remote, calendar, todos, Snake, Life, tone/metronome.
 
 ## Status
 
-🛰️ **v1.0+ — shipped, awaiting field validation.** `pio run -e
-cardputer_adv` and `pio test -e native` are both green. ~50 apps across 6
-categories. 423 native tests. The post-v1.0 work added the Phase 1-4.9
-Hydra RF stack (HAL + 9 apps + status diagnostic + cap badge); the
-firmware hasn't been validated on real hardware yet — anyone flashing
-the current head is the first hardware tester. If something breaks,
-please [open an issue](https://github.com/leingangzj/yui/issues) with
-serial logs.
+🛰️ **v1.1 — shipped, awaiting field validation.** `pio run -e
+cardputer_adv` and `pio test -e native` are both green. ~50 apps across
+6 categories. 362 native tests. v1.1 adds the full Hydra RF stack (HAL
+
+- 9 apps + status diagnostic + cap badge) and prunes 14 utility/game
+  apps to focus the device on its RF/security identity; the firmware
+  hasn't been validated on real hardware yet — anyone flashing the current
+  head is the first hardware tester. If something breaks, please
+  [open an issue](https://github.com/leingangzj/yui/issues) with serial
+  logs.
 
 ## Hardware
 
@@ -78,7 +80,7 @@ write it to flash offset `0x0`:
 ```bash
 python3 -m esptool --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
   write_flash --flash_mode qio --flash_freq 80m --flash_size 8MB \
-  0x0 yui-v1.0-cardputer_adv.bin
+  0x0 yui-v1.1-cardputer_adv.bin
 ```
 
 **From source.**
@@ -163,8 +165,9 @@ the answer is no.
 
 ## Roadmap
 
-`docs/ROADMAP.md`. Short version: v0.1 / v0.2 / v0.3 / v1.0 all shipped
-in the firmware. Real-hardware validation is the next thing.
+`docs/ROADMAP.md`. Short version: v0.1 / v0.2 / v0.3 / v1.0 / v1.1 all
+shipped in the firmware. v1.2 (Lab Mode) and v1.3 (LAN/Service Recon)
+are spec'd. Real-hardware validation is the next thing.
 
 ## Support development
 
