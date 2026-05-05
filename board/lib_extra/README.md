@@ -33,6 +33,24 @@ Either:
 
 [bruce-build]: https://github.com/pr3y/Bruce/blob/main/docs/build.md
 
+### After dropping the archive in
+
+Always run the verifier before building:
+
+```sh
+tools/verify-lib-extra.sh
+```
+
+It reads expected SHA-256 hashes from `board/lib_extra/EXPECTED_SHA256`
+(one `<hash>  <filename>` per line) and refuses to pass if:
+
+- the dropped-in archive's hash doesn't match
+- an archive is present but no expected hash is recorded
+
+When you vendor a new known-good binary, append its hash to
+`EXPECTED_SHA256` in the same commit so the next operator (or your
+future self) can audit the supply chain.
+
 ### Without the archive
 
 The `-Wl,-zmuldefs` flag is harmless on its own. `DeauthApp(Native)`

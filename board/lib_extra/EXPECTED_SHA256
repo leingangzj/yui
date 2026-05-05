@@ -1,0 +1,11 @@
+# Expected SHA-256 hashes for archives in board/lib_extra/.
+# Format: <64-hex-hash>  <filename>
+# Lines starting with '#' are comments. Blank lines are skipped.
+#
+# Add a hash here when you vendor an archive. Verify before
+# committing — see board/lib_extra/README.md for sourcing notes.
+#
+# Example (uncomment and replace with the real hash once you
+# have a known-good libnet80211.a):
+#
+#   d41d8cd98f00b204e9800998ecf8427e0000000000000000000000000000abcd  libnet80211.a
