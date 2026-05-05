@@ -57,6 +57,7 @@
 #include "yui/app/DeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
+#include "../../src/hal/native/NativeBleRawTx.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
 #include "yui/app/BleGattApp.hpp"
@@ -3355,6 +3356,107 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── Phase 5.2 — Dual-rail BLE TX (HAL only; app integration TBD) ─────
+
+void test_ble_rawtx_nimble_rail_accepts_only_adv_channels() {
+  yui::FakeNimBleRawTx rail;
+  TEST_ASSERT_TRUE(rail.set_channel(37));
+  TEST_ASSERT_TRUE(rail.set_channel(38));
+  TEST_ASSERT_TRUE(rail.set_channel(39));
+  TEST_ASSERT_FALSE(rail.set_channel(36));
+  TEST_ASSERT_FALSE(rail.set_channel(40));
+  TEST_ASSERT_FALSE(rail.set_channel(0));
+}
+
+void test_ble_rawtx_nimble_rail_records_payload_and_count() {
+  yui::FakeNimBleRawTx rail;
+  rail.set_channel(37);
+  uint8_t p[] = {0x02, 0x01, 0x06};   // typical "flags" adv byte trio
+  TEST_ASSERT_TRUE(rail.tx_advert(p, sizeof(p)));
+  TEST_ASSERT_TRUE(rail.tx_advert(p, sizeof(p)));
+  TEST_ASSERT_EQUAL_size_t(2, rail.tx_count());
+  TEST_ASSERT_EQUAL_size_t(3, rail.last_payload().size());
+}
+
+void test_ble_rawtx_nrf24_channel_mapping_is_correct() {
+  // BLE adv channel ↔ nRF24 channel (channel = MHz - 2400):
+  //   37 → 2402 → nRF24 ch 2
+  //   38 → 2426 → nRF24 ch 26
+  //   39 → 2480 → nRF24 ch 80
+  using Rail = yui::FakeNrf24BleRawTx;
+  TEST_ASSERT_EQUAL_INT(2,  Rail::adv_channel_to_nrf24_channel(37));
+  TEST_ASSERT_EQUAL_INT(26, Rail::adv_channel_to_nrf24_channel(38));
+  TEST_ASSERT_EQUAL_INT(80, Rail::adv_channel_to_nrf24_channel(39));
+  TEST_ASSERT_EQUAL_INT(-1, Rail::adv_channel_to_nrf24_channel(0));
+  Rail rail;
+  rail.set_channel(38);
+  TEST_ASSERT_EQUAL_INT(26, rail.nrf_channel());
+}
+
+void test_ble_rawtx_nrf24_rail_rejects_invalid_channel() {
+  yui::FakeNrf24BleRawTx rail;
+  TEST_ASSERT_TRUE(rail.set_channel(37));
+  TEST_ASSERT_FALSE(rail.set_channel(36));
+  TEST_ASSERT_FALSE(rail.set_channel(40));
+}
+
+void test_ble_rawtx_continuous_start_stop_lifecycle() {
+  yui::FakeNrf24BleRawTx rail;
+  TEST_ASSERT_FALSE(rail.is_active());
+  TEST_ASSERT_TRUE(rail.start_continuous(38));
+  TEST_ASSERT_TRUE(rail.is_active());
+  TEST_ASSERT_EQUAL_INT(38, rail.channel());
+  rail.stop();
+  TEST_ASSERT_FALSE(rail.is_active());
+}
+
+void test_ble_rawtx_dual_rail_independent_counters() {
+  yui::FakeNimBleRawTx nimble;
+  yui::FakeNrf24BleRawTx nrf24;
+  nimble.set_channel(37);
+  nrf24.set_channel(38);
+  uint8_t p[] = {0x01};
+  nimble.tx_advert(p, 1);
+  nrf24.tx_advert(p, 1);
+  nrf24.tx_advert(p, 1);
+  TEST_ASSERT_EQUAL_size_t(1, nimble.tx_count());
+  TEST_ASSERT_EQUAL_size_t(2, nrf24.tx_count());
+}
+
+void test_ble_rawtx_payload_over_31_bytes_is_rejected() {
+  yui::FakeNimBleRawTx rail;
+  uint8_t big[40] = {0};
+  TEST_ASSERT_FALSE(rail.tx_advert(big, sizeof(big)));
+  TEST_ASSERT_EQUAL_size_t(0, rail.tx_count());
+}
+
+void test_ble_rawtx_cap_missing_blocks_tx() {
+  yui::FakeNrf24BleRawTx rail;
+  rail.set_present(false);
+  uint8_t p[] = {0x01};
+  TEST_ASSERT_FALSE(rail.tx_advert(p, 1));
+  TEST_ASSERT_EQUAL_size_t(0, rail.tx_count());
+}
+
+void test_ble_rawtx_channel_split_no_overlap() {
+  // The default Phase 5.2 channel split (NimBLE→37, nRF24→38+39) leaves
+  // exactly one rail per channel — no two rails on the same channel.
+  yui::FakeNimBleRawTx nimble;
+  yui::FakeNrf24BleRawTx nrf24;
+  nimble.set_channel(37);
+  nrf24.set_channel(38);
+  TEST_ASSERT_NOT_EQUAL(nimble.channel(), nrf24.channel());
+  nrf24.set_channel(39);
+  TEST_ASSERT_NOT_EQUAL(nimble.channel(), nrf24.channel());
+}
+
+void test_ble_rawtx_rail_names() {
+  yui::FakeNimBleRawTx nimble;
+  yui::FakeNrf24BleRawTx nrf24;
+  TEST_ASSERT_EQUAL_STRING("NimBLE", nimble.rail_name());
+  TEST_ASSERT_EQUAL_STRING("nRF24",  nrf24.rail_name());
+}
+
 void test_settings_faraday_row_toggles() {
   Fixture f;
   FakeStorage store; store.init();
@@ -5697,6 +5799,16 @@ int main(int, char**) {
   RUN_TEST(test_faraday_gps_guard_allows_inside_lab_radius);
   RUN_TEST(test_faraday_no_fix_succeeds_even_with_lab_set);
   RUN_TEST(test_settings_faraday_row_toggles);
+  RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
+  RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
+  RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);
+  RUN_TEST(test_ble_rawtx_nrf24_rail_rejects_invalid_channel);
+  RUN_TEST(test_ble_rawtx_continuous_start_stop_lifecycle);
+  RUN_TEST(test_ble_rawtx_dual_rail_independent_counters);
+  RUN_TEST(test_ble_rawtx_payload_over_31_bytes_is_rejected);
+  RUN_TEST(test_ble_rawtx_cap_missing_blocks_tx);
+  RUN_TEST(test_ble_rawtx_channel_split_no_overlap);
+  RUN_TEST(test_ble_rawtx_rail_names);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);
