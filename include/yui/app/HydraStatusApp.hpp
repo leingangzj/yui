@@ -12,6 +12,7 @@
 #include "yui/types.hpp"
 #include "yui/ui/Chrome.hpp"
 #include "yui/ui/Tokens.hpp"
+#include "yui/util/FaradayMode.hpp"
 #include <cstdio>
 
 namespace yui {
@@ -71,6 +72,9 @@ public:
                     static_cast<unsigned long long>(nrf_->tx_bytes()));
       ui::Chrome::stat(d, 5, "  bytes", line);
     }
+
+    ui::Chrome::stat(d, 6, "Faraday",
+                     FaradayMode::is_active() ? "ON [LAB]" : "off");
 
     ui::Chrome::footer(d, "Enter:re-probe  Esc:back");
     d.flush();

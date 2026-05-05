@@ -5,6 +5,7 @@
 // cycles palettes and applies+persists to NVS key "ui.theme" on change.
 #include "yui/app/App.hpp"
 #include "yui/hal/IStorage.hpp"
+#include "yui/util/FaradayMode.hpp"
 #include "yui/util/TzPresets.hpp"
 #include "yui/util/NtpPresets.hpp"
 #include "yui/types.hpp"
@@ -63,6 +64,7 @@ public:
         }
       }
     }
+    FaradayMode::load(store_);
     cursor_ = 0;
   }
 
@@ -106,6 +108,10 @@ public:
           std::snprintf(line, sizeof(line), "Theme        %.12s",
                         ui::kPalettes[theme_idx_].label);
           break;
+        case 4:
+          std::snprintf(line, sizeof(line), "Faraday Mode %s",
+                        FaradayMode::is_active() ? "ON  [LAB]" : "off");
+          break;
         default:
           std::snprintf(line, sizeof(line), "(coming soon)");
           break;
@@ -135,7 +141,7 @@ public:
   }
 
 private:
-  static constexpr int kRowCount = 4;
+  static constexpr int kRowCount = 5;
 
   void step_(int delta) {
     if (cursor_ == 0) {
@@ -169,6 +175,12 @@ private:
       theme_idx_ = static_cast<size_t>(next);
       ui::apply_palette(ui::kPalettes[theme_idx_]);
       store_.put_str(kStorageKeyTheme, ui::kPalettes[theme_idx_].id);
+      return;
+    }
+    if (cursor_ == 4) {
+      // Faraday Mode is binary; either Left or Right toggles it.
+      if (FaradayMode::is_active()) FaradayMode::disable(store_);
+      else                          FaradayMode::enable(store_);
       return;
     }
   }

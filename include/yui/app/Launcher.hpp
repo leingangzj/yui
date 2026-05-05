@@ -8,6 +8,7 @@
 // tick / render / take_pending_launch). Drill-in is internal.
 #include "yui/app/App.hpp"
 #include "yui/app/AppRegistry.hpp"
+#include "yui/util/FaradayMode.hpp"
 #include "yui/shell/Menu.hpp"
 #include "yui/sys/SysProbe.hpp"
 #include "yui/types.hpp"
@@ -315,6 +316,9 @@ private:
         case 3: n += std::snprintf(buf + n, cap - static_cast<std::size_t>(n), "H- "); break;
         default: break;
       }
+    }
+    if (FaradayMode::is_active()) {
+      n += std::snprintf(buf + n, cap - static_cast<std::size_t>(n), "LAB ");
     }
     if (probe_.battery_pct) {
       const int pct = probe_.battery_pct();

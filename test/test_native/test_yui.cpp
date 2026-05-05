@@ -3294,6 +3294,83 @@ void test_settings_theme_row_loads_persisted_palette_on_enter() {
   TEST_ASSERT_EQUAL_STRING("asagi", app.theme_id());
 }
 
+// ───── Phase 5.0 — Faraday Mode flag ───────────────────────────────────────
+
+void test_faraday_default_off_after_load() {
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  FaradayMode::load(store);
+  TEST_ASSERT_FALSE(FaradayMode::is_active());
+}
+
+void test_faraday_enable_persists_to_nvs_and_reloads() {
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  TEST_ASSERT_TRUE(FaradayMode::enable(store));
+  TEST_ASSERT_TRUE(FaradayMode::is_active());
+  // Wipe in-memory state, reload from NVS — should still be on.
+  FaradayMode::reset_for_test();
+  FaradayMode::load(store);
+  TEST_ASSERT_TRUE(FaradayMode::is_active());
+}
+
+void test_faraday_disable_clears_persisted_state() {
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  FaradayMode::enable(store);
+  FaradayMode::disable(store);
+  TEST_ASSERT_FALSE(FaradayMode::is_active());
+  FaradayMode::reset_for_test();
+  FaradayMode::load(store);
+  TEST_ASSERT_FALSE(FaradayMode::is_active());
+}
+
+void test_faraday_gps_guard_refuses_when_far_from_lab() {
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  // Lab at 0,0; GPS fix at 1°N (~111 km away) → way beyond 50 m guard.
+  FaradayMode::set_lab_location(store, 0.0, 0.0);
+  TEST_ASSERT_TRUE(FaradayMode::has_lab_location());
+  TEST_ASSERT_FALSE(FaradayMode::enable(store, /*has_fix=*/true,
+                                         /*lat=*/1.0, /*lon=*/0.0));
+  TEST_ASSERT_FALSE(FaradayMode::is_active());
+}
+
+void test_faraday_gps_guard_allows_inside_lab_radius() {
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  FaradayMode::set_lab_location(store, 0.0, 0.0);
+  // Move ~10 m east of (0,0) — well within 50 m.
+  TEST_ASSERT_TRUE(FaradayMode::enable(store, /*has_fix=*/true,
+                                        0.0, 0.00009));
+  TEST_ASSERT_TRUE(FaradayMode::is_active());
+}
+
+void test_faraday_no_fix_succeeds_even_with_lab_set() {
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  FaradayMode::set_lab_location(store, 47.6, -122.3);
+  // No GPS fix available → guard short-circuits and allows enable.
+  TEST_ASSERT_TRUE(FaradayMode::enable(store, /*has_fix=*/false));
+  TEST_ASSERT_TRUE(FaradayMode::is_active());
+}
+
+void test_settings_faraday_row_toggles() {
+  Fixture f;
+  FakeStorage store; store.init();
+  FaradayMode::reset_for_test();
+  SettingsApp app{store};
+  app.on_enter(f.hal);
+  app.set_cursor(4);  // Faraday Mode row
+  TEST_ASSERT_FALSE(FaradayMode::is_active());
+  app.on_key(press(Key::Right));
+  TEST_ASSERT_TRUE(FaradayMode::is_active());
+  app.on_key(press(Key::Left));
+  TEST_ASSERT_FALSE(FaradayMode::is_active());
+  // Cleanup so other tests start with a clean flag.
+  FaradayMode::reset_for_test();
+}
+
 // ───── KoiGotchiApp ────────────────────────────────────────────────────────
 
 void test_koigotchi_starts_in_sleep_mood() {
@@ -5613,6 +5690,13 @@ int main(int, char**) {
   RUN_TEST(test_theme_apply_palette_swaps_live_tokens);
   RUN_TEST(test_settings_theme_row_persists_selection);
   RUN_TEST(test_settings_theme_row_loads_persisted_palette_on_enter);
+  RUN_TEST(test_faraday_default_off_after_load);
+  RUN_TEST(test_faraday_enable_persists_to_nvs_and_reloads);
+  RUN_TEST(test_faraday_disable_clears_persisted_state);
+  RUN_TEST(test_faraday_gps_guard_refuses_when_far_from_lab);
+  RUN_TEST(test_faraday_gps_guard_allows_inside_lab_radius);
+  RUN_TEST(test_faraday_no_fix_succeeds_even_with_lab_set);
+  RUN_TEST(test_settings_faraday_row_toggles);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);

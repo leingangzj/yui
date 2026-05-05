@@ -227,6 +227,10 @@ void setup() {
     }
   }
 
+  // Restore Faraday Mode + lab location so aggressive RF apps and the
+  // launcher status badge see the right state from the first frame.
+  yui::FaradayMode::load(store_);
+
   char saved_ssid[33] = {0};
   char saved_pass[65] = {0};
   char saved_tz[40]   = "UTC0";
