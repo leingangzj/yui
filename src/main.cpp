@@ -14,11 +14,9 @@
 #include "yui/app/StubApp.hpp"
 #include "yui/app/WifiApp.hpp"
 #include "yui/app/BleApp.hpp"
-#include "yui/app/CalculatorApp.hpp"
 #include "yui/app/FilesApp.hpp"
 #include "yui/app/IrRemoteApp.hpp"
 #include "yui/app/SettingsApp.hpp"
-#include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
 #include "yui/app/AprsApp.hpp"
 #include "yui/app/KenwoodApp.hpp"
@@ -37,7 +35,6 @@
 #include "yui/app/BleGattApp.hpp"
 #include "yui/app/BleJammerApp.hpp"
 #include "yui/app/SatTrackerApp.hpp"
-#include "yui/app/KoiGotchiApp.hpp"
 #include "yui/app/SubGhzScanApp.hpp"
 #include "yui/app/SubGhzCaptureReplayApp.hpp"
 #include "yui/app/SubGhzBruteApp.hpp"
@@ -140,11 +137,9 @@ yui::AboutApp    about_app{kVersion};
 yui::RemoteApp   remote_app{remote_, &store_};
 yui::WifiApp     wifi_app{net_, &store_};
 yui::BleApp      ble_app{net_};
-yui::CalculatorApp calc_app;
 yui::FilesApp    files_app{fs_};
 yui::IrRemoteApp ir_app{ir_};
 yui::SettingsApp settings_app{store_};
-yui::ClockApp    clock_app{&net_, "pool.ntp.org", "UTC0", &store_};
 yui::SysinfoApp  sysinfo_app{make_sys_probe()};
 yui::AprsApp     aprs_app{radio_};
 yui::KenwoodApp  kenwood_app{radio_, &store_};
@@ -162,7 +157,6 @@ yui::WpsScanApp          wps_scan_app{wmon_};
 yui::BleGattApp          ble_gatt_app{ble_cent_};
 yui::BleJammerApp        ble_jammer_app{ble_adv_};
 yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
-yui::KoiGotchiApp        koigotchi_app{handshake_app, &store_, &clock_};
 
 // Phase 4 — Hydra RF apps. Each takes nullable radio pointers so the
 // app can render a "cap not detected" dialog instead of crashing when
@@ -275,9 +269,6 @@ void setup() {
   // TOOLS / SYSTEM
   registry.add(&ir_app);
   registry.add(&files_app);
-  registry.add(&calc_app);
-  registry.add(&clock_app);
-  registry.add(&koigotchi_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
   // Phase 4 — Hydra RF apps (Pingequa Hydra Cap 424).

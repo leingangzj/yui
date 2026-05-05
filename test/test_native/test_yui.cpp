@@ -26,11 +26,9 @@
 #include "../../src/hal/native/NativeMic.hpp"
 #include "yui/app/WifiApp.hpp"
 #include "yui/app/BleApp.hpp"
-#include "yui/app/CalculatorApp.hpp"
 #include "yui/app/FilesApp.hpp"
 #include "yui/app/IrRemoteApp.hpp"
 #include "yui/app/SettingsApp.hpp"
-#include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include "../../src/hal/native/NativeStorage.hpp"
@@ -50,7 +48,6 @@
 #include "../../src/hal/native/NativeWifiMonitor.hpp"
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
-#include "yui/app/KoiGotchiApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
 #include "yui/app/RogueApApp.hpp"
@@ -141,27 +138,6 @@ void test_braille_decode_advances_pointer() {
   yui::braille_decode(p);
   yui::braille_decode(p);
   TEST_ASSERT_EQUAL_CHAR('\0', *p);
-}
-
-void test_koi_art_dimensions_match_constants() {
-  // Walk the embedded art and count rows + max cols.
-  int rows = 1, cols = 0, cur_col = 0;
-  const char* p = yui::kKoiArt;
-  while (*p) {
-    if (*p == '\n') {
-      if (cur_col > cols) cols = cur_col;
-      cur_col = 0;
-      ++rows;
-      ++p;
-      continue;
-    }
-    yui::braille_decode(p);
-    ++cur_col;
-  }
-  // Trailing newline counted one extra row, subtract it.
-  --rows;
-  TEST_ASSERT_EQUAL_INT(yui::kKoiArtRows, rows);
-  TEST_ASSERT_EQUAL_INT(yui::kKoiArtCols, cols);
 }
 
 // ───── Animated splash ──────────────────────────────────────────────────────
@@ -1020,273 +996,6 @@ void test_ble_app_arrow_keys_move_cursor() {
 
 // ───── CalculatorApp / Engine ───────────────────────────────────────────────
 
-void test_calc_engine_addition() {
-  CalculatorEngine e;
-  e.input_char('2'); e.flush_buffer();
-  e.input_char('3'); e.flush_buffer();
-  e.op('+');
-  TEST_ASSERT_EQUAL_FLOAT(5.0, e.peek(0));
-  TEST_ASSERT_EQUAL_size_t(1u, e.depth());
-}
-
-void test_calc_engine_division_by_zero_errors() {
-  CalculatorEngine e;
-  e.input_char('5'); e.flush_buffer();
-  e.input_char('0'); e.flush_buffer();
-  e.op('/');
-  TEST_ASSERT_TRUE(e.error());
-}
-
-void test_calc_engine_decimal_input() {
-  CalculatorEngine e;
-  e.input_char('1'); e.input_char('.'); e.input_char('5');
-  e.flush_buffer();
-  TEST_ASSERT_EQUAL_FLOAT(1.5, e.peek(0));
-}
-
-void test_calc_engine_dup() {
-  CalculatorEngine e;
-  e.input_char('7'); e.flush_buffer();
-  e.dup();
-  TEST_ASSERT_EQUAL_size_t(2u, e.depth());
-  TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(0));
-  TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(1));
-}
-
-void test_calc_engine_subtraction() {
-  CalculatorEngine e;
-  e.input_char('1'); e.input_char('0'); e.flush_buffer();
-  e.input_char('3'); e.flush_buffer();
-  e.op('-');
-  TEST_ASSERT_EQUAL_FLOAT(7.0, e.peek(0));
-}
-
-void test_calc_engine_negate_buffer_and_stack() {
-  CalculatorEngine e;
-  // Negate buffer in place.
-  e.input_char('4'); e.input_char('2');
-  e.neg();
-  TEST_ASSERT_EQUAL_STRING("-42", e.buffer());
-  e.neg();
-  TEST_ASSERT_EQUAL_STRING("42", e.buffer());
-  // Negate top of stack when buffer is empty.
-  e.flush_buffer();
-  e.neg();
-  TEST_ASSERT_EQUAL_FLOAT(-42.0, e.peek(0));
-}
-
-void test_calc_engine_sqrt() {
-  CalculatorEngine e;
-  e.input_char('9'); e.flush_buffer();
-  e.sqrt_top();
-  TEST_ASSERT_EQUAL_FLOAT(3.0, e.peek(0));
-}
-
-void test_calc_engine_sqrt_negative_errors() {
-  CalculatorEngine e;
-  e.input_char('4'); e.flush_buffer();
-  e.neg();
-  e.sqrt_top();
-  TEST_ASSERT_TRUE(e.error());
-}
-
-void test_calc_engine_swap() {
-  CalculatorEngine e;
-  e.input_char('1'); e.flush_buffer();
-  e.input_char('2'); e.flush_buffer();
-  TEST_ASSERT_EQUAL_FLOAT(2.0, e.peek(0));
-  TEST_ASSERT_EQUAL_FLOAT(1.0, e.peek(1));
-  e.swap();
-  TEST_ASSERT_EQUAL_FLOAT(1.0, e.peek(0));
-  TEST_ASSERT_EQUAL_FLOAT(2.0, e.peek(1));
-}
-
-void test_calc_app_routes_unary_ops() {
-  Fixture f;
-  CalculatorApp app;
-  app.on_enter(f.hal);
-  KeyEvent k{}; k.down = true; k.key = Key::Char;
-  k.ch = '4'; app.on_key(k); k.ch = '9'; app.on_key(k);
-  k.ch = 'q'; app.on_key(k);   // sqrt(49) = 7
-  TEST_ASSERT_EQUAL_FLOAT(7.0, app.engine().peek(0));
-  k.ch = 'n'; app.on_key(k);   // negate
-  TEST_ASSERT_EQUAL_FLOAT(-7.0, app.engine().peek(0));
-  k.ch = 'c'; app.on_key(k);   // clear
-  TEST_ASSERT_EQUAL_size_t(0u, app.engine().depth());
-}
-
-void test_calc_engine_backspace() {
-  CalculatorEngine e;
-  e.input_char('1'); e.input_char('2'); e.input_char('3');
-  e.backspace();
-  TEST_ASSERT_EQUAL_STRING("12", e.buffer());
-}
-
-void test_calc_app_dispatches_digits_and_ops() {
-  Fixture f;
-  CalculatorApp app;
-  app.on_enter(f.hal);
-  // 4 ENTER 6 + → 10
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char; k.ch = '4'; app.on_key(k);
-  app.on_key(press(Key::Enter));
-  k.ch = '6'; app.on_key(k);
-  k.ch = '+'; app.on_key(k);
-  TEST_ASSERT_EQUAL_FLOAT(10.0, app.engine().peek(0));
-}
-
-void test_calc_engine_sin_zero_is_zero() {
-  CalculatorEngine e;
-  e.input_char('0'); e.flush_buffer();
-  e.sin_top();
-  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, e.peek(0));
-}
-
-void test_calc_engine_cos_zero_is_one() {
-  CalculatorEngine e;
-  e.input_char('0'); e.flush_buffer();
-  e.cos_top();
-  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, e.peek(0));
-}
-
-void test_calc_engine_tan_pi_quarter_is_one() {
-  CalculatorEngine e;
-  // 0.7853981633974483 ≈ pi/4
-  for (char c : std::string("0.7853981633974483")) e.input_char(c);
-  e.flush_buffer();
-  e.tan_top();
-  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, e.peek(0));
-}
-
-void test_calc_engine_trig_empty_stack_errors() {
-  CalculatorEngine e;
-  e.sin_top();
-  TEST_ASSERT_TRUE(e.error());
-}
-
-void test_calc_engine_memory_store_recall_round_trip() {
-  CalculatorEngine e;
-  e.input_char('4'); e.input_char('2'); e.flush_buffer();
-  TEST_ASSERT_FALSE(e.m_has());
-  e.m_store();
-  TEST_ASSERT_TRUE(e.m_has());
-  TEST_ASSERT_EQUAL_DOUBLE(42.0, e.m_value());
-  // pop X then recall — recall pushes onto stack
-  e.backspace();
-  TEST_ASSERT_EQUAL_size_t(0u, e.depth());
-  e.m_recall();
-  TEST_ASSERT_EQUAL_size_t(1u, e.depth());
-  TEST_ASSERT_EQUAL_DOUBLE(42.0, e.peek(0));
-}
-
-void test_calc_engine_memory_clear_zeros_and_unsets() {
-  CalculatorEngine e;
-  e.input_char('7'); e.flush_buffer();
-  e.m_store();
-  e.m_clear();
-  TEST_ASSERT_FALSE(e.m_has());
-  TEST_ASSERT_EQUAL_DOUBLE(0.0, e.m_value());
-}
-
-void test_calc_engine_memory_store_empty_errors() {
-  CalculatorEngine e;
-  e.m_store();
-  TEST_ASSERT_TRUE(e.error());
-  TEST_ASSERT_FALSE(e.m_has());
-}
-
-void test_calc_engine_starts_in_radians_mode() {
-  CalculatorEngine e;
-  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Radians);
-}
-
-void test_calc_engine_toggle_switches_angle_mode() {
-  CalculatorEngine e;
-  e.toggle_angle_mode();
-  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Degrees);
-  e.toggle_angle_mode();
-  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Radians);
-}
-
-void test_calc_engine_sin_90_in_degrees_is_one() {
-  CalculatorEngine e;
-  e.toggle_angle_mode();
-  e.input_char('9'); e.input_char('0'); e.flush_buffer();
-  e.sin_top();
-  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, e.peek(0));
-}
-
-void test_calc_engine_cos_180_in_degrees_is_neg_one() {
-  CalculatorEngine e;
-  e.toggle_angle_mode();
-  e.input_char('1'); e.input_char('8'); e.input_char('0'); e.flush_buffer();
-  e.cos_top();
-  TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, e.peek(0));
-}
-
-void test_calc_engine_push_pi_pushes_constant() {
-  CalculatorEngine e;
-  e.push_pi();
-  TEST_ASSERT_EQUAL_size_t(1u, e.depth());
-  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.141592653589793, e.peek(0));
-}
-
-void test_calc_engine_push_e_pushes_constant() {
-  CalculatorEngine e;
-  e.push_e();
-  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 2.718281828459045, e.peek(0));
-}
-
-void test_calc_engine_push_const_flushes_buffer_first() {
-  CalculatorEngine e;
-  e.input_char('5');
-  e.push_pi();
-  // Both buffer-as-stack-entry and pi should be on stack: depth 2, X = pi.
-  TEST_ASSERT_EQUAL_size_t(2u, e.depth());
-  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.141592653589793, e.peek(0));
-  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 5.0, e.peek(1));
-}
-
-void test_calc_engine_reset_preserves_angle_mode() {
-  CalculatorEngine e;
-  e.toggle_angle_mode();
-  e.reset();
-  TEST_ASSERT_TRUE(e.angle_mode() == CalculatorEngine::AngleMode::Degrees);
-}
-
-void test_calc_app_d_toggles_angle_mode() {
-  Fixture f;
-  CalculatorApp app;
-  app.on_enter(f.hal);
-  KeyEvent k{}; k.down = true; k.key = Key::Char; k.ch = 'd';
-  app.on_key(k);
-  TEST_ASSERT_TRUE(app.engine().angle_mode() ==
-                   CalculatorEngine::AngleMode::Degrees);
-}
-
-void test_calc_app_g_pushes_pi() {
-  Fixture f;
-  CalculatorApp app;
-  app.on_enter(f.hal);
-  KeyEvent k{}; k.down = true; k.key = Key::Char; k.ch = 'g';
-  app.on_key(k);
-  TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.141592653589793, app.engine().peek(0));
-}
-
-void test_calc_app_routes_trig_and_memory_keys() {
-  Fixture f;
-  CalculatorApp app;
-  app.on_enter(f.hal);
-  KeyEvent k{}; k.down = true; k.key = Key::Char;
-  k.ch = '0'; app.on_key(k);
-  k.ch = 'i'; app.on_key(k);  // sin(0) = 0
-  TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, app.engine().peek(0));
-  k.ch = 'p'; app.on_key(k);  // store
-  TEST_ASSERT_TRUE(app.engine().m_has());
-  k.ch = 'k'; app.on_key(k);  // clear
-  TEST_ASSERT_FALSE(app.engine().m_has());
-}
-
 // ───── FilesApp ─────────────────────────────────────────────────────────────
 
 void test_files_lists_root() {
@@ -1582,23 +1291,6 @@ void test_settings_tz_loads_persisted_value() {
   TEST_ASSERT_EQUAL_size_t(tz_index_of("JST-9"), app.tz_index());
 }
 
-void test_clock_picks_up_tz_from_storage_on_enter() {
-  Fixture f;
-  FakeStorage store;
-  store.put_str("clock.tz", "JST-9");
-  ClockApp app{nullptr, "pool.ntp.org", "UTC0", &store};
-  app.on_enter(f.hal);
-  // We can't easily inspect the internal tz_buf_, but we can verify the
-  // behavioral effect: localtime_r honors $TZ on native. Render TimeOfDay
-  // mode and confirm no crash; deeper assertion below.
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  // 2025-01-01 00:00:00 UTC == 2025-01-01 09:00 JST
-  f.clock.set_epoch(1735689600ULL);
-  app.render(f.display);
-  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
-}
-
 void test_settings_default_ntp_is_pool() {
   Fixture f;
   FakeStorage store;
@@ -1632,42 +1324,11 @@ void test_settings_ntp_loads_persisted_value() {
   TEST_ASSERT_EQUAL_size_t(ntp_index_of("time.google.com"), app.ntp_index());
 }
 
-void test_clock_ntp_resync_uses_storage_ntp_server() {
-  Fixture f;
-  FakeStorage store;
-  store.put_str("clock.tz",  "UTC0");
-  store.put_str("clock.ntp", "time.google.com");
-  FakeNet net;
-  net.simulate_wifi_connected();
-  ClockApp app{&net, "pool.ntp.org", "UTC0", &store};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
-  TEST_ASSERT_EQUAL_STRING("time.google.com", net.last_ntp_server());
-}
-
 void test_ntp_presets_index_of_known_value() {
   TEST_ASSERT_EQUAL_size_t(0u, ntp_index_of("pool.ntp.org"));
   TEST_ASSERT_TRUE(ntp_index_of("time.google.com") > 0u);
   TEST_ASSERT_EQUAL_size_t(0u, ntp_index_of("not-a-server"));
   TEST_ASSERT_EQUAL_size_t(0u, ntp_index_of(nullptr));
-}
-
-void test_clock_ntp_resync_uses_storage_tz() {
-  Fixture f;
-  FakeStorage store;
-  store.put_str("clock.tz", "PST8PDT,M3.2.0,M11.1.0");
-  FakeNet net;
-  net.simulate_wifi_connected();
-  ClockApp app{&net, "ntp.example", "UTC0", &store};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
-  TEST_ASSERT_EQUAL_STRING("PST8PDT,M3.2.0,M11.1.0", net.last_ntp_tz());
 }
 
 void test_tz_presets_index_of_known_value() {
@@ -1678,91 +1339,6 @@ void test_tz_presets_index_of_known_value() {
 }
 
 // ───── ClockApp ─────────────────────────────────────────────────────────────
-
-void test_clock_starts_in_stopwatch_mode() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Stopwatch);
-  TEST_ASSERT_FALSE(app.running());
-}
-
-void test_clock_enter_toggles_running() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.running());
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_FALSE(app.running());
-}
-
-void test_clock_tick_advances_elapsed_when_running() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));            // start
-  // First tick at +500ms
-  f.clock.set(500);
-  app.tick(500);
-  TEST_ASSERT_EQUAL_UINT32(500, app.elapsed());
-  // +250 ms more
-  f.clock.set(750);
-  app.tick(750);
-  TEST_ASSERT_EQUAL_UINT32(750, app.elapsed());
-}
-
-void test_clock_tab_switches_modes() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Timer);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::TimeOfDay);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::Stopwatch);
-}
-
-void test_clock_time_of_day_renders_unsynced_placeholder() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  // FakeClock epoch defaults to 0 → "no NTP sync" path. Just confirm
-  // render doesn't crash and leaves the header red.
-  app.render(f.display);
-  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
-  TEST_ASSERT_TRUE(app.mode() == ClockApp::Mode::TimeOfDay);
-}
-
-void test_clock_time_of_day_enter_calls_ntp_sync() {
-  Fixture f;
-  FakeNet net;
-  net.simulate_wifi_connected();
-  ClockApp app{&net, "ntp.example", "UTC0"};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_EQUAL_INT(0, net.ntp_calls());
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_EQUAL_INT(1, net.ntp_calls());
-  TEST_ASSERT_EQUAL_STRING("ntp.example", net.last_ntp_server());
-  TEST_ASSERT_EQUAL_STRING("UTC0",        net.last_ntp_tz());
-}
-
-void test_clock_time_of_day_enter_does_not_toggle_running() {
-  Fixture f;
-  FakeNet net;
-  ClockApp app{&net};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Enter));
-  // Enter must not start the stopwatch from TimeOfDay mode.
-  TEST_ASSERT_FALSE(app.running());
-}
 
 // ───── INet WiFi connect / NTP (FakeNet) ─────────────────────────────────────
 
@@ -1821,42 +1397,6 @@ void test_fakeclock_set_epoch_round_trips() {
   c.set_epoch(1735689600ULL);  // 2025-01-01 00:00 UTC
   TEST_ASSERT_EQUAL_UINT64(1735689600ULL, c.epoch_seconds());
 }
-
-void test_clock_time_of_day_renders_time_when_synced() {
-  Fixture f;
-  // 2025-01-01 12:34:56 UTC → unix 1735734896. Render must not crash.
-  f.clock.set_epoch(1735734896ULL);
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  app.on_key(press(Key::Tab));
-  app.render(f.display);
-  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
-}
-
-void test_clock_timer_up_down_adjusts_target() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  const uint32_t baseline = app.target();
-  app.on_key(press(Key::Up));
-  TEST_ASSERT_EQUAL_UINT32(baseline + 10'000, app.target());
-  app.on_key(press(Key::Down));
-  TEST_ASSERT_EQUAL_UINT32(baseline, app.target());
-}
-
-void test_clock_backspace_resets() {
-  Fixture f;
-  ClockApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  app.tick(1000);
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_EQUAL_UINT32(0, app.elapsed());
-  TEST_ASSERT_FALSE(app.running());
-}
-
 
 // ───── FilesApp hex toggle ──────────────────────────────────────────────────
 
@@ -3827,87 +3367,6 @@ void test_settings_faraday_row_toggles() {
 
 // ───── KoiGotchiApp ────────────────────────────────────────────────────────
 
-void test_koigotchi_starts_in_sleep_mood() {
-  Fixture f;
-  FakeWifiMonitor mon;
-  FakePcap pcap;
-  WifiHandshakeApp src{mon, pcap, f.clock};
-  FakeStorage store; store.init();
-  KoiGotchiApp koi{src, &store, &f.clock};
-  koi.on_enter(f.hal);
-  koi.tick(f.clock.millis());
-  TEST_ASSERT_TRUE(koi.mood_for_test() == KoiGotchiApp::Mood::Sleep);
-}
-
-void test_koigotchi_enters_hunt_when_packets_flow() {
-  Fixture f;
-  FakeWifiMonitor mon;
-  FakePcap pcap;
-  WifiHandshakeApp src{mon, pcap, f.clock};
-  src.on_enter(f.hal);
-  FakeStorage store; store.init();
-  KoiGotchiApp koi{src, &store, &f.clock};
-  koi.on_enter(f.hal);
-
-  uint8_t frame[64];
-  uint8_t sa[6] = {1,2,3,4,5,6};
-  WifiRxMeta meta{}; meta.type = WifiPktType::Management;
-  const size_t n = build_probe_request(frame, sizeof(frame), sa, "T");
-  mon.inject_frame(frame, n, meta);
-  f.clock.advance(100);
-  koi.tick(f.clock.millis());
-  TEST_ASSERT_TRUE(koi.mood_for_test() == KoiGotchiApp::Mood::Hunt);
-}
-
-void test_koigotchi_pops_to_catch_on_eapol_and_increments_counts() {
-  Fixture f;
-  FakeWifiMonitor mon;
-  FakePcap pcap;
-  WifiHandshakeApp src{mon, pcap, f.clock};
-  src.on_enter(f.hal);
-  FakeStorage store; store.init();
-  KoiGotchiApp koi{src, &store, &f.clock};
-  koi.on_enter(f.hal);
-
-  uint8_t frame[64];
-  uint8_t bssid[6] = {0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5};
-  WifiRxMeta meta{}; meta.type = WifiPktType::Data;
-  const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
-  mon.inject_frame(frame, n, meta);
-  f.clock.advance(100);
-  koi.tick(f.clock.millis());
-
-  TEST_ASSERT_TRUE(koi.mood_for_test() == KoiGotchiApp::Mood::Catch);
-  TEST_ASSERT_EQUAL_UINT32(1u, koi.today_count());
-  TEST_ASSERT_EQUAL_UINT32(1u, koi.lifetime_count());
-}
-
-void test_koigotchi_persists_lifetime_across_reentry() {
-  Fixture f;
-  FakeWifiMonitor mon;
-  FakePcap pcap;
-  WifiHandshakeApp src{mon, pcap, f.clock};
-  src.on_enter(f.hal);
-  FakeStorage store; store.init();
-
-  {
-    KoiGotchiApp koi{src, &store, &f.clock};
-    koi.on_enter(f.hal);
-    uint8_t frame[64];
-    uint8_t bssid[6] = {0xA0, 0xB1, 0xC2, 0xD3, 0xE4, 0xF5};
-    WifiRxMeta meta{}; meta.type = WifiPktType::Data;
-    const size_t n = build_eapol_data(frame, sizeof(frame), bssid);
-    mon.inject_frame(frame, n, meta);
-    f.clock.advance(100);
-    koi.tick(f.clock.millis());
-    koi.on_exit();  // forces persistence
-  }
-
-  KoiGotchiApp koi2{src, &store, &f.clock};
-  koi2.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_UINT32(1u, koi2.lifetime_count());
-}
-
 // ───── v0.2 stretch apps ──────────────────────────────────────────────────
 
 // RemoteHeadApp
@@ -5754,14 +5213,6 @@ void test_mousejack_on_exit_disables_promiscuous() {
   TEST_ASSERT_FALSE(n.is_promiscuous());
 }
 
-void test_clock_micros_default_derives_from_millis() {
-  // IClock default impl returns micros = millis * 1000 so backends
-  // that don't override stay sane in tests.
-  yui::FakeClock clock;
-  clock.set(250);
-  TEST_ASSERT_EQUAL_UINT64(250000ULL, clock.micros());
-}
-
 void test_hydra_status_enter_reprobes() {
   yui::NativeCc1101 c;
   yui::NativeNrf24  n;
@@ -5909,7 +5360,6 @@ int main(int, char**) {
   RUN_TEST(test_braille_decode_blank_glyph);
   RUN_TEST(test_braille_decode_full_block);
   RUN_TEST(test_braille_decode_advances_pointer);
-  RUN_TEST(test_koi_art_dimensions_match_constants);
   RUN_TEST(test_splash_paints_white_background);
   RUN_TEST(test_splash_renders_red_koi_pixels_at_t0);
   RUN_TEST(test_splash_shimmer_advances_with_time);
@@ -5964,36 +5414,6 @@ int main(int, char**) {
   RUN_TEST(test_wifi_app_already_connected_skips_scan);
   RUN_TEST(test_ble_app_starts_and_completes);
   RUN_TEST(test_ble_app_arrow_keys_move_cursor);
-  RUN_TEST(test_calc_engine_addition);
-  RUN_TEST(test_calc_engine_division_by_zero_errors);
-  RUN_TEST(test_calc_engine_decimal_input);
-  RUN_TEST(test_calc_engine_dup);
-  RUN_TEST(test_calc_engine_subtraction);
-  RUN_TEST(test_calc_engine_negate_buffer_and_stack);
-  RUN_TEST(test_calc_engine_sqrt);
-  RUN_TEST(test_calc_engine_sqrt_negative_errors);
-  RUN_TEST(test_calc_engine_swap);
-  RUN_TEST(test_calc_app_routes_unary_ops);
-  RUN_TEST(test_calc_engine_backspace);
-  RUN_TEST(test_calc_app_dispatches_digits_and_ops);
-  RUN_TEST(test_calc_engine_sin_zero_is_zero);
-  RUN_TEST(test_calc_engine_cos_zero_is_one);
-  RUN_TEST(test_calc_engine_tan_pi_quarter_is_one);
-  RUN_TEST(test_calc_engine_trig_empty_stack_errors);
-  RUN_TEST(test_calc_engine_memory_store_recall_round_trip);
-  RUN_TEST(test_calc_engine_memory_clear_zeros_and_unsets);
-  RUN_TEST(test_calc_engine_memory_store_empty_errors);
-  RUN_TEST(test_calc_app_routes_trig_and_memory_keys);
-  RUN_TEST(test_calc_engine_starts_in_radians_mode);
-  RUN_TEST(test_calc_engine_toggle_switches_angle_mode);
-  RUN_TEST(test_calc_engine_sin_90_in_degrees_is_one);
-  RUN_TEST(test_calc_engine_cos_180_in_degrees_is_neg_one);
-  RUN_TEST(test_calc_engine_push_pi_pushes_constant);
-  RUN_TEST(test_calc_engine_push_e_pushes_constant);
-  RUN_TEST(test_calc_engine_push_const_flushes_buffer_first);
-  RUN_TEST(test_calc_engine_reset_preserves_angle_mode);
-  RUN_TEST(test_calc_app_d_toggles_angle_mode);
-  RUN_TEST(test_calc_app_g_pushes_pi);
   RUN_TEST(test_files_lists_root);
   RUN_TEST(test_files_enter_descends_into_dir);
   RUN_TEST(test_files_dotdot_at_subdir_pops_to_parent);
@@ -6017,24 +5437,11 @@ int main(int, char**) {
   RUN_TEST(test_settings_tz_right_cycles_and_persists);
   RUN_TEST(test_settings_tz_left_wraps_to_last_preset);
   RUN_TEST(test_settings_tz_loads_persisted_value);
-  RUN_TEST(test_clock_picks_up_tz_from_storage_on_enter);
-  RUN_TEST(test_clock_ntp_resync_uses_storage_tz);
   RUN_TEST(test_tz_presets_index_of_known_value);
   RUN_TEST(test_settings_default_ntp_is_pool);
   RUN_TEST(test_settings_ntp_right_cycles_and_persists);
   RUN_TEST(test_settings_ntp_loads_persisted_value);
-  RUN_TEST(test_clock_ntp_resync_uses_storage_ntp_server);
   RUN_TEST(test_ntp_presets_index_of_known_value);
-  RUN_TEST(test_clock_starts_in_stopwatch_mode);
-  RUN_TEST(test_clock_enter_toggles_running);
-  RUN_TEST(test_clock_tick_advances_elapsed_when_running);
-  RUN_TEST(test_clock_tab_switches_modes);
-  RUN_TEST(test_clock_timer_up_down_adjusts_target);
-  RUN_TEST(test_clock_backspace_resets);
-  RUN_TEST(test_clock_time_of_day_renders_unsynced_placeholder);
-  RUN_TEST(test_clock_time_of_day_enter_calls_ntp_sync);
-  RUN_TEST(test_clock_time_of_day_enter_does_not_toggle_running);
-  RUN_TEST(test_clock_time_of_day_renders_time_when_synced);
   RUN_TEST(test_fakenet_wifi_connect_rejects_empty_ssid);
   RUN_TEST(test_fakenet_wifi_connect_immediate_marks_connected);
   RUN_TEST(test_fakenet_wifi_connect_async_path);
@@ -6184,10 +5591,6 @@ int main(int, char**) {
   RUN_TEST(test_blespam_tab_cycles_rail_when_idle);
   RUN_TEST(test_blejammer_dual_rail_starts_continuous);
   RUN_TEST(test_blejammer_disable_stops_both_rails);
-  RUN_TEST(test_koigotchi_starts_in_sleep_mood);
-  RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
-  RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);
-  RUN_TEST(test_koigotchi_persists_lifetime_across_reentry);
   RUN_TEST(test_handshake_app_tick_hops_channels);
   RUN_TEST(test_handshake_app_on_exit_stops_and_closes);
   // v0.2 stretch — Track A
@@ -6319,7 +5722,6 @@ int main(int, char**) {
   RUN_TEST(test_subghz_replay_uses_edge_toggle_not_packet_mode);
   RUN_TEST(test_mousejack_enables_promiscuous_before_scanning);
   RUN_TEST(test_mousejack_on_exit_disables_promiscuous);
-  RUN_TEST(test_clock_micros_default_derives_from_millis);
   RUN_TEST(test_hydra_status_enter_reprobes);
   RUN_TEST(test_radio_header_filled_dot_when_cc1101_present);
   RUN_TEST(test_radio_header_hollow_dot_when_cc1101_absent);

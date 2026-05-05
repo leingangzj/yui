@@ -231,16 +231,12 @@ operator UX.
   scans — Bruce/Marauder do this and it's awful to navigate.
   Per-band UX is right for this category.
 
-### Candidates kept under review (not in 4.13 scope)
+### 4.13.7 — RESOLVED — `KoiGotchiApp` / `CalculatorApp` / `ClockApp` cut
 
-- `KoigotchiApp` — off-mission post-prune, but personality.
-- `CalcApp` — RPN calc; field-handy when computing offsets,
-  marginal otherwise.
-- `ClockApp` — phone-replaceable, but pairs with the NTP+GPS
-  infra and useful for stamped offline log review.
-
-If all three are later cut: 34 → 31 apps. Decision deferred
-until after 4.13 lands and the launcher density reads cleanly.
+All three deferred candidates removed. Final launcher count after
+the consolidation sweep + RfChaosApp registration + this cut:
+**32 entries** (42 → 32, 10 slots recovered, all off-mission utility
+removed).
 
 ## v1.2 — Lab Mode (PLANNED)
 
