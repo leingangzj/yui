@@ -5,7 +5,14 @@
 # Add a hash here when you vendor an archive. Verify before
 # committing — see board/lib_extra/README.md for sourcing notes.
 #
-# Example (uncomment and replace with the real hash once you
-# have a known-good libnet80211.a):
+# Yui currently ships the override as committed C source compiled into
+# the firmware via build_src_filter — see board/lib_extra/freedom_override.c
+# and src/lib_extra_override/. No pre-built archives are vendored in
+# this directory; if you choose to vendor one (e.g. a full patched
+# libnet80211.a from a verified upstream), append its hash here using
+# the format below.
 #
+#   <64-hex-hash>  <filename>
+#
+# Example (uncomment + replace if you vendor a pre-built):
 #   d41d8cd98f00b204e9800998ecf8427e0000000000000000000000000000abcd  libnet80211.a
