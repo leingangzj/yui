@@ -24,12 +24,10 @@
 #include "yui/app/KenwoodApp.hpp"
 #include "yui/app/GpsApp.hpp"
 #include "yui/app/PineappleApp.hpp"
-#include "yui/app/PineappleReconApp.hpp"
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
-#include "yui/app/HandshakeBrowserApp.hpp"
 #include "yui/app/EvilTwinApp.hpp"
 #include "yui/app/KarmaApp.hpp"
 #include "yui/app/DeauthApp.hpp"
@@ -155,12 +153,10 @@ yui::AprsApp     aprs_app{radio_};
 yui::KenwoodApp  kenwood_app{radio_, &store_};
 yui::GpsApp      gps_app{gnss_, fs_};
 yui::PineappleApp        pa_app{http_, store_};
-yui::PineappleReconApp   pa_recon_app{http_, store_};
 yui::WifiProbeApp        probe_app{wmon_};
 yui::WifiHandshakeApp    handshake_app{wmon_, pcap_, clock_};
 yui::RemoteHeadApp       remote_head_app{radio_};
 yui::AprsMessageApp      aprs_msg_app{radio_, store_};
-yui::HandshakeBrowserApp pa_handshakes_app{http_, store_};
 yui::EvilTwinApp         evil_twin_app{http_, store_};
 yui::KarmaApp            karma_app{http_, store_};
 yui::DeauthApp           deauth_app{http_, store_, wmon_};
@@ -267,10 +263,8 @@ void setup() {
   // WIFI category
   registry.add(&wifi_app);
   registry.add(&pa_app);
-  registry.add(&pa_recon_app);
   registry.add(&probe_app);
   registry.add(&handshake_app);
-  registry.add(&pa_handshakes_app);
   registry.add(&evil_twin_app);
   registry.add(&karma_app);
   registry.add(&deauth_app);

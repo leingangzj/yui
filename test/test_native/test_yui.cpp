@@ -47,7 +47,6 @@
 #include "yui/app/KenwoodApp.hpp"
 #include "yui/app/GpsApp.hpp"
 #include "yui/app/PineappleApp.hpp"
-#include "yui/app/PineappleReconApp.hpp"
 #include "../../src/hal/native/NativeWifiMonitor.hpp"
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
@@ -55,7 +54,6 @@
 #include "yui/app/ThemeApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
-#include "yui/app/HandshakeBrowserApp.hpp"
 #include "yui/app/EvilTwinApp.hpp"
 #include "yui/app/KarmaApp.hpp"
 #include "yui/app/DeauthApp.hpp"
@@ -2909,7 +2907,7 @@ void test_pineapple_app_login_failure_marks_error() {
   TEST_ASSERT_FALSE(app.client().authenticated());
 }
 
-void test_pineapple_app_tab_re_fetches() {
+void test_pineapple_app_enter_re_fetches() {
   Fixture f;
   FakeHttp h;
   FakeStorage st;
@@ -2921,7 +2919,7 @@ void test_pineapple_app_tab_re_fetches() {
   PineappleApp app{h, st};
   app.on_enter(f.hal);
   const int calls_before = h.calls();
-  app.on_key(press(Key::Tab));
+  app.on_key(press(Key::Enter));
   TEST_ASSERT_TRUE(h.calls() > calls_before);
 }
 
@@ -2929,9 +2927,10 @@ void test_recon_app_starts_in_idle() {
   Fixture f;
   FakeHttp h;
   FakeStorage st;
-  PineappleReconApp app{h, st};
+  PineappleApp app{h, st};
   app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Idle);
+  app.set_tab(PineappleApp::Tab::Recon);
+  TEST_ASSERT_TRUE(app.state() == PineappleApp::ReconState::Idle);
 }
 
 void test_recon_app_enter_starts_scan() {
@@ -2943,10 +2942,11 @@ void test_recon_app_enter_starts_scan() {
   h.register_response("POST",
       "http://pa.local:1471/api/recon/start",
       200, "{\"scanRunning\":true,\"scanID\":7}");
-  PineappleReconApp app{h, st};
+  PineappleApp app{h, st};
   app.on_enter(f.hal);
+  app.set_tab(PineappleApp::Tab::Recon);
   app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Scanning);
+  TEST_ASSERT_TRUE(app.state() == PineappleApp::ReconState::Scanning);
   TEST_ASSERT_EQUAL_INT(7, app.scan_id());
 }
 
@@ -2962,12 +2962,13 @@ void test_recon_app_tick_polls_and_completes() {
   h.register_response("GET",
       "http://pa.local:1471/api/recon/status",
       200, "{\"scanRunning\":false,\"scanPercent\":100,\"scanID\":7}");
-  PineappleReconApp app{h, st};
+  PineappleApp app{h, st};
   app.on_enter(f.hal);
+  app.set_tab(PineappleApp::Tab::Recon);
   app.on_key(press(Key::Enter));
   app.tick(0);
-  app.tick(2000);  // past poll interval
-  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Done);
+  app.tick(2000);
+  TEST_ASSERT_TRUE(app.state() == PineappleApp::ReconState::Done);
   TEST_ASSERT_EQUAL_INT(100, app.percent());
 }
 
@@ -2976,11 +2977,37 @@ void test_recon_app_login_failure_yields_error_state() {
   FakeHttp h;
   FakeStorage st;
   seed_pineapple_creds(st);
-  // No login response → login fails
-  PineappleReconApp app{h, st};
+  PineappleApp app{h, st};
   app.on_enter(f.hal);
+  app.set_tab(PineappleApp::Tab::Recon);
   app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Error);
+  TEST_ASSERT_TRUE(app.state() == PineappleApp::ReconState::Error);
+}
+
+void test_pineapple_tab_cycles_through_three_tabs() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  PineappleApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.tab() == PineappleApp::Tab::Dashboard);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.tab() == PineappleApp::Tab::Recon);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.tab() == PineappleApp::Tab::Handshakes);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.tab() == PineappleApp::Tab::Dashboard);
+}
+
+void test_pineapple_no_creds_renders_unreachable_consistently() {
+  Fixture f;
+  FakeHttp h;
+  FakeStorage st;
+  PineappleApp app{h, st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.last_ok());
+  app.set_tab(PineappleApp::Tab::Handshakes);
+  TEST_ASSERT_FALSE(app.handshakes_ok());
 }
 
 // ───── 802.11 frame helpers ────────────────────────────────────────────────
@@ -3532,9 +3559,10 @@ void test_handshake_browser_counts_bssids() {
       "{\"bssid\":\"a\",\"foo\":1},"
       "{\"bssid\":\"b\",\"foo\":2}"
       "]}");
-  HandshakeBrowserApp app{h, st};
+  PineappleApp app{h, st};
   app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.last_ok());
+  app.set_tab(PineappleApp::Tab::Handshakes);
+  TEST_ASSERT_TRUE(app.handshakes_ok());
   TEST_ASSERT_EQUAL_size_t(2u, app.count());
 }
 
@@ -4518,13 +4546,14 @@ void test_recon_app_done_state_enter_rescans() {
   h.register_response("GET",
       "http://pa.local:1471/api/recon/status",
       200, "{\"scanRunning\":false,\"scanPercent\":100,\"scanID\":1}");
-  PineappleReconApp app{h, st};
+  PineappleApp app{h, st};
   app.on_enter(f.hal);
+  app.set_tab(PineappleApp::Tab::Recon);
   app.on_key(press(Key::Enter));
   app.tick(0); app.tick(2000);
-  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Done);
+  TEST_ASSERT_TRUE(app.state() == PineappleApp::ReconState::Done);
   app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.state() == PineappleReconApp::State::Scanning);
+  TEST_ASSERT_TRUE(app.state() == PineappleApp::ReconState::Scanning);
 }
 
 // ───── Phase 3 — Hydra HAL (CC1101 + nRF24) + .sub format ──────────────────
@@ -5485,7 +5514,9 @@ int main(int, char**) {
   RUN_TEST(test_pineapple_app_no_creds_renders_hint);
   RUN_TEST(test_pineapple_app_logs_in_and_fetches_cards);
   RUN_TEST(test_pineapple_app_login_failure_marks_error);
-  RUN_TEST(test_pineapple_app_tab_re_fetches);
+  RUN_TEST(test_pineapple_app_enter_re_fetches);
+  RUN_TEST(test_pineapple_tab_cycles_through_three_tabs);
+  RUN_TEST(test_pineapple_no_creds_renders_unreachable_consistently);
   RUN_TEST(test_recon_app_starts_in_idle);
   RUN_TEST(test_recon_app_enter_starts_scan);
   RUN_TEST(test_recon_app_tick_polls_and_completes);
