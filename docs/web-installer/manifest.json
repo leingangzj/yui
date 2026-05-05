@@ -1,13 +1,13 @@
 {
   "name": "Yui",
-  "version": "v1.0",
+  "version": "v1.1.0",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "yui-v1.0-cardputer_adv.bin",
+          "path": "yui-v1.1.0-cardputer_adv.bin",
           "offset": 0
         }
       ]
