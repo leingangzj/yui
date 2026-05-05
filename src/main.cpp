@@ -231,6 +231,25 @@ void setup() {
   // launcher status badge see the right state from the first frame.
   yui::FaradayMode::load(store_);
 
+  // B2 — boot self-test mode. When system.boot_st is set, run all
+  // SelfTestApp probes and dump the verdict to serial before booting
+  // into the normal launcher. Useful for production-test flashing.
+  {
+    int32_t bs = 0;
+    store_.get_int(yui::kStorageKeyBootSelfTest, bs, 0);
+    if (bs != 0) {
+      log_.info("BootSelfTest: running probes");
+      selftest_app.on_enter(hal);
+      selftest_app.run_for_test();
+      char buf[40];
+      std::snprintf(buf, sizeof(buf), "BootSelfTest: %d/%d/%d (P/S/F)",
+                    selftest_app.pass_count(),
+                    selftest_app.skip_count(),
+                    selftest_app.fail_count());
+      log_.info(buf);
+    }
+  }
+
   char saved_ssid[33] = {0};
   char saved_pass[65] = {0};
   char saved_tz[40]   = "UTC0";

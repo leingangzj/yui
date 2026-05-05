@@ -17,7 +17,8 @@
 #include "yui/ui/Tokens.hpp"
 
 namespace yui {
-inline constexpr const char* kStorageKeyTheme = "ui.theme";
+inline constexpr const char* kStorageKeyTheme       = "ui.theme";
+inline constexpr const char* kStorageKeyBootSelfTest = "sys.boot_st";
 }  // namespace yui
 #if !defined(YUI_TARGET_CARDPUTER_ADV)
 #include <cstdlib>  // setenv on native
@@ -65,6 +66,9 @@ public:
       }
     }
     FaradayMode::load(store_);
+    int32_t bs = 0;
+    store_.get_int(kStorageKeyBootSelfTest, bs, 0);
+    boot_selftest_ = (bs != 0);
     cursor_ = 0;
   }
 
@@ -112,6 +116,10 @@ public:
           std::snprintf(line, sizeof(line), "Faraday Mode %s",
                         FaradayMode::is_active() ? "ON  [LAB]" : "off");
           break;
+        case 5:
+          std::snprintf(line, sizeof(line), "Boot SelfTest %s",
+                        boot_selftest_ ? "ON" : "off");
+          break;
         default:
           std::snprintf(line, sizeof(line), "(coming soon)");
           break;
@@ -140,8 +148,10 @@ public:
     return ntp_presets(n)[ntp_idx_].host;
   }
 
+public:
+  bool boot_selftest_enabled() const { return boot_selftest_; }
 private:
-  static constexpr int kRowCount = 5;
+  static constexpr int kRowCount = 6;
 
   void step_(int delta) {
     if (cursor_ == 0) {
@@ -178,9 +188,13 @@ private:
       return;
     }
     if (cursor_ == 4) {
-      // Faraday Mode is binary; either Left or Right toggles it.
       if (FaradayMode::is_active()) FaradayMode::disable(store_);
       else                          FaradayMode::enable(store_);
+      return;
+    }
+    if (cursor_ == 5) {
+      boot_selftest_ = !boot_selftest_;
+      store_.put_int(kStorageKeyBootSelfTest, boot_selftest_ ? 1 : 0);
       return;
     }
   }
@@ -202,6 +216,7 @@ private:
   size_t    tz_idx_     = 0;
   size_t    ntp_idx_    = 0;
   size_t    theme_idx_  = 0;
+  bool      boot_selftest_ = false;
 };
 
 }  // namespace yui

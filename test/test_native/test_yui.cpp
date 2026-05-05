@@ -2897,6 +2897,34 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── B2 — Boot self-test mode (NVS flag) ─────────────────────────────
+
+void test_settings_boot_selftest_default_off() {
+  Fixture f;
+  FakeStorage st; st.init();
+  SettingsApp app{st};
+  app.on_enter(f.hal);
+  TEST_ASSERT_FALSE(app.boot_selftest_enabled());
+}
+
+void test_settings_boot_selftest_toggle_persists() {
+  Fixture f;
+  FakeStorage st; st.init();
+  {
+    SettingsApp app{st};
+    app.on_enter(f.hal);
+    app.set_cursor(5);
+    app.on_key(press(Key::Right));
+    TEST_ASSERT_TRUE(app.boot_selftest_enabled());
+  }
+  // Re-enter — value loaded from NVS.
+  {
+    SettingsApp app{st};
+    app.on_enter(f.hal);
+    TEST_ASSERT_TRUE(app.boot_selftest_enabled());
+  }
+}
+
 // ───── B1 — SelfTestApp ────────────────────────────────────────────────
 
 #include "yui/app/SelfTestApp.hpp"
@@ -5649,6 +5677,8 @@ int main(int, char**) {
   RUN_TEST(test_selftest_full_wiring_passes_all_present);
   RUN_TEST(test_selftest_storage_rw_round_trip);
   RUN_TEST(test_selftest_cap_absent_marks_skip_not_fail);
+  RUN_TEST(test_settings_boot_selftest_default_off);
+  RUN_TEST(test_settings_boot_selftest_toggle_persists);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);
