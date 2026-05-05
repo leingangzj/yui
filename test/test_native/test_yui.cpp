@@ -51,7 +51,6 @@
 #include "yui/app/WifiProbeApp.hpp"
 #include "yui/app/WifiHandshakeApp.hpp"
 #include "yui/app/KoiGotchiApp.hpp"
-#include "yui/app/ThemeApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
 #include "yui/app/RogueApApp.hpp"
@@ -3255,7 +3254,7 @@ void test_handshake_app_on_exit_stops_and_closes() {
   TEST_ASSERT_FALSE(pcap.is_open());
 }
 
-// ───── ThemeApp ────────────────────────────────────────────────────────────
+// ───── Theme (now in SettingsApp row 3) ────────────────────────────────────
 
 void test_theme_default_is_kohaku() {
   // Defaults established in Tokens.hpp.
@@ -3267,35 +3266,32 @@ void test_theme_apply_palette_swaps_live_tokens() {
   TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.accent, yui::ui::kAccent);
   TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.warn,   yui::ui::kWarn);
   TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.accent_dark, yui::ui::kHint);
-  // Restore so subsequent tests see the default.
   yui::ui::apply_palette(yui::ui::kKohaku);
 }
 
-void test_theme_app_persists_selection() {
+void test_settings_theme_row_persists_selection() {
   Fixture f;
   FakeStorage store; store.init();
-  ThemeApp app{&store};
+  SettingsApp app{store};
   app.on_enter(f.hal);
-
-  // Move down to Ogon (index 1) and apply.
-  app.on_key(press(Key::Down));
-  app.on_key(press(Key::Enter));
-
+  app.set_cursor(3);  // Theme row
+  // Step right once → next palette (ogon at index 1).
+  app.on_key(press(Key::Right));
   char id[16] = {0};
   TEST_ASSERT_TRUE(store.get_str(kStorageKeyTheme, id, sizeof(id)));
   TEST_ASSERT_EQUAL_STRING("ogon", id);
   TEST_ASSERT_EQUAL_HEX16(yui::ui::kOgon.accent, yui::ui::kAccent);
-  // Restore.
   yui::ui::apply_palette(yui::ui::kKohaku);
 }
 
-void test_theme_app_initial_cursor_matches_active_palette() {
+void test_settings_theme_row_loads_persisted_palette_on_enter() {
   Fixture f;
   FakeStorage store; store.init();
   store.put_str(kStorageKeyTheme, "asagi");
-  ThemeApp app{&store};
+  SettingsApp app{store};
   app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL(2u, app.cursor());  // asagi is index 2 in kPalettes
+  TEST_ASSERT_EQUAL(2u, app.theme_index());
+  TEST_ASSERT_EQUAL_STRING("asagi", app.theme_id());
 }
 
 // ───── KoiGotchiApp ────────────────────────────────────────────────────────
@@ -5615,8 +5611,8 @@ int main(int, char**) {
   RUN_TEST(test_handshake_app_increments_eapol_count_on_key_frame);
   RUN_TEST(test_theme_default_is_kohaku);
   RUN_TEST(test_theme_apply_palette_swaps_live_tokens);
-  RUN_TEST(test_theme_app_persists_selection);
-  RUN_TEST(test_theme_app_initial_cursor_matches_active_palette);
+  RUN_TEST(test_settings_theme_row_persists_selection);
+  RUN_TEST(test_settings_theme_row_loads_persisted_palette_on_enter);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);

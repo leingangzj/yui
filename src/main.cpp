@@ -37,7 +37,6 @@
 #include "yui/app/BleJammerApp.hpp"
 #include "yui/app/SatTrackerApp.hpp"
 #include "yui/app/KoiGotchiApp.hpp"
-#include "yui/app/ThemeApp.hpp"
 #include "yui/app/SubGhzScanApp.hpp"
 #include "yui/app/SubGhzCaptureReplayApp.hpp"
 #include "yui/app/SubGhzBruteApp.hpp"
@@ -163,7 +162,6 @@ yui::BleGattApp          ble_gatt_app{ble_cent_};
 yui::BleJammerApp        ble_jammer_app{ble_adv_};
 yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
 yui::KoiGotchiApp        koigotchi_app{handshake_app, &store_, &clock_};
-yui::ThemeApp            theme_app{&store_};
 
 // Phase 4 — Hydra RF apps. Each takes nullable radio pointers so the
 // app can render a "cap not detected" dialog instead of crashing when
@@ -276,7 +274,6 @@ void setup() {
   registry.add(&koigotchi_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
-  registry.add(&theme_app);
   // Phase 4 — Hydra RF apps (Pingequa Hydra Cap 424).
   registry.add(&subghz_scan_app);
   registry.add(&subghz_cr_app);

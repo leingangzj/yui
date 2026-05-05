@@ -1,5 +1,8 @@
 #pragma once
-// Settings — brightness, theme, timezone. Persists via IStorage.
+// Settings — brightness, theme, timezone, NTP. Persists via IStorage.
+//
+// Theme row absorbs the previous standalone ThemeApp: Left/Right
+// cycles palettes and applies+persists to NVS key "ui.theme" on change.
 #include "yui/app/App.hpp"
 #include "yui/hal/IStorage.hpp"
 #include "yui/util/TzPresets.hpp"
@@ -11,6 +14,10 @@
 
 #include "yui/ui/Chrome.hpp"
 #include "yui/ui/Tokens.hpp"
+
+namespace yui {
+inline constexpr const char* kStorageKeyTheme = "ui.theme";
+}  // namespace yui
 #if !defined(YUI_TARGET_CARDPUTER_ADV)
 #include <cstdlib>  // setenv on native
 #include <ctime>    // tzset
@@ -45,6 +52,17 @@ public:
       std::strncpy(ntp_buf, "pool.ntp.org", sizeof(ntp_buf) - 1);
     }
     ntp_idx_ = ntp_index_of(ntp_buf);
+
+    char theme_buf[16] = {0};
+    theme_idx_ = 0;
+    if (store_.get_str(kStorageKeyTheme, theme_buf, sizeof(theme_buf))) {
+      for (std::size_t i = 0; i < ui::kPaletteCount; ++i) {
+        if (std::strcmp(ui::kPalettes[i].id, theme_buf) == 0) {
+          theme_idx_ = i;
+          break;
+        }
+      }
+    }
     cursor_ = 0;
   }
 
@@ -85,7 +103,8 @@ public:
                         ntps[ntp_idx_].label);
           break;
         case 3:
-          std::snprintf(line, sizeof(line), "Theme        Hinomaru");
+          std::snprintf(line, sizeof(line), "Theme        %.12s",
+                        ui::kPalettes[theme_idx_].label);
           break;
         default:
           std::snprintf(line, sizeof(line), "(coming soon)");
@@ -101,8 +120,11 @@ public:
   // Test hooks
   int    brightness() const { return brightness_; }
   int    cursor()     const { return cursor_; }
+  void   set_cursor(int c) { cursor_ = c; }
   size_t tz_index()   const { return tz_idx_; }
   size_t ntp_index()  const { return ntp_idx_; }
+  size_t theme_index() const { return theme_idx_; }
+  const char* theme_id() const { return ui::kPalettes[theme_idx_].id; }
   const char* tz_posix() const {
     size_t n = 0;
     return tz_presets(n)[tz_idx_].posix;
@@ -141,6 +163,14 @@ private:
       store_.put_str("clock.ntp", p[ntp_idx_].host);
       return;
     }
+    if (cursor_ == 3) {
+      const int n = static_cast<int>(ui::kPaletteCount);
+      const int next = (static_cast<int>(theme_idx_) + delta + n) % n;
+      theme_idx_ = static_cast<size_t>(next);
+      ui::apply_palette(ui::kPalettes[theme_idx_]);
+      store_.put_str(kStorageKeyTheme, ui::kPalettes[theme_idx_].id);
+      return;
+    }
   }
 
   static void apply_tz_native_(const char* posix) {
@@ -159,6 +189,7 @@ private:
   int       cursor_     = 0;
   size_t    tz_idx_     = 0;
   size_t    ntp_idx_    = 0;
+  size_t    theme_idx_  = 0;
 };
 
 }  // namespace yui
