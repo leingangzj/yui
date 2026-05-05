@@ -3356,6 +3356,145 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── Phase 5.3 — RfChaosApp (lab-only RF stress test) ────────────────
+
+#include "yui/app/RfChaosApp.hpp"
+
+namespace {
+struct ChaosCounter {
+  int n = 0;
+  void operator()() { ++n; }
+};
+}  // namespace
+
+void test_rfchaos_refuses_arm_without_faraday() {
+  Fixture f;
+  FakeFs fs;
+  yui::FakeClock clock;
+  FaradayMode::reset_for_test();
+  RfChaosApp app{fs, clock};
+  ChaosCounter c;
+  app.add_target({"deauth", std::ref(c), 6});
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == RfChaosApp::State::Refused);
+  TEST_ASSERT_EQUAL_INT(0, c.n);
+}
+
+void test_rfchaos_arms_when_faraday_on_and_targets_present() {
+  Fixture f;
+  FakeFs fs;
+  FakeStorage st; st.init();
+  yui::FakeClock clock;
+  FaradayMode::reset_for_test();
+  FaradayMode::enable(st);
+  RfChaosApp app{fs, clock};
+  ChaosCounter c;
+  app.add_target({"deauth", std::ref(c), 6});
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(app.state() == RfChaosApp::State::Armed);
+  FaradayMode::reset_for_test();
+}
+
+void test_rfchaos_fire_rate_scales_with_intensity() {
+  // Intensity 10 → 100ms interval → ~10 fires in 1s. Intensity 1 →
+  // 1000ms interval → ~1 fire in 1s.
+  Fixture f;
+  FakeFs fs;
+  FakeStorage st; st.init();
+  yui::FakeClock clock;
+  FaradayMode::reset_for_test(); FaradayMode::enable(st);
+  RfChaosApp app{fs, clock};
+  ChaosCounter c;
+  app.add_target({"a", std::ref(c), 0});
+  app.on_enter(f.hal);
+  app.set_intensity(10);
+  app.set_seed(1);
+  app.on_key(press_fn(Key::Enter));
+  for (uint32_t t = 0; t < 1000; t += 50) app.tick(t);
+  TEST_ASSERT_TRUE(c.n >= 8);
+  FaradayMode::reset_for_test();
+}
+
+void test_rfchaos_natural_completion_at_deadline() {
+  Fixture f;
+  FakeFs fs;
+  FakeStorage st; st.init();
+  yui::FakeClock clock;
+  FaradayMode::reset_for_test(); FaradayMode::enable(st);
+  RfChaosApp app{fs, clock};
+  ChaosCounter c;
+  app.add_target({"a", std::ref(c), 0});
+  app.on_enter(f.hal);
+  app.set_duration(RfChaosApp::Duration::OneMin);
+  app.set_seed(7);
+  app.on_key(press_fn(Key::Enter));
+  app.tick(60'000 + 1);  // past deadline
+  TEST_ASSERT_TRUE(app.state() == RfChaosApp::State::Done);
+  FaradayMode::reset_for_test();
+}
+
+void test_rfchaos_fires_targets_round_robin_with_seed() {
+  Fixture f;
+  FakeFs fs;
+  FakeStorage st; st.init();
+  yui::FakeClock clock;
+  FaradayMode::reset_for_test(); FaradayMode::enable(st);
+  RfChaosApp app{fs, clock};
+  ChaosCounter a, b;
+  app.add_target({"a", std::ref(a), 0});
+  app.add_target({"b", std::ref(b), 0});
+  app.on_enter(f.hal);
+  app.set_intensity(5);
+  app.set_seed(42);
+  app.on_key(press_fn(Key::Enter));
+  for (uint32_t t = 0; t < 5000; t += 100) app.tick(t);
+  TEST_ASSERT_TRUE(a.n + b.n >= 5);
+  FaradayMode::reset_for_test();
+}
+
+void test_rfchaos_writes_log_on_stop() {
+  Fixture f;
+  FakeFs fs;
+  FakeStorage st; st.init();
+  yui::FakeClock clock;
+  FaradayMode::reset_for_test(); FaradayMode::enable(st);
+  RfChaosApp app{fs, clock};
+  ChaosCounter c;
+  app.add_target({"a", std::ref(c), 0});
+  app.on_enter(f.hal);
+  app.set_intensity(10);
+  app.set_seed(1);
+  app.on_key(press_fn(Key::Enter));
+  for (uint32_t t = 0; t < 500; t += 50) app.tick(t);
+  app.on_key(press(Key::Backspace));  // manual stop → flush log
+  yui::FsEntry entries[8];
+  int n = fs.list("/rfchaos", entries, 8);
+  TEST_ASSERT_TRUE(n >= 1);
+  FaradayMode::reset_for_test();
+}
+
+void test_rfchaos_intensity_clamps() {
+  FakeFs fs;
+  yui::FakeClock clock;
+  RfChaosApp app{fs, clock};
+  app.set_intensity(0);
+  TEST_ASSERT_EQUAL_INT(1, app.intensity());
+  app.set_intensity(100);
+  TEST_ASSERT_EQUAL_INT(10, app.intensity());
+}
+
+void test_rfchaos_duration_minutes() {
+  FakeFs fs;
+  yui::FakeClock clock;
+  RfChaosApp app{fs, clock};
+  app.set_duration(RfChaosApp::Duration::OneMin);     TEST_ASSERT_EQUAL_INT(1,  app.duration_minutes());
+  app.set_duration(RfChaosApp::Duration::FiveMin);    TEST_ASSERT_EQUAL_INT(5,  app.duration_minutes());
+  app.set_duration(RfChaosApp::Duration::FifteenMin); TEST_ASSERT_EQUAL_INT(15, app.duration_minutes());
+  app.set_duration(RfChaosApp::Duration::SixtyMin);   TEST_ASSERT_EQUAL_INT(60, app.duration_minutes());
+}
+
 // ───── Phase 5.2 — Dual-rail BLE TX (HAL only; app integration TBD) ─────
 
 void test_ble_rawtx_nimble_rail_accepts_only_adv_channels() {
@@ -5809,6 +5948,14 @@ int main(int, char**) {
   RUN_TEST(test_ble_rawtx_cap_missing_blocks_tx);
   RUN_TEST(test_ble_rawtx_channel_split_no_overlap);
   RUN_TEST(test_ble_rawtx_rail_names);
+  RUN_TEST(test_rfchaos_refuses_arm_without_faraday);
+  RUN_TEST(test_rfchaos_arms_when_faraday_on_and_targets_present);
+  RUN_TEST(test_rfchaos_fire_rate_scales_with_intensity);
+  RUN_TEST(test_rfchaos_natural_completion_at_deadline);
+  RUN_TEST(test_rfchaos_fires_targets_round_robin_with_seed);
+  RUN_TEST(test_rfchaos_writes_log_on_stop);
+  RUN_TEST(test_rfchaos_intensity_clamps);
+  RUN_TEST(test_rfchaos_duration_minutes);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);
