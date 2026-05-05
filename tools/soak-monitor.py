@@ -247,13 +247,48 @@ class SoakMonitor:
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
+def analyze_soak_csv(path: Path) -> int:
+    """Read an on-device SoakLog CSV (uptime_ms,free_heap,max_block) and
+    print a one-line summary plus alerts for >25% heap drops or any
+    decrease in max_block exceeding 50% of the running median.
+    Returns 0 on clean trend, 1 on any alert."""
+    import csv, statistics
+    with path.open() as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        print(f"{path}: empty"); return 1
+    heaps = [int(r["free_heap"]) for r in rows]
+    blocks = [int(r["max_block"]) for r in rows]
+    h_med = statistics.median(heaps)
+    b_med = statistics.median(blocks)
+    h_min = min(heaps)
+    b_min = min(blocks)
+    drop_pct = 100.0 * (h_med - h_min) / max(h_med, 1)
+    blk_drop = 100.0 * (b_med - b_min) / max(b_med, 1)
+    print(f"{path}: rows={len(rows)} "
+          f"heap_med={h_med} heap_min={h_min} (drop {drop_pct:.1f}%) "
+          f"blk_med={b_med} blk_min={b_min} (drop {blk_drop:.1f}%)")
+    fail = 0
+    if drop_pct > 25.0:
+        print(f"  ALERT: free_heap drop >25%"); fail = 1
+    if blk_drop > 50.0:
+        print(f"  ALERT: max_block drop >50%"); fail = 1
+    return fail
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Yui 24h soak-test monitor.")
     p.add_argument("--port", default=os.environ.get("YUI_PORT", "/dev/ttyACM0"))
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--hours", type=float, default=24.0)
     p.add_argument("--outdir", default="release")
+    p.add_argument("--read-soak-csv", type=Path, default=None,
+                   help="Analyze an on-device SoakLog CSV file instead "
+                        "of tailing serial.")
     args = p.parse_args()
+
+    if args.read_soak_csv:
+        return analyze_soak_csv(args.read_soak_csv)
 
     monitor = SoakMonitor(
         port=args.port,

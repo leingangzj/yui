@@ -45,6 +45,7 @@
 #include "yui/app/HydraStatusApp.hpp"
 #include "yui/app/SelfTestApp.hpp"
 #include "yui/app/BbLinkProbeApp.hpp"
+#include "yui/sys/SoakLog.hpp"
 #include "hal/esp32/Esp32Display.hpp"
 #include "hal/esp32/Esp32Clock.hpp"
 #include "hal/esp32/Esp32Log.hpp"
@@ -176,6 +177,9 @@ yui::SelfTestApp         selftest_app{yui::SelfTestApp::Wiring{
   &net_, &ble_adv_, &ir_, &imu_, &mic_, &spk_, &fs_, &store_, &cc1101_, &nrf24_
 }};
 yui::BbLinkProbeApp      bblink_probe_app{net_, ble_cent_};
+yui::SoakLog             soak_log{fs_, clock_,
+  []() -> uint32_t { return ESP.getFreeHeap(); },
+  []() -> uint32_t { return ESP.getMaxAllocHeap(); }};
 
 yui::Launcher* launcher_ptr = nullptr;
 yui::Shell*    shell_ptr    = nullptr;
@@ -367,11 +371,17 @@ void setup() {
   store_.get_int(yui::kStorageKeyDevRemote, dev_remote, 0);
   if (dev_remote) remote_.start();
 
+  // D1 — start the on-device soak watchdog. begin() reserves a fresh
+  // /soak/<boot_ts>.csv; loop() calls tick(now) every cycle and the
+  // class throttles internally to one row per minute.
+  soak_log.begin();
+
   shell.start();
 }
 
 void loop() {
   shell_ptr->tick();
+  soak_log.tick(clock_.millis());
   // Service the HTTP + WS server, push a frame if it's time. Both are
   // throttled internally so this stays cheap when nobody's connected.
   remote_.tick();

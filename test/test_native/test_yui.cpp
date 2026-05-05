@@ -2897,6 +2897,62 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── D1 — On-device SoakLog ──────────────────────────────────────────
+
+#include "yui/sys/SoakLog.hpp"
+
+void test_soaklog_begin_writes_header() {
+  FakeFs fs;
+  yui::FakeClock clock;
+  yui::SoakLog log{fs, clock,
+                   []() -> uint32_t { return 200000; },
+                   []() -> uint32_t { return 50000; }};
+  TEST_ASSERT_TRUE(log.begin());
+  char buf[128];
+  int n = fs.read_all(log.path(), buf, sizeof(buf) - 1);
+  TEST_ASSERT_TRUE(n > 0);
+  buf[n] = '\0';
+  TEST_ASSERT_TRUE(std::string(buf).find("uptime_ms,free_heap,max_block")
+                   != std::string::npos);
+}
+
+void test_soaklog_appends_row_per_sample() {
+  FakeFs fs;
+  yui::FakeClock clock;
+  uint32_t heap_v = 200000;
+  yui::SoakLog log{fs, clock,
+                   [&]() -> uint32_t { return heap_v; },
+                   []() -> uint32_t { return 50000; }};
+  log.begin();
+  log.sample_for_test();
+  heap_v = 150000;
+  log.sample_for_test();
+  TEST_ASSERT_EQUAL_UINT32(2, log.rows());
+  char buf[256];
+  int n = fs.read_all(log.path(), buf, sizeof(buf) - 1);
+  buf[n] = '\0';
+  // Should have header + two data rows.
+  int newlines = 0;
+  for (int i = 0; i < n; ++i) if (buf[i] == '\n') ++newlines;
+  TEST_ASSERT_EQUAL_INT(3, newlines);
+}
+
+void test_soaklog_tick_throttles_to_interval() {
+  FakeFs fs;
+  yui::FakeClock clock;
+  yui::SoakLog log{fs, clock,
+                   []() -> uint32_t { return 100; },
+                   []() -> uint32_t { return 50; }};
+  log.begin();
+  // Many ticks within the same minute → one or zero samples (the
+  // first tick takes a sample; subsequent ones are throttled).
+  for (uint32_t t = 0; t < 30000; t += 1000) log.tick(t);
+  TEST_ASSERT_TRUE(log.rows() <= 1);
+  // Cross the interval → another sample.
+  log.tick(60001);
+  TEST_ASSERT_TRUE(log.rows() >= 1);
+}
+
 // ───── C1 — BbLinkProbeApp ─────────────────────────────────────────────
 
 #include "yui/app/BbLinkProbeApp.hpp"
@@ -5758,6 +5814,9 @@ int main(int, char**) {
   RUN_TEST(test_bblink_probe_no_advertise_marks_scan_fail);
   RUN_TEST(test_bblink_probe_full_path_passes_all_three);
   RUN_TEST(test_bblink_probe_missing_nus_marks_gatt_fail);
+  RUN_TEST(test_soaklog_begin_writes_header);
+  RUN_TEST(test_soaklog_appends_row_per_sample);
+  RUN_TEST(test_soaklog_tick_throttles_to_interval);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);
