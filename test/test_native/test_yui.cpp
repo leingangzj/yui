@@ -54,8 +54,7 @@
 #include "yui/app/ThemeApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
-#include "yui/app/EvilTwinApp.hpp"
-#include "yui/app/KarmaApp.hpp"
+#include "yui/app/RogueApApp.hpp"
 #include "yui/app/DeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
@@ -63,7 +62,6 @@
 #include "yui/app/WpsScanApp.hpp"
 #include "yui/app/BleGattApp.hpp"
 #include "yui/app/BleJammerApp.hpp"
-#include "yui/app/CaptivePortalApp.hpp"
 #include "../../src/hal/native/NativeWifiAp.hpp"
 #include "../../src/hal/native/NativeBleCentral.hpp"
 #include "yui/sat/Tle.hpp"
@@ -3566,36 +3564,51 @@ void test_handshake_browser_counts_bssids() {
   TEST_ASSERT_EQUAL_size_t(2u, app.count());
 }
 
-// EvilTwinApp
+// RogueApApp — EvilTwin mode
+
+namespace {
+
+template <class Make>
+void rogue_with(Make make) {
+  // helper kept simple — tests just construct in-place below
+  (void)make;
+}
+
+}  // namespace
 
 void test_evil_twin_fn_enter_enables() {
   Fixture f;
   FakeHttp h;
   FakeStorage st;
+  FakeWifiAp ap;
+  FakeFs fs;
   seed_pineapple_creds(st);
   register_login_ok(h);
   h.register_response("PUT",  "http://pa.local:1471/api/pineap/settings",
                       200, "{\"success\":true}");
-  EvilTwinApp app{h, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == RogueApApp::Mode::EvilTwin);
   app.on_key(press_fn(Key::Enter));
-  TEST_ASSERT_TRUE(app.enabled());
-  TEST_ASSERT_TRUE(app.last_ok());
+  TEST_ASSERT_TRUE(app.eviltwin_enabled());
+  TEST_ASSERT_TRUE(app.eviltwin_last_ok());
 }
 
 void test_evil_twin_plain_enter_does_nothing() {
   Fixture f;
   FakeHttp h;
   FakeStorage st;
+  FakeWifiAp ap;
+  FakeFs fs;
   seed_pineapple_creds(st);
   register_login_ok(h);
-  EvilTwinApp app{h, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));   // no Fn modifier
-  TEST_ASSERT_FALSE(app.enabled());
+  app.on_key(press(Key::Enter));
+  TEST_ASSERT_FALSE(app.eviltwin_enabled());
 }
 
-// KarmaApp
+// RogueApApp — Karma mode
 
 void test_karma_fn_enter_enables() {
   Fixture f;
@@ -3605,10 +3618,13 @@ void test_karma_fn_enter_enables() {
   register_login_ok(h);
   h.register_response("PUT",  "http://pa.local:1471/api/pineap/settings",
                       200, "{\"success\":true}");
-  KarmaApp app{h, st};
+  FakeWifiAp ap;
+  FakeFs fs;
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Karma);
   app.on_key(press_fn(Key::Enter));
-  TEST_ASSERT_TRUE(app.enabled());
+  TEST_ASSERT_TRUE(app.karma_enabled());
 }
 
 // DeauthApp — Pineapple backend
@@ -3953,16 +3969,18 @@ void test_ble_jammer_auto_off_after_30_seconds() {
   TEST_ASSERT_FALSE(adv.active());
 }
 
-// CaptivePortalApp
+// RogueApApp — Captive mode
 
 void test_captive_portal_idle_until_started() {
   Fixture f;
   FakeWifiAp ap;
   FakeFs fs;
+  FakeHttp h;
   FakeStorage st;
-  CaptivePortalApp app{ap, fs, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.state() == CaptivePortalApp::State::Idle);
+  app.set_mode(RogueApApp::Mode::Captive);
+  TEST_ASSERT_TRUE(app.state() == RogueApApp::CaptiveState::Idle);
   TEST_ASSERT_FALSE(ap.active());
 }
 
@@ -3970,12 +3988,14 @@ void test_captive_portal_fn_enter_starts_ap() {
   Fixture f;
   FakeWifiAp ap;
   FakeFs fs;
+  FakeHttp h;
   FakeStorage st;
   st.put_str("cp.ssid", "FreeWiFi");
-  CaptivePortalApp app{ap, fs, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Captive);
   app.on_key(press_fn(Key::Enter));
-  TEST_ASSERT_TRUE(app.state() == CaptivePortalApp::State::Running);
+  TEST_ASSERT_TRUE(app.state() == RogueApApp::CaptiveState::Running);
   TEST_ASSERT_TRUE(ap.active());
   TEST_ASSERT_TRUE(ap.captive());
 }
@@ -3984,9 +4004,11 @@ void test_captive_portal_no_ssid_does_not_start() {
   Fixture f;
   FakeWifiAp ap;
   FakeFs fs;
+  FakeHttp h;
   FakeStorage st;
-  CaptivePortalApp app{ap, fs, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Captive);
   app.on_key(press_fn(Key::Enter));
   TEST_ASSERT_FALSE(ap.active());
 }
@@ -3995,10 +4017,12 @@ void test_captive_portal_captures_form_submissions() {
   Fixture f;
   FakeWifiAp ap;
   FakeFs fs;
+  FakeHttp h;
   FakeStorage st;
   st.put_str("cp.ssid", "X");
-  CaptivePortalApp app{ap, fs, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Captive);
   app.on_key(press_fn(Key::Enter));
   ap.simulate_form_submit("192.168.4.2", "u=alice&p=hunter2");
   ap.simulate_form_submit("192.168.4.3", "u=bob&p=qwerty");
@@ -4007,18 +4031,53 @@ void test_captive_portal_captures_form_submissions() {
   TEST_ASSERT_EQUAL_STRING("192.168.4.3", app.capture_at(1).peer_ip);
 }
 
-void test_captive_portal_tab_writes_captures_to_sd() {
+void test_captive_portal_fn_tab_writes_captures_to_sd() {
   Fixture f;
   FakeWifiAp ap;
   FakeFs fs;
+  FakeHttp h;
   FakeStorage st;
   st.put_str("cp.ssid", "X");
-  CaptivePortalApp app{ap, fs, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Captive);
   app.on_key(press_fn(Key::Enter));
   ap.simulate_form_submit("10.0.0.1", "u=test");
-  app.on_key(press(Key::Tab));
+  app.on_key(press_fn(Key::Tab));
   TEST_ASSERT_TRUE(fs.exists("/captures.txt"));
+}
+
+void test_rogue_ap_tab_cycles_three_modes() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeHttp h;
+  FakeStorage st;
+  RogueApApp app{h, st, ap, fs};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == RogueApApp::Mode::EvilTwin);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == RogueApApp::Mode::Karma);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == RogueApApp::Mode::Captive);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == RogueApApp::Mode::EvilTwin);
+}
+
+void test_rogue_ap_switching_mode_stops_captive() {
+  Fixture f;
+  FakeWifiAp ap;
+  FakeFs fs;
+  FakeHttp h;
+  FakeStorage st;
+  st.put_str("cp.ssid", "X");
+  RogueApApp app{h, st, ap, fs};
+  app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Captive);
+  app.on_key(press_fn(Key::Enter));
+  TEST_ASSERT_TRUE(ap.active());
+  app.set_mode(RogueApApp::Mode::EvilTwin);
+  TEST_ASSERT_FALSE(ap.active());
 }
 
 // ───── SatTracker — TLE parser ────────────────────────────────────────────
@@ -4510,15 +4569,17 @@ void test_captive_portal_backspace_stops_ap() {
   Fixture f;
   FakeWifiAp ap;
   FakeFs fs;
+  FakeHttp h;
   FakeStorage st;
   st.put_str("cp.ssid", "X");
-  CaptivePortalApp app{ap, fs, st};
+  RogueApApp app{h, st, ap, fs};
   app.on_enter(f.hal);
+  app.set_mode(RogueApApp::Mode::Captive);
   app.on_key(press_fn(Key::Enter));
   TEST_ASSERT_TRUE(ap.active());
   app.on_key(press(Key::Backspace));
   TEST_ASSERT_FALSE(ap.active());
-  TEST_ASSERT_TRUE(app.state() == CaptivePortalApp::State::Stopped);
+  TEST_ASSERT_TRUE(app.state() == RogueApApp::CaptiveState::Stopped);
 }
 
 void test_ble_spam_disable_stops_advertiser() {
@@ -5590,7 +5651,9 @@ int main(int, char**) {
   RUN_TEST(test_captive_portal_fn_enter_starts_ap);
   RUN_TEST(test_captive_portal_no_ssid_does_not_start);
   RUN_TEST(test_captive_portal_captures_form_submissions);
-  RUN_TEST(test_captive_portal_tab_writes_captures_to_sd);
+  RUN_TEST(test_captive_portal_fn_tab_writes_captures_to_sd);
+  RUN_TEST(test_rogue_ap_tab_cycles_three_modes);
+  RUN_TEST(test_rogue_ap_switching_mode_stops_captive);
   RUN_TEST(test_captive_portal_backspace_stops_ap);
   // SatTracker
   RUN_TEST(test_tle_parses_iss_sample);

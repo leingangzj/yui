@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "current": "4.13.3",
-  "next_after_current": "4.13.4",
+  "current": "4.13.4",
+  "next_after_current": "4.13.5",
   "completed": [
     {
       "id": "4.13.1",
@@ -20,10 +20,18 @@
       "tests_after": 365,
       "launcher_before": 41,
       "launcher_after": 40
+    },
+    {
+      "id": "4.13.3",
+      "commit": "faf3c4a",
+      "completed_at": "2026-05-04T23:18Z",
+      "tests_before": 365,
+      "tests_after": 367,
+      "launcher_before": 40,
+      "launcher_after": 38
     }
   ],
   "remaining": [
-    "4.13.3",
     "4.13.4",
     "4.13.5",
     "4.13.6",
@@ -35,5 +43,5 @@
     "5.5"
   ],
   "blocked": [],
-  "notes": "Linear sequence by file order in jobs.jsonl. Phase 5 jobs depend on 5.0 (Faraday Mode) which depends on 4.13.6 (last of the consolidations)."
+  "notes": "Linear sequence by file order in jobs.jsonl."
 }

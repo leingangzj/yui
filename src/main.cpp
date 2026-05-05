@@ -28,15 +28,13 @@
 #include "yui/app/WifiHandshakeApp.hpp"
 #include "yui/app/RemoteHeadApp.hpp"
 #include "yui/app/AprsMessageApp.hpp"
-#include "yui/app/EvilTwinApp.hpp"
-#include "yui/app/KarmaApp.hpp"
+#include "yui/app/RogueApApp.hpp"
 #include "yui/app/DeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
 #include "yui/app/BleGattApp.hpp"
 #include "yui/app/BleJammerApp.hpp"
-#include "yui/app/CaptivePortalApp.hpp"
 #include "yui/app/SatTrackerApp.hpp"
 #include "yui/app/KoiGotchiApp.hpp"
 #include "yui/app/ThemeApp.hpp"
@@ -157,15 +155,13 @@ yui::WifiProbeApp        probe_app{wmon_};
 yui::WifiHandshakeApp    handshake_app{wmon_, pcap_, clock_};
 yui::RemoteHeadApp       remote_head_app{radio_};
 yui::AprsMessageApp      aprs_msg_app{radio_, store_};
-yui::EvilTwinApp         evil_twin_app{http_, store_};
-yui::KarmaApp            karma_app{http_, store_};
+yui::RogueApApp          rogue_ap_app{http_, store_, wifi_ap_, fs_};
 yui::DeauthApp           deauth_app{http_, store_, wmon_};
 yui::BleSpamApp          ble_spam_app{ble_adv_};
 yui::WifiBeaconFloodApp  beacon_flood_app{wmon_};
 yui::WpsScanApp          wps_scan_app{wmon_};
 yui::BleGattApp          ble_gatt_app{ble_cent_};
 yui::BleJammerApp        ble_jammer_app{ble_adv_};
-yui::CaptivePortalApp    captive_app{wifi_ap_, fs_, store_};
 yui::SatTrackerApp       sat_app{radio_, gnss_, fs_, clock_};
 yui::KoiGotchiApp        koigotchi_app{handshake_app, &store_, &clock_};
 yui::ThemeApp            theme_app{&store_};
@@ -265,12 +261,10 @@ void setup() {
   registry.add(&pa_app);
   registry.add(&probe_app);
   registry.add(&handshake_app);
-  registry.add(&evil_twin_app);
-  registry.add(&karma_app);
+  registry.add(&rogue_ap_app);
   registry.add(&deauth_app);
   registry.add(&beacon_flood_app);
   registry.add(&wps_scan_app);
-  registry.add(&captive_app);
   // BLUETOOTH category
   registry.add(&ble_spam_app);
   registry.add(&ble_gatt_app);
