@@ -43,8 +43,7 @@
 #include "yui/app/KoiGotchiApp.hpp"
 #include "yui/app/ThemeApp.hpp"
 #include "yui/app/SubGhzScanApp.hpp"
-#include "yui/app/SubGhzCaptureApp.hpp"
-#include "yui/app/SubGhzReplayApp.hpp"
+#include "yui/app/SubGhzCaptureReplayApp.hpp"
 #include "yui/app/SubGhzBruteApp.hpp"
 #include "yui/app/SubGhzJammerApp.hpp"
 #include "yui/app/Nrf24ScanApp.hpp"
@@ -179,8 +178,7 @@ yui::ThemeApp            theme_app{&store_};
 // app can render a "cap not detected" dialog instead of crashing when
 // the user enters it without the cap plugged in.
 yui::SubGhzScanApp       subghz_scan_app{&cc1101_};
-yui::SubGhzCaptureApp    subghz_capture_app{&cc1101_, &fs_, clock_};
-yui::SubGhzReplayApp     subghz_replay_app{&cc1101_, &fs_};
+yui::SubGhzCaptureReplayApp subghz_cr_app{&cc1101_, &fs_, clock_};
 yui::SubGhzBruteApp      subghz_brute_app{&cc1101_, clock_};
 yui::SubGhzJammerApp     subghz_jammer_app{&cc1101_};
 yui::Nrf24ScanApp        nrf24_scan_app{&nrf24_};
@@ -295,8 +293,7 @@ void setup() {
   registry.add(&theme_app);
   // Phase 4 — Hydra RF apps (Pingequa Hydra Cap 424).
   registry.add(&subghz_scan_app);
-  registry.add(&subghz_capture_app);
-  registry.add(&subghz_replay_app);
+  registry.add(&subghz_cr_app);
   registry.add(&subghz_brute_app);
   registry.add(&subghz_jammer_app);
   registry.add(&nrf24_scan_app);

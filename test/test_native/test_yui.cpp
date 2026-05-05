@@ -4756,46 +4756,48 @@ void test_nrf24_jammer_channel_flood_asserts_carrier() {
 
 // ── Phase 4.5 fleshed-out logic ────────────────────────────────────────
 
-#include "yui/app/SubGhzReplayApp.hpp"
+#include "yui/app/SubGhzCaptureReplayApp.hpp"
 #include "yui/app/SubGhzBruteApp.hpp"
 
 void test_subghz_replay_lists_only_sub_files_in_sub_dir() {
   yui::NativeCc1101 c;
   yui::FakeFs fs;
+  yui::FakeClock clock;
   fs.mkdir("/sub");
-  // Build a tiny valid .sub on disk.
   yui::proto::SubHeader h{};
   h.frequency_hz = 433'920'000;
   int32_t t[] = {100, -100};
   fs.put_file("/sub/garage.sub", yui::proto::write_sub(h, t, 2));
-  // And a non-.sub that should be filtered out.
   fs.put_file("/sub/notes.txt", "hello");
   RfHalFixture f;
-  yui::SubGhzReplayApp app(&c, &fs);
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
   app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::Browsing);
-  TEST_ASSERT_EQUAL_INT(1, app.count());
+  app.set_view(yui::SubGhzCaptureReplayApp::View::Saved);
+  TEST_ASSERT_TRUE(app.replay_mode() ==
+                   yui::SubGhzCaptureReplayApp::ReplayMode::Browsing);
+  TEST_ASSERT_EQUAL_INT(1, app.file_count());
 }
 
 void test_subghz_replay_enter_loads_and_transmits() {
   yui::NativeCc1101 c;
   yui::FakeFs fs;
+  yui::FakeClock clock;
   fs.mkdir("/sub");
   yui::proto::SubHeader h{};
   h.frequency_hz = 433'920'000;
   int32_t t[] = {320, -130, 196, -118};
   fs.put_file("/sub/r.sub", yui::proto::write_sub(h, t, 4));
   RfHalFixture f;
-  yui::SubGhzReplayApp app(&c, &fs);
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
   app.on_enter(f.hal);
+  app.set_view(yui::SubGhzCaptureReplayApp::View::Saved);
   yui::KeyEvent ke{};
   ke.down = true;
-  ke.key = yui::Key::Enter;
+  ke.key  = yui::Key::Enter;
   app.on_key(ke);
-  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::Done);
+  TEST_ASSERT_TRUE(app.replay_mode() ==
+                   yui::SubGhzCaptureReplayApp::ReplayMode::Done);
   TEST_ASSERT_TRUE(c.tx_call_count() >= 1);
-  // Edge-toggle TX path: assert the µs deltas were forwarded
-  // verbatim — order, count, and sign all preserved.
   TEST_ASSERT_EQUAL_size_t(4, c.last_edges().size());
   TEST_ASSERT_EQUAL_INT32(320,  c.last_edges()[0]);
   TEST_ASSERT_EQUAL_INT32(-130, c.last_edges()[1]);
@@ -4807,10 +4809,48 @@ void test_subghz_replay_missing_cap_blocks_browsing() {
   yui::NativeCc1101 c;
   c.set_present(false);
   yui::FakeFs fs;
+  yui::FakeClock clock;
   RfHalFixture f;
-  yui::SubGhzReplayApp app(&c, &fs);
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
   app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.mode() == yui::SubGhzReplayApp::Mode::CapMissing);
+  TEST_ASSERT_TRUE(app.top_mode() ==
+                   yui::SubGhzCaptureReplayApp::TopMode::CapMissing);
+}
+
+void test_subghz_cr_tab_toggles_view_when_idle() {
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  yui::FakeClock clock;
+  fs.mkdir("/sub");
+  RfHalFixture f;
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.view() == yui::SubGhzCaptureReplayApp::View::Read);
+  yui::KeyEvent ke{}; ke.down = true; ke.key = yui::Key::Tab;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.view() == yui::SubGhzCaptureReplayApp::View::Saved);
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.view() == yui::SubGhzCaptureReplayApp::View::Read);
+}
+
+void test_subghz_cr_capture_appears_in_saved_listing() {
+  yui::NativeCc1101 c;
+  yui::FakeFs fs;
+  yui::FakeClock clock;
+  fs.mkdir("/sub");
+  // Pre-stage a .sub file as if a prior capture had saved it. The
+  // critical contract: switching to Saved view re-scans /sub/ and
+  // surfaces files that weren't there at on_enter time.
+  RfHalFixture f;
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(0, app.file_count());
+  yui::proto::SubHeader h{};
+  h.frequency_hz = 433'920'000;
+  int32_t t[] = {200, -200};
+  fs.put_file("/sub/late.sub", yui::proto::write_sub(h, t, 2));
+  app.set_view(yui::SubGhzCaptureReplayApp::View::Saved);
+  TEST_ASSERT_EQUAL_INT(1, app.file_count());
 }
 
 void test_subghz_brute_idle_until_enter_then_emits_packets() {
@@ -5036,21 +5076,21 @@ void test_subghz_replay_uses_edge_toggle_not_packet_mode() {
   // (packet mode) empty while last_edges (raw path) gets populated.
   yui::NativeCc1101 c;
   yui::FakeFs fs;
+  yui::FakeClock clock;
   fs.mkdir("/sub");
   yui::proto::SubHeader h{};
   h.frequency_hz = 433'920'000;
   int32_t t[] = {500, -300, 200, -100, 700};
   fs.put_file("/sub/x.sub", yui::proto::write_sub(h, t, 5));
   RfHalFixture f;
-  yui::SubGhzReplayApp app(&c, &fs);
+  yui::SubGhzCaptureReplayApp app(&c, &fs, clock);
   app.on_enter(f.hal);
+  app.set_view(yui::SubGhzCaptureReplayApp::View::Saved);
   yui::KeyEvent ke{};
   ke.down = true;
-  ke.key = yui::Key::Enter;
+  ke.key  = yui::Key::Enter;
   app.on_key(ke);
-  // last_tx (packet path) should be untouched.
   TEST_ASSERT_TRUE(c.last_tx().empty());
-  // last_edges should hold the exact sequence in order.
   TEST_ASSERT_EQUAL_size_t(5, c.last_edges().size());
   TEST_ASSERT_EQUAL_INT32(700, c.last_edges()[4]);
 }
@@ -5578,6 +5618,8 @@ int main(int, char**) {
   RUN_TEST(test_subghz_replay_lists_only_sub_files_in_sub_dir);
   RUN_TEST(test_subghz_replay_enter_loads_and_transmits);
   RUN_TEST(test_subghz_replay_missing_cap_blocks_browsing);
+  RUN_TEST(test_subghz_cr_tab_toggles_view_when_idle);
+  RUN_TEST(test_subghz_cr_capture_appears_in_saved_listing);
   RUN_TEST(test_subghz_brute_idle_until_enter_then_emits_packets);
   RUN_TEST(test_subghz_brute_step_up_doubles);
   RUN_TEST(test_subghz_jammer_noise_mode_writes_random_bytes);
