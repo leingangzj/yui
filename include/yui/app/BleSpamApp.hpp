@@ -11,6 +11,7 @@
 // else's pairing-in-progress.
 #include "yui/app/App.hpp"
 #include "yui/hal/IBleAdvertiser.hpp"
+#include "yui/hal/IBleRawTx.hpp"
 #include "yui/types.hpp"
 #include <cstdint>
 #include <cstdio>
@@ -60,7 +61,17 @@ public:
     return k;
   }
 
+  enum class Rail { Nimble, Nrf24, Both };
+
   explicit BleSpamApp(IBleAdvertiser& adv) : adv_(adv) {}
+
+  // Optional second-rail wiring (Phase 5.2). Pass an IBleRawTx for the
+  // nRF24-on-Hydra path; rail() then defaults to Both when both rails
+  // are present, Nimble otherwise.
+  void set_nrf24_rail(IBleRawTx* nrf24) {
+    nrf24_ = nrf24;
+    rail_  = (nrf24 && nrf24->is_present()) ? Rail::Both : Rail::Nimble;
+  }
 
   const char* name() const override { return "BLE Spam"; }
   Category    category() const override { return Category::Bluetooth; }
@@ -77,9 +88,21 @@ public:
 
   void on_key(KeyEvent k) override {
     if (!k.down) return;
+    if (k.key == Key::Tab && !enabled_) {
+      // Cycle rail when not running. Both → Nimble → Nrf24 → Both ...
+      // Skips Nrf24 / Both if no nrf24 rail is wired.
+      if (!nrf24_) { rail_ = Rail::Nimble; return; }
+      rail_ = (rail_ == Rail::Both)   ? Rail::Nimble
+            : (rail_ == Rail::Nimble) ? Rail::Nrf24
+                                      : Rail::Both;
+      return;
+    }
     if (k.key == Key::Enter && k.fn) {
       enabled_ = !enabled_;
-      if (!enabled_) adv_.disable();
+      if (!enabled_) {
+        adv_.disable();
+        if (nrf24_) nrf24_->stop();
+      }
     }
   }
 
@@ -91,8 +114,18 @@ public:
     const PayloadInfo* list = payloads(n);
     cycle_idx_ = (cycle_idx_ + 1) % n;
     const PayloadInfo& p = list[cycle_idx_];
-    adv_.set_payload(p.bytes, p.len);
-    if (!adv_.active()) adv_.enable();
+    // Channel-divided default: NimBLE drives ch 37, nRF24 drives 38+39.
+    if (rail_ == Rail::Nimble || rail_ == Rail::Both) {
+      adv_.set_payload(p.bytes, p.len);
+      if (!adv_.active()) adv_.enable();
+    }
+    if (nrf24_ && (rail_ == Rail::Nrf24 || rail_ == Rail::Both)) {
+      // Alternate between channel 38 and 39 each cycle.
+      const int ch = (cycle_idx_ & 1) ? IBleRawTx::kChannel38
+                                      : IBleRawTx::kChannel39;
+      nrf24_->set_channel(ch);
+      nrf24_->tx_advert(p.bytes, p.len);
+    }
   }
 
   void render(IDisplay& d) override {
@@ -118,13 +151,17 @@ public:
   // Test hooks
   bool   enabled()   const { return enabled_; }
   size_t cycle_idx() const { return cycle_idx_; }
+  Rail   rail()      const { return rail_; }
+  void   set_rail(Rail r) { rail_ = r; }
 
 private:
   IBleAdvertiser& adv_;
+  IBleRawTx*      nrf24_         = nullptr;
   Hal*            hal_           = nullptr;
   bool            enabled_       = false;
   uint32_t        last_cycle_ms_ = 0;
   size_t          cycle_idx_     = 0;
+  Rail            rail_          = Rail::Nimble;
 };
 
 }  // namespace yui

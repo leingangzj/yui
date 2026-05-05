@@ -3357,6 +3357,84 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── Phase 5.2.x — BLE Rail picker integration ───────────────────────
+
+void test_blespam_default_rail_is_nimble() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  BleSpamApp app{adv};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.rail() == BleSpamApp::Rail::Nimble);
+}
+
+void test_blespam_set_nrf24_rail_promotes_to_both() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  yui::FakeNrf24BleRawTx nrf24;
+  BleSpamApp app{adv};
+  app.set_nrf24_rail(&nrf24);
+  TEST_ASSERT_TRUE(app.rail() == BleSpamApp::Rail::Both);
+}
+
+void test_blespam_dual_rail_drives_both_engines() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  yui::FakeNrf24BleRawTx nrf24;
+  BleSpamApp app{adv};
+  app.set_nrf24_rail(&nrf24);
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));   // enable
+  app.tick(0);
+  app.tick(500);
+  TEST_ASSERT_TRUE(adv.set_count() >= 1);
+  TEST_ASSERT_TRUE(nrf24.tx_count() >= 1);
+}
+
+void test_blespam_tab_cycles_rail_when_idle() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  yui::FakeNrf24BleRawTx nrf24;
+  BleSpamApp app{adv};
+  app.set_nrf24_rail(&nrf24);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.rail() == BleSpamApp::Rail::Both);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.rail() == BleSpamApp::Rail::Nimble);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.rail() == BleSpamApp::Rail::Nrf24);
+  app.on_key(press(Key::Tab));
+  TEST_ASSERT_TRUE(app.rail() == BleSpamApp::Rail::Both);
+}
+
+void test_blejammer_dual_rail_starts_continuous() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  yui::FakeNrf24BleRawTx nrf24;
+  BleJammerApp app{adv};
+  app.set_nrf24_rail(&nrf24);
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  app.tick(0);
+  app.tick(20);
+  TEST_ASSERT_TRUE(adv.active());
+  TEST_ASSERT_TRUE(nrf24.is_active());
+  TEST_ASSERT_EQUAL_INT(IBleRawTx::kChannel39, nrf24.channel());
+}
+
+void test_blejammer_disable_stops_both_rails() {
+  Fixture f;
+  FakeBleAdvertiser adv;
+  yui::FakeNrf24BleRawTx nrf24;
+  BleJammerApp app{adv};
+  app.set_nrf24_rail(&nrf24);
+  app.on_enter(f.hal);
+  app.on_key(press_fn(Key::Enter));
+  app.tick(0); app.tick(20);
+  app.on_key(press_fn(Key::Enter));   // toggle off
+  TEST_ASSERT_FALSE(adv.active());
+  TEST_ASSERT_FALSE(nrf24.is_active());
+}
+
 // ───── Phase 5.5 — Aggressive Mousejack + SubGhzBrute unlock ───────────
 
 #include "yui/app/SubGhzBruteApp.hpp"
@@ -6100,6 +6178,12 @@ int main(int, char**) {
   RUN_TEST(test_mousejack_pace_unlocks_when_faraday_on);
   RUN_TEST(test_brute_pace_clamps_when_faraday_off);
   RUN_TEST(test_brute_pace_unlocks_when_faraday_on);
+  RUN_TEST(test_blespam_default_rail_is_nimble);
+  RUN_TEST(test_blespam_set_nrf24_rail_promotes_to_both);
+  RUN_TEST(test_blespam_dual_rail_drives_both_engines);
+  RUN_TEST(test_blespam_tab_cycles_rail_when_idle);
+  RUN_TEST(test_blejammer_dual_rail_starts_continuous);
+  RUN_TEST(test_blejammer_disable_stops_both_rails);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);

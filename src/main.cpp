@@ -290,6 +290,13 @@ void setup() {
   registry.add(&rolljam_app);
   registry.add(&hydra_status_app);
 
+  // Phase 5.2.x — wire the nRF24-as-BLE rail into the BLE apps if the
+  // Hydra cap is present. NativeBleAdvertiser stays as the NimBLE rail.
+  // (nrf24_ble_rail_ is a thin adapter that maps adv channel → nRF24
+  // channel and pushes payloads via nrf24_.transmit; staged for a
+  // future hardware-validated impl. Today: nullptr → single-rail.)
+  // TODO: bind to a real Esp32Nrf24BleRawTx adapter in 5.2.bin.
+
   // RfChaosApp targets — pulse each band's HAL once per fire. Real
   // duty-cycle scheduling lives in RfChaosApp; these lambdas just
   // hand-off to the lowest-cost path for "do something on this radio".

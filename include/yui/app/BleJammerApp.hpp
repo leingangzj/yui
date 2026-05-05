@@ -16,6 +16,7 @@
 // (default 30s) so you can't accidentally leave it running.
 #include "yui/app/App.hpp"
 #include "yui/hal/IBleAdvertiser.hpp"
+#include "yui/hal/IBleRawTx.hpp"
 #include "yui/types.hpp"
 #include <cstdint>
 #include <cstdio>
@@ -29,7 +30,14 @@ public:
   static constexpr uint32_t kCycleMs    = 10;       // ~100/s set+enable cycle
   static constexpr uint32_t kAutoOffMs  = 30000;    // failsafe shutoff
 
+  enum class Rail { Nimble, Nrf24, Both };
+
   explicit BleJammerApp(IBleAdvertiser& adv) : adv_(adv) {}
+
+  void set_nrf24_rail(IBleRawTx* nrf24) {
+    nrf24_ = nrf24;
+    rail_  = (nrf24 && nrf24->is_present()) ? Rail::Both : Rail::Nimble;
+  }
 
   const char* name() const override { return "BLE Jam"; }
   Category    category() const override { return Category::Bluetooth; }
@@ -47,10 +55,20 @@ public:
 
   void on_key(KeyEvent k) override {
     if (!k.down) return;
+    if (k.key == Key::Tab && !enabled_) {
+      if (!nrf24_) { rail_ = Rail::Nimble; return; }
+      rail_ = (rail_ == Rail::Both)   ? Rail::Nimble
+            : (rail_ == Rail::Nimble) ? Rail::Nrf24
+                                      : Rail::Both;
+      return;
+    }
     if (k.key == Key::Enter && k.fn) {
       enabled_ = !enabled_;
       if (enabled_) { started_ms_ = 0; cycle_n_ = 0; }
-      else          { adv_.disable(); }
+      else {
+        adv_.disable();
+        if (nrf24_) nrf24_->stop();
+      }
     }
   }
 
@@ -68,14 +86,20 @@ public:
     }
     if (now_ms - last_cycle_ms_ < kCycleMs && last_cycle_ms_ != 0) return;
     last_cycle_ms_ = now_ms == 0 ? 1 : now_ms;
-    // Rotate a 4-byte counter as the payload so each adv differs.
     uint8_t buf[8] = {0x02, 0x01, 0x06,
                       0x03, 0xFF,
                       static_cast<uint8_t>(cycle_n_ & 0xFF),
                       static_cast<uint8_t>((cycle_n_ >> 8) & 0xFF),
                       static_cast<uint8_t>((cycle_n_ >> 16) & 0xFF)};
-    adv_.set_payload(buf, sizeof(buf));
-    if (!adv_.active()) adv_.enable();
+    if (rail_ == Rail::Nimble || rail_ == Rail::Both) {
+      adv_.set_payload(buf, sizeof(buf));
+      if (!adv_.active()) adv_.enable();
+    }
+    if (nrf24_ && (rail_ == Rail::Nrf24 || rail_ == Rail::Both)) {
+      // Continuous TX on the channel not handled by NimBLE — channel-
+      // divided to avoid self-collision. Restart only when not active.
+      if (!nrf24_->is_active()) nrf24_->start_continuous(IBleRawTx::kChannel39);
+    }
     ++cycle_n_;
   }
 
@@ -97,14 +121,18 @@ public:
   // Test hooks
   bool   enabled() const { return enabled_; }
   size_t cycles()  const { return cycle_n_; }
+  Rail   rail()    const { return rail_; }
+  void   set_rail(Rail r) { rail_ = r; }
 
 private:
   IBleAdvertiser& adv_;
+  IBleRawTx*      nrf24_         = nullptr;
   Hal*            hal_           = nullptr;
   bool            enabled_       = false;
   size_t          cycle_n_       = 0;
   uint32_t        started_ms_    = 0;
   uint32_t        last_cycle_ms_ = 0;
+  Rail            rail_          = Rail::Nimble;
 };
 
 }  // namespace yui
