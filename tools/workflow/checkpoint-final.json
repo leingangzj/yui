@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "current": "F1",
-  "queue": ["F1", "F2", "F3", "F4"],
+  "current": null,
+  "queue": [],
   "blocked": [
     "BLOCKED-A",
     "BLOCKED-B",
@@ -13,6 +13,48 @@
     "BLOCKED-H",
     "BLOCKED-I"
   ],
-  "completed": [],
-  "notes": "Final workflow. Software queue runs sequentially without operator input. Hardware-gated jobs are recorded as BLOCKED with explicit blockers — they cannot complete without the bench."
+  "completed": [
+    {
+      "id": "F1",
+      "commit": "e590313",
+      "completed_at": "2026-05-05T02:00Z",
+      "tests_after": 404,
+      "launcher_after": 35,
+      "notes": "RfChaosApp registered + 4 fire callbacks (ble_pulse, cc_carrier_toggle, nrf_pulse, wmon_channel_hop)"
+    },
+    {
+      "id": "F2",
+      "commit": "119e4eb",
+      "completed_at": "2026-05-05T02:18Z",
+      "tests_after": 410,
+      "launcher_after": 35,
+      "notes": "BleSpamApp + BleJammerApp gain Rail picker + nRF24 dual-rail; main.cpp leaves nrf24 rail unwired pending Esp32Nrf24BleRawTx adapter (5.2.bin)"
+    },
+    {
+      "id": "F3",
+      "commit": "826198d",
+      "completed_at": "2026-05-05T02:32Z",
+      "tests_after": 361,
+      "launcher_after": 32,
+      "notes": "KoiGotchi/Calculator/Clock cut. Final 4.13 reduction: 42 → 32 (10 slots)"
+    },
+    {
+      "id": "F4",
+      "commit": "399cc1f",
+      "completed_at": "2026-05-05T02:42Z",
+      "tests_after": 361,
+      "launcher_after": 32,
+      "notes": "tools/verify-lib-extra.sh + EXPECTED_SHA256 template; smoke-tested happy + mismatch paths"
+    }
+  ],
+  "summary": {
+    "software_complete": true,
+    "total_software_jobs": 4,
+    "completed": 4,
+    "tests_journey": "362 (initial) → 410 (peak after F2) → 361 (after F3 cut)",
+    "launcher_journey": "42 → 32 (-10 slots, all 4.13 + 4.13.7 + chaos addition)",
+    "blocked_count": 9,
+    "blocked_reason": "All 9 blocked jobs require physical hardware (Cardputer ADV + Hydra cap on the bench, or operator-built libnet80211.a binary, or M5Stack web form)."
+  },
+  "notes": "Software queue 100% complete. Hardware-gated jobs cannot be completed without the bench; they are documented in the 'blocked' list with explicit blockers per BLOCKED-A through BLOCKED-I in jobs-final.jsonl."
 }
