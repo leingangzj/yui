@@ -5052,6 +5052,60 @@ void test_subghz_scan_with_missing_cap_renders_dialog() {
   TEST_ASSERT_TRUE(f.d.all_text().find("Hydra not found") != std::string::npos);
 }
 
+// ───── I1 — SubGhzScan smarter dwell ───────────────────────────────────
+
+void test_subghz_scan_dwell_default_5_samples() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzScanApp app(&c);
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_INT(5, app.dwell_samples());
+}
+
+void test_subghz_scan_dwell_clamps_to_range() {
+  yui::NativeCc1101 c;
+  RfHalFixture f;
+  yui::SubGhzScanApp app(&c);
+  app.on_enter(f.hal);
+  app.set_dwell_samples(0);
+  TEST_ASSERT_EQUAL_INT(1, app.dwell_samples());
+  app.set_dwell_samples(1000);
+  TEST_ASSERT_EQUAL_INT(50, app.dwell_samples());
+  app.set_dwell_samples(10);
+  TEST_ASSERT_EQUAL_INT(10, app.dwell_samples());
+}
+
+void test_subghz_scan_advances_bin_after_dwell_samples() {
+  yui::NativeCc1101 c;
+  c.set_canned_rssi(-70);
+  RfHalFixture f;
+  yui::SubGhzScanApp app(&c);
+  app.on_enter(f.hal);
+  app.set_dwell_samples(3);
+  // After 3 ticks we should have committed bin 0 and moved on.
+  for (int i = 0; i < 2; ++i) app.tick(0);
+  // Still in bin 0 (samples_in_bin_ = 2). One more sample completes.
+  app.tick(0);
+  // Peak dBm should match the canned RSSI value.
+  TEST_ASSERT_EQUAL_INT16(-70, app.peak_dbm());
+}
+
+void test_subghz_scan_auto_tune_doubles_on_quiet_bin() {
+  yui::NativeCc1101 c;
+  c.set_canned_rssi(-100);  // quiet
+  RfHalFixture f;
+  yui::SubGhzScanApp app(&c);
+  app.on_enter(f.hal);
+  app.set_dwell_samples(3);
+  app.set_auto_tune(true);
+  TEST_ASSERT_TRUE(app.auto_tune());
+  // First-ever bin starts as -127; auto_tune should still treat it as
+  // quiet and request 2x dwell. Ticks needed to commit > 3.
+  app.tick(0); app.tick(0); app.tick(0);
+  // Bin shouldn't have advanced after only 3 ticks (need ~6).
+  TEST_ASSERT_EQUAL_INT16(-127, app.peak_dbm());
+}
+
 void test_subghz_scan_null_radio_lands_in_cap_missing() {
   RfHalFixture f;
   yui::SubGhzScanApp app(nullptr);
@@ -5949,6 +6003,10 @@ int main(int, char**) {
   RUN_TEST(test_subghz_cr_no_radio_renders_cap_missing);
   RUN_TEST(test_subghz_jammer_protocol_mode_fires_on_irq);
   RUN_TEST(test_subghz_jammer_irq_only_fires_when_active);
+  RUN_TEST(test_subghz_scan_dwell_default_5_samples);
+  RUN_TEST(test_subghz_scan_dwell_clamps_to_range);
+  RUN_TEST(test_subghz_scan_advances_bin_after_dwell_samples);
+  RUN_TEST(test_subghz_scan_auto_tune_doubles_on_quiet_bin);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);

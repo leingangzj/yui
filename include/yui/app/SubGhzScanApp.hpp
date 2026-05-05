@@ -84,18 +84,28 @@ public:
 
   void tick(uint32_t /*now_ms*/) override {
     if (mode_ != Mode::Scanning || !radio_) return;
-    // Step one bin per tick.
+    // I1 — accumulate kSamplesPerBin readings per bin then advance.
+    // The accumulator picks up transient signals that a single 1-tick
+    // dwell would miss. With auto-tune on, dwell increases on quiet
+    // bins (more samples = more chance to catch a burst) and shrinks
+    // on noisy bins (we already know it's hot, move on).
     const Band& b = kBands[band_];
     const uint32_t span = b.stop_hz - b.start_hz;
     const uint32_t hz = b.start_hz + (span * bin_) / kBins;
-    radio_->set_frequency_hz(hz);
-    // RSSI read happens on the chip's last RX sample. RadioLib's CC1101
-    // updates its internal RSSI register continuously while in RX, so
-    // we don't have to enter/exit modes per bin.
+    if (samples_in_bin_ == 0) radio_->set_frequency_hz(hz);
     const int16_t r = radio_->read_rssi_dbm();
-    rssi_[bin_] = r;
-    if (r > peak_dbm_) { peak_dbm_ = r; peak_bin_ = bin_; }
-    bin_ = (bin_ + 1) % kBins;
+    if (r > sample_peak_)   sample_peak_   = r;
+    ++samples_in_bin_;
+    const int target = effective_dwell_();
+    if (samples_in_bin_ >= target) {
+      // Commit the bin's peak as its RSSI value. Average would smear
+      // bursts; max preserves them.
+      rssi_[bin_] = sample_peak_;
+      if (sample_peak_ > peak_dbm_) { peak_dbm_ = sample_peak_; peak_bin_ = bin_; }
+      samples_in_bin_ = 0;
+      sample_peak_    = -127;
+      bin_ = (bin_ + 1) % kBins;
+    }
   }
 
   void render(IDisplay& d) override {
@@ -154,8 +164,28 @@ public:
   Mode mode() const { return mode_; }
   int  band() const { return band_; }
   int16_t peak_dbm() const { return peak_dbm_; }
+  int  dwell_samples() const { return dwell_samples_; }
+  void set_dwell_samples(int n) {
+    dwell_samples_ = (n < 1) ? 1 : (n > 50 ? 50 : n);
+  }
+  bool auto_tune() const { return auto_tune_; }
+  void set_auto_tune(bool on) { auto_tune_ = on; }
 
 private:
+  // I1 — effective per-bin sample count. Auto-tune scales by recent
+  // RSSI: quiet bin (≤-90 dBm) gets more samples to catch transients;
+  // hot bin (≥-50 dBm) needs fewer. Always clamped to [1, 50].
+  int effective_dwell_() const {
+    if (!auto_tune_) return dwell_samples_;
+    const int16_t r = rssi_[bin_];
+    int n = dwell_samples_;
+    if (r <= -90) n *= 2;
+    else if (r >= -50) n = (n + 1) / 2;
+    if (n < 1) n = 1;
+    if (n > 50) n = 50;
+    return n;
+  }
+
   void apply_band_() {
     if (!radio_) return;
     radio_->set_frequency_hz(kBands[band_].start_hz);
@@ -164,6 +194,8 @@ private:
     bin_ = 0;
     peak_dbm_ = -127;
     peak_bin_ = 0;
+    samples_in_bin_ = 0;
+    sample_peak_    = -127;
     for (auto& v : rssi_) v = -127;
   }
 
@@ -174,6 +206,10 @@ private:
   int16_t peak_dbm_ = -127;
   int     peak_bin_ = 0;
   int16_t rssi_[kBins] = {};
+  int     samples_in_bin_ = 0;
+  int16_t sample_peak_    = -127;
+  int     dwell_samples_  = 5;    // default per-bin samples
+  bool    auto_tune_      = false;
 };
 
 }  // namespace yui
