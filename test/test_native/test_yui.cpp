@@ -3356,6 +3356,110 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── Phase 5.4 — PMKID capture mode for WifiHandshakeApp ─────────────
+
+#include "yui/proto/Eapol.hpp"
+#include "yui/app/WifiHandshakeApp.hpp"
+
+namespace {
+
+// Build a synthetic data frame that wraps an EAPOL body containing a
+// PMKID KDE. Returns total length.
+std::size_t build_eapol_with_pmkid(uint8_t* out, std::size_t cap,
+                                    const uint8_t pmkid[16]) {
+  if (cap < 200) return 0;
+  std::memset(out, 0, 200);
+  // 802.11 data header (24 bytes, non-QoS).
+  out[0] = 0x08;             // type=Data, subtype=Data
+  out[1] = 0x00;
+  // Addresses: dst, src, bssid (24 bytes total: 4 + 6+6+6 + 2)
+  for (int i = 0; i < 6; ++i) {
+    out[4 + i]  = 0x11;      // addr1 = dst
+    out[10 + i] = 0x22;      // addr2 = src
+    out[16 + i] = 0x33;      // addr3 = bssid
+  }
+  // SeqCtl
+  out[22] = 0; out[23] = 0;
+  // LLC/SNAP + EAPOL ethertype
+  std::size_t off = 24;
+  out[off++] = 0xAA; out[off++] = 0xAA; out[off++] = 0x03;
+  out[off++] = 0x00; out[off++] = 0x00; out[off++] = 0x00;
+  out[off++] = 0x88; out[off++] = 0x8E;
+  // EAPOL body: pad with zeros, then KDE marker
+  for (int i = 0; i < 60; ++i) out[off++] = 0;
+  // PMKID KDE: tag=0xDD, len=20, OUI 00:0F:AC, type=0x04, then 16-byte PMKID
+  out[off++] = 0xDD;
+  out[off++] = 20;
+  out[off++] = 0x00; out[off++] = 0x0F; out[off++] = 0xAC; out[off++] = 0x04;
+  std::memcpy(out + off, pmkid, 16);
+  off += 16;
+  return off;
+}
+
+}  // namespace
+
+void test_eapol_m1_request_has_correct_layout() {
+  uint8_t buf[128] = {0};
+  std::size_t n = yui::eapol::build_m1_request(buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_size_t(106u, n);
+  // LLC/SNAP
+  TEST_ASSERT_EQUAL_HEX8(0xAA, buf[0]);
+  TEST_ASSERT_EQUAL_HEX8(0xAA, buf[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf[2]);
+  TEST_ASSERT_EQUAL_HEX8(0x88, buf[6]);
+  TEST_ASSERT_EQUAL_HEX8(0x8E, buf[7]);
+  // EAPOL header version=2, type=Key (0x03), length 95
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf[8]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf[9]);
+  TEST_ASSERT_EQUAL_HEX8(95,   buf[11]);
+  // Key descriptor type RSN (0x02)
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf[12]);
+}
+
+void test_eapol_extract_pmkid_finds_kde() {
+  uint8_t pmkid[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+  uint8_t frame[200];
+  std::size_t n = build_eapol_with_pmkid(frame, sizeof(frame), pmkid);
+  // Skip MAC header (24) + LLC/SNAP (8) to land on EAPOL body.
+  uint8_t out[16];
+  TEST_ASSERT_TRUE(yui::eapol::extract_pmkid(frame + 32, n - 32, out));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(pmkid, out, 16);
+}
+
+void test_eapol_extract_pmkid_returns_false_when_absent() {
+  uint8_t body[120] = {0};
+  uint8_t out[16];
+  TEST_ASSERT_FALSE(yui::eapol::extract_pmkid(body, sizeof(body), out));
+}
+
+void test_handshake_app_tab_toggles_mode() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  yui::WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::WifiHandshakeApp::Mode::FourWay);
+  app.on_key(press(yui::Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == yui::WifiHandshakeApp::Mode::PmkidOnly);
+  app.on_key(press(yui::Key::Tab));
+  TEST_ASSERT_TRUE(app.mode() == yui::WifiHandshakeApp::Mode::FourWay);
+}
+
+void test_handshake_app_counts_pmkid_in_injected_eapol() {
+  Fixture f;
+  FakeWifiMonitor mon;
+  FakePcap pcap;
+  yui::WifiHandshakeApp app{mon, pcap, f.clock};
+  app.on_enter(f.hal);
+  TEST_ASSERT_EQUAL_size_t(0, app.pmkid_seen());
+  uint8_t pmkid[16] = {0xDE,0xAD,0xBE,0xEF,0,0,0,0,0,0,0,0,0,0,0,0};
+  uint8_t frame[200];
+  std::size_t n = build_eapol_with_pmkid(frame, sizeof(frame), pmkid);
+  app.inject_for_test(frame, n);
+  TEST_ASSERT_EQUAL_size_t(1, app.eapol_seen());
+  TEST_ASSERT_EQUAL_size_t(1, app.pmkid_seen());
+}
+
 // ───── Phase 5.3 — RfChaosApp (lab-only RF stress test) ────────────────
 
 #include "yui/app/RfChaosApp.hpp"
@@ -5956,6 +6060,11 @@ int main(int, char**) {
   RUN_TEST(test_rfchaos_writes_log_on_stop);
   RUN_TEST(test_rfchaos_intensity_clamps);
   RUN_TEST(test_rfchaos_duration_minutes);
+  RUN_TEST(test_eapol_m1_request_has_correct_layout);
+  RUN_TEST(test_eapol_extract_pmkid_finds_kde);
+  RUN_TEST(test_eapol_extract_pmkid_returns_false_when_absent);
+  RUN_TEST(test_handshake_app_tab_toggles_mode);
+  RUN_TEST(test_handshake_app_counts_pmkid_in_injected_eapol);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);
