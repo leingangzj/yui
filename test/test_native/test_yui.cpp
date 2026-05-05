@@ -58,6 +58,7 @@
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
 #include "../../src/hal/native/NativeBleRawTx.hpp"
+#include "yui/app/MousejackApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
 #include "yui/app/BleGattApp.hpp"
@@ -3356,6 +3357,36 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   TEST_ASSERT_TRUE(FaradayMode::is_active());
 }
 
+// ───── Phase 5.5 — Aggressive Mousejack + SubGhzBrute unlock ───────────
+
+#include "yui/app/SubGhzBruteApp.hpp"
+
+void test_mousejack_pace_clamps_when_faraday_off() {
+  FaradayMode::reset_for_test();
+  TEST_ASSERT_EQUAL_UINT32(50u, yui::MousejackApp::inject_pace_ms());
+}
+
+void test_mousejack_pace_unlocks_when_faraday_on() {
+  FakeStorage st; st.init();
+  FaradayMode::reset_for_test();
+  FaradayMode::enable(st);
+  TEST_ASSERT_EQUAL_UINT32(2u, yui::MousejackApp::inject_pace_ms());
+  FaradayMode::reset_for_test();
+}
+
+void test_brute_pace_clamps_when_faraday_off() {
+  FaradayMode::reset_for_test();
+  TEST_ASSERT_EQUAL_UINT32(100u, yui::SubGhzBruteApp::step_pace_ms());
+}
+
+void test_brute_pace_unlocks_when_faraday_on() {
+  FakeStorage st; st.init();
+  FaradayMode::reset_for_test();
+  FaradayMode::enable(st);
+  TEST_ASSERT_EQUAL_UINT32(10u, yui::SubGhzBruteApp::step_pace_ms());
+  FaradayMode::reset_for_test();
+}
+
 // ───── Phase 5.4 — PMKID capture mode for WifiHandshakeApp ─────────────
 
 #include "yui/proto/Eapol.hpp"
@@ -6065,6 +6096,10 @@ int main(int, char**) {
   RUN_TEST(test_eapol_extract_pmkid_returns_false_when_absent);
   RUN_TEST(test_handshake_app_tab_toggles_mode);
   RUN_TEST(test_handshake_app_counts_pmkid_in_injected_eapol);
+  RUN_TEST(test_mousejack_pace_clamps_when_faraday_off);
+  RUN_TEST(test_mousejack_pace_unlocks_when_faraday_on);
+  RUN_TEST(test_brute_pace_clamps_when_faraday_off);
+  RUN_TEST(test_brute_pace_unlocks_when_faraday_on);
   RUN_TEST(test_koigotchi_starts_in_sleep_mood);
   RUN_TEST(test_koigotchi_enters_hunt_when_packets_flow);
   RUN_TEST(test_koigotchi_pops_to_catch_on_eapol_and_increments_counts);

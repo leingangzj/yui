@@ -20,6 +20,7 @@
 #include "yui/types.hpp"
 #include "yui/ui/Chrome.hpp"
 #include "yui/ui/Tokens.hpp"
+#include "yui/util/FaradayMode.hpp"
 #include <cstdio>
 #include <cstring>
 
@@ -150,7 +151,10 @@ public:
       }
     } else if (mode_ == Mode::Injecting) {
       // Pace at ~50 ms per packet so the receiver has time to ingest.
-      if (now_ms - last_tx_ms_ < 50) return;
+      // Faraday Mode strips this to ~2 ms (~500 pkt/s) — useful for
+      // stress-testing receiver buffers in a shielded room.
+      const uint32_t pace = FaradayMode::is_active() ? 2u : 50u;
+      if (now_ms - last_tx_ms_ < pace) return;
       last_tx_ms_ = now_ms;
       if (sent_ < static_cast<int>(sizeof(kPlaceholderPayload))) {
         radio_->transmit(kPlaceholderPayload + sent_, 1);
@@ -240,6 +244,10 @@ public:
   uint8_t  channel_hits(int ch) const {
     if (ch < 0 || ch >= kChannelCount) return 0;
     return hits_[ch];
+  }
+  // Effective inject pacing in ms (depends on FaradayMode).
+  static uint32_t inject_pace_ms() {
+    return FaradayMode::is_active() ? 2u : 50u;
   }
 
   // Test seam: let tests hand-build a target so we don't have to

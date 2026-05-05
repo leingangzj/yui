@@ -14,6 +14,7 @@
 #include "yui/types.hpp"
 #include "yui/ui/Chrome.hpp"
 #include "yui/ui/Tokens.hpp"
+#include "yui/util/FaradayMode.hpp"
 #include <cstdio>
 
 namespace yui {
@@ -74,10 +75,12 @@ public:
 
   void tick(uint32_t now_ms) override {
     if (mode_ != Mode::Running || !radio_) return;
-    // Pace TX at ~10 Hz so we don't lock the UI thread; receivers
-    // typically need 50-100 ms between presses anyway. First tick of
-    // a run fires immediately so the user sees the counter advance.
-    if (sent_ > 0 && now_ms - last_step_ms_ < 100) return;
+    // Pace TX. Default 100ms (~10 Hz) is conservative — most receivers
+    // need 50-100ms between presses. Faraday Mode strips this cap to
+    // 10ms (~100 Hz) so a full 24-bit sweep finishes in ~3 hours
+    // instead of ~23. See FaradayMode in util/.
+    const uint32_t pace = FaradayMode::is_active() ? 10u : 100u;
+    if (sent_ > 0 && now_ms - last_step_ms_ < pace) return;
     last_step_ms_ = now_ms;
 
     // Encode counter as big-endian 3-byte payload.
@@ -139,6 +142,9 @@ public:
   Mode mode() const { return mode_; }
   uint32_t counter() const { return counter_; }
   uint32_t sent() const { return sent_; }
+  static uint32_t step_pace_ms() {
+    return FaradayMode::is_active() ? 10u : 100u;
+  }
   uint32_t step() const { return step_; }
 
 private:
