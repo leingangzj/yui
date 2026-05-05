@@ -151,6 +151,7 @@ public:
   //   RX_PW_P0    (0x11) = 32     → max payload
   //   CONFIG      (0x00) = 0x33   → PWR_UP=1, PRIM_RX=1, CRC=2 byte
   bool set_promiscuous(bool on) override {
+    last_promiscuous_ack_ = false;
     if (on) {
       // SETUP_AW: bits 0-1 = address width. 0b00 = 'illegal' 2 bytes.
       module_.SPIwriteRegister(0x03, 0x00);
@@ -160,16 +161,25 @@ public:
       module_.SPIwriteRegister(0x02, 0x01);   // enable pipe 0
       module_.SPIwriteRegister(0x11, 0x20);   // 32-byte payload
       module_.SPIwriteRegister(0x00, 0x33);   // PWR_UP + PRIM_RX
-      promiscuous_ = true;
-    } else {
-      // Restore RadioLib's expected baseline so a subsequent
-      // begin() / set_address() works normally.
-      module_.SPIwriteRegister(0x03, 0x03);   // 5-byte addresses
-      promiscuous_ = false;
+      // F1 — read-back assertion: confirm SETUP_AW landed as 0x00.
+      // If the SPI write silently failed (loose CS, dead chip), this
+      // surfaces immediately rather than later as "scan finds nothing".
+      const uint8_t aw = module_.SPIreadRegister(0x03);
+      last_promiscuous_ack_ = (aw == 0x00);
+      promiscuous_          = last_promiscuous_ack_;
+      return last_promiscuous_ack_;
     }
-    return true;
+    // Restore baseline so a subsequent begin() / set_address() works.
+    module_.SPIwriteRegister(0x03, 0x03);
+    const uint8_t aw = module_.SPIreadRegister(0x03);
+    last_promiscuous_ack_ = (aw == 0x03);
+    promiscuous_          = false;
+    return last_promiscuous_ack_;
   }
   bool is_promiscuous() const override { return promiscuous_; }
+  // Test seam: true iff the most recent set_promiscuous() read-back
+  // confirmed the chip accepted the register write.
+  bool last_promiscuous_ack() const { return last_promiscuous_ack_; }
 
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
@@ -183,6 +193,7 @@ private:
   NrfDataRate rate_ = NrfDataRate::Rate1Mbps;
   bool listening_ = false;
   bool promiscuous_ = false;
+  bool last_promiscuous_ack_ = false;
   uint64_t rx_total_ = 0, tx_total_ = 0;
 };
 

@@ -53,8 +53,22 @@ public:
 
   // Native promiscuous-mode tracking: tests can assert the app
   // turned it on before scanning.
-  bool set_promiscuous(bool on) override { promiscuous_ = on; return true; }
+  bool set_promiscuous(bool on) override {
+    if (force_promiscuous_fail_) {
+      last_promiscuous_ack_ = false;
+      promiscuous_ = false;
+      return false;
+    }
+    promiscuous_           = on;
+    last_promiscuous_ack_  = true;
+    return true;
+  }
   bool is_promiscuous() const override { return promiscuous_; }
+  // F1 — read-back ack mirror of the ESP32 path. Tests that wire
+  // force_promiscuous_fail() can assert apps degrade gracefully when
+  // the chip refuses the promiscuous register write.
+  bool last_promiscuous_ack() const { return last_promiscuous_ack_; }
+  void force_promiscuous_fail(bool f) { force_promiscuous_fail_ = f; }
 
   uint64_t rx_bytes() const override { return rx_total_; }
   uint64_t tx_bytes() const override { return tx_total_; }
@@ -84,6 +98,8 @@ private:
   uint32_t tx_calls_ = 0;
   bool carrier_on_ = false;
   bool promiscuous_ = false;
+  bool last_promiscuous_ack_ = false;
+  bool force_promiscuous_fail_ = false;
 };
 
 }  // namespace yui

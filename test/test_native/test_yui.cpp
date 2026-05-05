@@ -55,6 +55,7 @@
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
 #include "../../src/hal/native/NativeBleRawTx.hpp"
+#include "../../src/hal/native/NativeNrf24.hpp"
 #include "yui/app/MousejackApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
@@ -2895,6 +2896,31 @@ void test_faraday_no_fix_succeeds_even_with_lab_set() {
   // No GPS fix available → guard short-circuits and allows enable.
   TEST_ASSERT_TRUE(FaradayMode::enable(store, /*has_fix=*/false));
   TEST_ASSERT_TRUE(FaradayMode::is_active());
+}
+
+// ───── F1 — nRF24 RPD-bit promiscuous mode ─────────────────────────────
+
+void test_nrf24_promiscuous_acks_by_default() {
+  yui::NativeNrf24 n;
+  TEST_ASSERT_TRUE(n.set_promiscuous(true));
+  TEST_ASSERT_TRUE(n.is_promiscuous());
+  TEST_ASSERT_TRUE(n.last_promiscuous_ack());
+}
+
+void test_nrf24_promiscuous_fail_propagates() {
+  yui::NativeNrf24 n;
+  n.force_promiscuous_fail(true);
+  TEST_ASSERT_FALSE(n.set_promiscuous(true));
+  TEST_ASSERT_FALSE(n.is_promiscuous());
+  TEST_ASSERT_FALSE(n.last_promiscuous_ack());
+}
+
+void test_nrf24_promiscuous_disable_resets_state() {
+  yui::NativeNrf24 n;
+  n.set_promiscuous(true);
+  TEST_ASSERT_TRUE(n.is_promiscuous());
+  TEST_ASSERT_TRUE(n.set_promiscuous(false));
+  TEST_ASSERT_FALSE(n.is_promiscuous());
 }
 
 // ───── D1 — On-device SoakLog ──────────────────────────────────────────
@@ -5817,6 +5843,9 @@ int main(int, char**) {
   RUN_TEST(test_soaklog_begin_writes_header);
   RUN_TEST(test_soaklog_appends_row_per_sample);
   RUN_TEST(test_soaklog_tick_throttles_to_interval);
+  RUN_TEST(test_nrf24_promiscuous_acks_by_default);
+  RUN_TEST(test_nrf24_promiscuous_fail_propagates);
+  RUN_TEST(test_nrf24_promiscuous_disable_resets_state);
   RUN_TEST(test_ble_rawtx_nimble_rail_accepts_only_adv_channels);
   RUN_TEST(test_ble_rawtx_nimble_rail_records_payload_and_count);
   RUN_TEST(test_ble_rawtx_nrf24_channel_mapping_is_correct);
