@@ -120,9 +120,8 @@ public:
           std::snprintf(line, sizeof(line), "Boot SelfTest %s",
                         boot_selftest_ ? "ON" : "off");
           break;
-        default:
-          std::snprintf(line, sizeof(line), "(coming soon)");
-          break;
+        // No default — kRowCount is the loop bound so anything past
+        // case 5 is a programming error, not a UI state.
       }
       d.draw_text(8, y + 3, line, fg, bg);
     }

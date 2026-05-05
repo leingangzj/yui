@@ -40,7 +40,8 @@ public:
     Category::Bluetooth,
     Category::Tools,
     Category::System,
-    Category::Fun,
+    // Fun was here pre-prune; v1.1 removed every Fun-category app.
+    // Drop the empty drawer rather than show "(empty)".
   };
   static constexpr size_t kCategoryCount =
       sizeof(kCategories) / sizeof(kCategories[0]);

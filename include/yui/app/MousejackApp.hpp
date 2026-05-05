@@ -227,6 +227,14 @@ public:
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            target_count_ > 0 ? "Inject complete" : "No targets",
                            ui::kAccent, ui::kSurface, FontStyle::Title);
+        if (target_count_ > 0) {
+          // Be honest with the operator: the built-in payload is a
+          // benign placeholder. Real keystroke injection needs a
+          // .duck-style payload loader (planned, not shipped).
+          d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 32,
+                             "(payload is placeholder)",
+                             ui::kHint, ui::kSurface, FontStyle::Caption);
+        }
         ui::Chrome::footer(d, "Enter:rescan  Esc:back");
         break;
       default: break;

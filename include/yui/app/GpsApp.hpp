@@ -2,16 +2,17 @@
 // GpsApp — show the current GNSS fix and (optionally) capture
 // trackpoints to RAM, dumpable to a GPX file on Tab.
 //
-// Reads from IGnss; on the ESP32, that's eventually fed by the TH-D75's
-// onboard GPS over the same SPP link. v0.2 stub returns an invalid fix;
-// once Esp32Gnss lands, this app starts showing real positions.
+// Reads from IGnss. On the ESP32, that's the TH-D75's onboard GPS
+// arriving as NMEA over the bb-link SPP socket (Esp32Gnss). The radio
+// must have its `GP` (GPS data output) menu turned on, otherwise no
+// NMEA is emitted and this app reports no fix.
 //
 // Keys:
-//   Tab   : toggle recording; on stop, flush track to /yui-tracks/<ts>.gpx
-//   Esc   : back
+//   Tab   toggle recording; on stop, flush to /yui-tracks/<ts>.gpx
+//   Esc   back
 //
-// Track buffer is intentionally bounded (kMaxPoints) — long sessions
-// will need v0.3's append-mode IFs.
+// Track buffer is bounded (kMaxPoints). Long sessions need an
+// append-mode IFs path that doesn't exist yet.
 #include "yui/app/App.hpp"
 #include "yui/hal/IGnss.hpp"
 #include "yui/hal/IFs.hpp"

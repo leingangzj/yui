@@ -1,9 +1,9 @@
 #pragma once
 // Nrf24JammerApp — 2.4 GHz denial modes via the nRF24L01+.
 //
-// Phase 4 modes: ChannelFlood (single-channel carrier), HopJam (cycle
-// across all 126 channels), TargetMac (jam scoped to a sniffed MAC's
-// hop sequence — placeholder until MousejackApp lands).
+// Two modes:
+//   Channel flood   single-channel carrier on the user-picked channel
+//   Hop jam         cycles all 126 channels per tick (saw-tooth sweep)
 
 #include "yui/app/App.hpp"
 #include "yui/hal/INrf24.hpp"
@@ -17,7 +17,10 @@ namespace yui {
 class Nrf24JammerApp : public App {
 public:
   static constexpr const char* kModes[] = {
-    "Channel flood", "Hop jam", "Target MAC"
+    "Channel flood", "Hop jam"
+    // "Target MAC" was a Phase 4 placeholder; the address-set + TX path
+    // it would need lives in MousejackApp now. Drop the dead row rather
+    // than advertise a mode that does nothing.
   };
   static constexpr int kModeCount = sizeof(kModes) / sizeof(kModes[0]);
 
