@@ -4757,7 +4757,6 @@ void test_subfile_rejects_garbage() {
 // ───── Phase 4 — Hydra RF apps (cap-detect smoke tests) ────────────────────
 #include "yui/app/SubGhzScanApp.hpp"
 #include "yui/app/SubGhzJammerApp.hpp"
-#include "yui/app/Nrf24ScanApp.hpp"
 #include "yui/app/Nrf24JammerApp.hpp"
 #include "yui/app/RollJamApp.hpp"
 
@@ -4820,16 +4819,8 @@ void test_subghz_jammer_enter_toggles_carrier_in_cw_mode() {
   TEST_ASSERT_FALSE(c.carrier_on());
 }
 
-void test_nrf24_scan_with_missing_cap_renders_dialog() {
-  yui::NativeNrf24 n;
-  n.set_present(false);
-  RfHalFixture f;
-  yui::Nrf24ScanApp app(&n);
-  app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.mode() == yui::Nrf24ScanApp::Mode::CapMissing);
-  app.render(f.d);
-  TEST_ASSERT_TRUE(f.d.all_text().find("Hydra not found") != std::string::npos);
-}
+// Note: test_mousejack_generic_scan_* defined later, after MousejackApp.hpp
+// is included around line 5010.
 
 void test_nrf24_jammer_channel_flood_asserts_carrier() {
   yui::NativeNrf24 n;
@@ -5002,6 +4993,32 @@ void test_mousejack_missing_cap_dialog() {
   TEST_ASSERT_TRUE(app.mode() == yui::MousejackApp::Mode::CapMissing);
   app.render(f.d);
   TEST_ASSERT_TRUE(f.d.all_text().find("Hydra not found") != std::string::npos);
+}
+
+void test_mousejack_generic_scan_mode_renders_heatmap() {
+  // Generic Scan mode is the absorbed Nrf24Scan path: tab toggles
+  // between the original Targets scan and a channel-heatmap scan.
+  yui::NativeNrf24 n;
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.scan_type() == yui::MousejackApp::ScanType::Targets);
+  yui::KeyEvent ke{}; ke.down = true; ke.key = yui::Key::Tab;
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.scan_type() == yui::MousejackApp::ScanType::Generic);
+  app.on_key(ke);
+  TEST_ASSERT_TRUE(app.scan_type() == yui::MousejackApp::ScanType::Targets);
+}
+
+void test_mousejack_generic_scan_with_missing_cap_renders_dialog() {
+  yui::NativeNrf24 n;
+  n.set_present(false);
+  yui::FakeClock clock;
+  RfHalFixture f;
+  yui::MousejackApp app(&n, clock);
+  app.on_enter(f.hal);
+  TEST_ASSERT_TRUE(app.mode() == yui::MousejackApp::Mode::CapMissing);
 }
 
 void test_mousejack_enters_scan_and_walks_channels() {
@@ -5705,7 +5722,8 @@ int main(int, char**) {
   RUN_TEST(test_subghz_scan_with_missing_cap_renders_dialog);
   RUN_TEST(test_subghz_scan_null_radio_lands_in_cap_missing);
   RUN_TEST(test_subghz_jammer_enter_toggles_carrier_in_cw_mode);
-  RUN_TEST(test_nrf24_scan_with_missing_cap_renders_dialog);
+  RUN_TEST(test_mousejack_generic_scan_mode_renders_heatmap);
+  RUN_TEST(test_mousejack_generic_scan_with_missing_cap_renders_dialog);
   RUN_TEST(test_nrf24_jammer_channel_flood_asserts_carrier);
   RUN_TEST(test_rolljam_walks_state_machine);
   // Phase 4.5 — fleshed-out RF apps

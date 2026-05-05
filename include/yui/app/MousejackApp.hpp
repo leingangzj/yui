@@ -28,6 +28,7 @@ namespace yui {
 class MousejackApp : public App {
 public:
   enum class Mode { CapMissing, Scanning, TargetList, Injecting, Done };
+  enum class ScanType { Targets, Generic };  // Generic = channel heatmap
 
   static constexpr int kMaxTargets   = 8;
   static constexpr int kAddrLen      = 5;
@@ -59,6 +60,7 @@ public:
     cursor_ = 0;
     ch_ = 0;
     sent_ = 0;
+    for (auto& v : hits_) v = 0;
     radio_->set_data_rate(NrfDataRate::Rate2Mbps);
     // Try real promiscuous mode (Bastille technique). Falls back to
     // pipe-0 listen on the seed Logitech address if the backend
@@ -81,11 +83,23 @@ public:
     if (!k.down || mode_ == Mode::CapMissing) return;
     switch (mode_) {
       case Mode::Scanning:
+        if (k.key == Key::Tab) {
+          scan_type_ = (scan_type_ == ScanType::Targets) ? ScanType::Generic
+                                                         : ScanType::Targets;
+          // Reset state so the new scan view starts clean.
+          for (auto& v : hits_) v = 0;
+          target_count_ = 0;
+          ch_ = 0;
+          break;
+        }
         if (k.key == Key::Enter) {
-          // Skip to whatever's been collected so far — user can pick
-          // even if scan hasn't completed.
           if (radio_) radio_->stop_listening();
-          mode_ = (target_count_ > 0) ? Mode::TargetList : Mode::Done;
+          if (scan_type_ == ScanType::Generic) {
+            // Generic scan never produces "targets"; Enter just freezes.
+            mode_ = Mode::Done;
+          } else {
+            mode_ = (target_count_ > 0) ? Mode::TargetList : Mode::Done;
+          }
         }
         break;
       case Mode::TargetList:
@@ -105,22 +119,34 @@ public:
   void tick(uint32_t now_ms) override {
     if (!radio_) return;
     if (mode_ == Mode::Scanning) {
-      // Channel-hop and check for activity. carrier_detected returns
-      // false on the Phase 3 RadioLib stub (we noted in Nrf24Radio
-      // that exposing RPD needs low-level register read); we still
-      // walk the channels so the UI animates and the chip cycles.
-      ch_ = (ch_ + 1) % kChannelCount;
-      radio_->set_channel(static_cast<uint8_t>(ch_));
-      if (radio_->carrier_detected() && target_count_ < kMaxTargets) {
-        // Record this address+channel pair as a target.
-        Target& t = targets_[target_count_++];
-        std::memcpy(t.addr, kSeedAddress, kAddrLen);
-        t.channel = ch_;
-      }
-      // Stop after one full sweep — user can drill in then.
-      if (ch_ == 0 && target_count_ > 0) {
-        radio_->stop_listening();
-        mode_ = Mode::TargetList;
+      if (scan_type_ == ScanType::Generic) {
+        // Inherited Nrf24Scan behavior: walk many channels per tick,
+        // accumulate per-channel hit counts with slow decay so peaks
+        // fade if the source goes quiet.
+        for (int i = 0; i < 10; ++i) {
+          radio_->set_channel(static_cast<uint8_t>(ch_));
+          radio_->start_listening();
+          if (radio_->carrier_detected()) {
+            if (hits_[ch_] < 255) ++hits_[ch_];
+          } else if (hits_[ch_] > 0) {
+            --hits_[ch_];
+          }
+          ch_ = (ch_ + 1) % kChannelCount;
+        }
+      } else {
+        // Targets: same as before — one channel per tick, record any
+        // address that responds, finalize after a full sweep.
+        ch_ = (ch_ + 1) % kChannelCount;
+        radio_->set_channel(static_cast<uint8_t>(ch_));
+        if (radio_->carrier_detected() && target_count_ < kMaxTargets) {
+          Target& t = targets_[target_count_++];
+          std::memcpy(t.addr, kSeedAddress, kAddrLen);
+          t.channel = ch_;
+        }
+        if (ch_ == 0 && target_count_ > 0) {
+          radio_->stop_listening();
+          mode_ = Mode::TargetList;
+        }
       }
     } else if (mode_ == Mode::Injecting) {
       // Pace at ~50 ms per packet so the receiver has time to ingest.
@@ -144,16 +170,25 @@ public:
     char sub[24];
     switch (mode_) {
       case Mode::Scanning:
-        std::snprintf(sub, sizeof(sub), "ch %d  %d found", ch_, target_count_);
-        ui::Chrome::radio_header(d, "Mousejack", sub, -1,
-                                 radio_ && radio_->is_present() ? 1 : 0);
-        d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
-                           "Scanning channels 0..125",
-                           ui::kAccent, ui::kSurface, FontStyle::Title);
-        d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 32,
-                           "Press Enter to skip ahead.",
-                           ui::kHint, ui::kSurface, FontStyle::Caption);
-        ui::Chrome::footer(d, "Enter:targets  Esc:back");
+        if (scan_type_ == ScanType::Generic) {
+          ui::Chrome::radio_header(d, "Mousejack · Generic Scan",
+                                   nullptr, -1,
+                                   radio_ && radio_->is_present() ? 1 : 0);
+          render_generic_heatmap_(d);
+          ui::Chrome::footer(d, "Tab:targets  Enter:freeze  Esc:back");
+        } else {
+          std::snprintf(sub, sizeof(sub), "ch %d  %d found",
+                        ch_, target_count_);
+          ui::Chrome::radio_header(d, "Mousejack · Targets", sub, -1,
+                                   radio_ && radio_->is_present() ? 1 : 0);
+          d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
+                             "Scanning channels 0..125",
+                             ui::kAccent, ui::kSurface, FontStyle::Title);
+          d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 32,
+                             "Press Enter to skip ahead.",
+                             ui::kHint, ui::kSurface, FontStyle::Caption);
+          ui::Chrome::footer(d, "Tab:generic  Enter:targets  Esc:back");
+        }
         break;
       case Mode::TargetList:
         std::snprintf(sub, sizeof(sub), "%d targets", target_count_);
@@ -196,10 +231,16 @@ public:
   }
 
   // Test hooks
-  Mode mode() const { return mode_; }
-  int  target_count() const { return target_count_; }
-  int  cursor() const { return cursor_; }
-  int  current_channel() const { return ch_; }
+  Mode     mode() const { return mode_; }
+  ScanType scan_type() const { return scan_type_; }
+  void     set_scan_type(ScanType t) { scan_type_ = t; }
+  int      target_count() const { return target_count_; }
+  int      cursor() const { return cursor_; }
+  int      current_channel() const { return ch_; }
+  uint8_t  channel_hits(int ch) const {
+    if (ch < 0 || ch >= kChannelCount) return 0;
+    return hits_[ch];
+  }
 
   // Test seam: let tests hand-build a target so we don't have to
   // shape the radio's carrier-detect path during scanning.
@@ -216,6 +257,35 @@ private:
     int     channel;
   };
 
+  void render_generic_heatmap_(IDisplay& d) {
+    const int W       = d.width();
+    const int top_y   = ui::kBodyTopY;
+    const int chart_h = (ui::kFooterY - top_y) - 18;
+    const int base_y  = top_y + chart_h;
+    int peak_ch = 0;
+    uint8_t peak_v = 0;
+    for (int i = 0; i < kChannelCount; ++i) {
+      if (hits_[i] > peak_v) { peak_v = hits_[i]; peak_ch = i; }
+    }
+    for (int i = 0; i < kChannelCount; ++i) {
+      const int v = hits_[i];
+      if (v == 0) continue;
+      const int h  = (v * chart_h) / 32;
+      const int hh = h > chart_h ? chart_h : h;
+      const int x  = (i * W) / kChannelCount;
+      const int next_x = ((i + 1) * W) / kChannelCount;
+      const int bw = next_x - x - 1;
+      const Color c = (i == peak_ch) ? ui::kWarn : ui::kAccent;
+      d.fill_rect({x, base_y - hh, bw > 0 ? bw : 1, hh}, c);
+    }
+    char line[40];
+    std::snprintf(line, sizeof(line),
+                  "peak ch %d  %d MHz  hits=%u",
+                  peak_ch, 2400 + peak_ch, peak_v);
+    d.draw_text_styled(ui::kBodyPadX, base_y + 2, line,
+                       ui::kHint, ui::kSurface, FontStyle::Caption);
+  }
+
   void start_inject_() {
     if (!radio_ || target_count_ == 0) return;
     const auto& tgt = targets_[cursor_];
@@ -229,13 +299,15 @@ private:
 
   INrf24*  radio_;
   IClock&  clock_;
-  Mode     mode_ = Mode::Scanning;
-  int      ch_   = 0;
+  Mode     mode_      = Mode::Scanning;
+  ScanType scan_type_ = ScanType::Targets;
+  int      ch_        = 0;
   Target   targets_[kMaxTargets];
   int      target_count_ = 0;
   int      cursor_       = 0;
   int      sent_         = 0;
   uint32_t last_tx_ms_   = 0;
+  uint8_t  hits_[kChannelCount] = {};
 };
 
 }  // namespace yui

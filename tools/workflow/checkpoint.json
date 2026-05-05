@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "current": "4.13.4",
-  "next_after_current": "4.13.5",
+  "current": "4.13.5",
+  "next_after_current": "4.13.6",
   "completed": [
     {
       "id": "4.13.1",
@@ -29,19 +29,18 @@
       "tests_after": 367,
       "launcher_before": 40,
       "launcher_after": 38
+    },
+    {
+      "id": "4.13.4",
+      "commit": "054970f",
+      "completed_at": "2026-05-04T23:42Z",
+      "tests_before": 367,
+      "tests_after": 369,
+      "launcher_before": 38,
+      "launcher_after": 36
     }
   ],
-  "remaining": [
-    "4.13.4",
-    "4.13.5",
-    "4.13.6",
-    "5.0",
-    "5.1",
-    "5.2",
-    "5.3",
-    "5.4",
-    "5.5"
-  ],
+  "remaining": ["4.13.5", "4.13.6", "5.0", "5.1", "5.2", "5.3", "5.4", "5.5"],
   "blocked": [],
   "notes": "Linear sequence by file order in jobs.jsonl."
 }

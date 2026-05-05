@@ -42,7 +42,6 @@
 #include "yui/app/SubGhzCaptureReplayApp.hpp"
 #include "yui/app/SubGhzBruteApp.hpp"
 #include "yui/app/SubGhzJammerApp.hpp"
-#include "yui/app/Nrf24ScanApp.hpp"
 #include "yui/app/Nrf24JammerApp.hpp"
 #include "yui/app/MousejackApp.hpp"
 #include "yui/app/RollJamApp.hpp"
@@ -173,7 +172,6 @@ yui::SubGhzScanApp       subghz_scan_app{&cc1101_};
 yui::SubGhzCaptureReplayApp subghz_cr_app{&cc1101_, &fs_, clock_};
 yui::SubGhzBruteApp      subghz_brute_app{&cc1101_, clock_};
 yui::SubGhzJammerApp     subghz_jammer_app{&cc1101_};
-yui::Nrf24ScanApp        nrf24_scan_app{&nrf24_};
 yui::Nrf24JammerApp      nrf24_jammer_app{&nrf24_};
 yui::MousejackApp        mousejack_app{&nrf24_, clock_};
 yui::RollJamApp          rolljam_app{&cc1101_, clock_};
@@ -284,7 +282,6 @@ void setup() {
   registry.add(&subghz_cr_app);
   registry.add(&subghz_brute_app);
   registry.add(&subghz_jammer_app);
-  registry.add(&nrf24_scan_app);
   registry.add(&nrf24_jammer_app);
   registry.add(&mousejack_app);
   registry.add(&rolljam_app);
