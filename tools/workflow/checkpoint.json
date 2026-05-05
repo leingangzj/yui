@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "current": "4.13.5",
-  "next_after_current": "4.13.6",
+  "current": null,
+  "next_after_current": null,
   "completed": [
     {
       "id": "4.13.1",
@@ -38,9 +38,92 @@
       "tests_after": 369,
       "launcher_before": 38,
       "launcher_after": 36
+    },
+    {
+      "id": "4.13.5",
+      "commit": "8fde27f",
+      "completed_at": "2026-05-05T00:02Z",
+      "tests_before": 369,
+      "tests_after": 370,
+      "launcher_before": 36,
+      "launcher_after": 35
+    },
+    {
+      "id": "4.13.6",
+      "commit": "0eb5a67",
+      "completed_at": "2026-05-05T00:18Z",
+      "tests_before": 370,
+      "tests_after": 370,
+      "launcher_before": 35,
+      "launcher_after": 34
+    },
+    {
+      "id": "5.0",
+      "commit": "0f312f9",
+      "completed_at": "2026-05-05T00:35Z",
+      "tests_before": 370,
+      "tests_after": 377,
+      "launcher_before": 34,
+      "launcher_after": 34,
+      "notes": "FaradayMode singleton + Settings row + Launcher LAB badge + HydraStatus line + GPS lab-location guard"
+    },
+    {
+      "id": "5.1",
+      "commit": "8df6faa",
+      "completed_at": "2026-05-05T00:42Z",
+      "tests_before": 377,
+      "tests_after": 377,
+      "launcher_before": 34,
+      "launcher_after": 34,
+      "notes": "Build-system path wired (-zmuldefs + lib_extra_dirs); patched libnet80211.a not vendored — operator drops in per board/lib_extra/README.md"
+    },
+    {
+      "id": "5.2",
+      "commit": "1ccb7eb",
+      "completed_at": "2026-05-05T00:55Z",
+      "tests_before": 377,
+      "tests_after": 387,
+      "launcher_before": 34,
+      "launcher_after": 34,
+      "notes": "IBleRawTx HAL + native fakes (NimBLE + nRF24); BleSpamApp/BleJammerApp app integration deferred to 5.2.x"
+    },
+    {
+      "id": "5.3",
+      "commit": "29213cf",
+      "completed_at": "2026-05-05T01:14Z",
+      "tests_before": 387,
+      "tests_after": 395,
+      "launcher_before": 34,
+      "launcher_after": 34,
+      "notes": "RfChaosApp orchestrator with Faraday gate, RNG-driven scheduling, SD log writer; not yet wired into main.cpp registry"
+    },
+    {
+      "id": "5.4",
+      "commit": "cfb8b94",
+      "completed_at": "2026-05-05T01:30Z",
+      "tests_before": 395,
+      "tests_after": 400,
+      "launcher_before": 34,
+      "launcher_after": 34,
+      "notes": "PMKID mode toggle in WifiHandshakeApp + Eapol proto module"
+    },
+    {
+      "id": "5.5",
+      "commit": "ab0f0ec",
+      "completed_at": "2026-05-05T01:42Z",
+      "tests_before": 400,
+      "tests_after": 404,
+      "launcher_before": 34,
+      "launcher_after": 34,
+      "notes": "Mousejack inject pace 50→2ms and SubGhzBrute step pace 100→10ms when FaradayMode is on"
     }
   ],
-  "remaining": ["4.13.5", "4.13.6", "5.0", "5.1", "5.2", "5.3", "5.4", "5.5"],
+  "remaining": [],
   "blocked": [],
-  "notes": "Linear sequence by file order in jobs.jsonl."
+  "follow_ups": [
+    "5.2.x: wire IBleRawTx into BleSpamApp / BleJammerApp with Rail picker (NimBLE / nRF24 / Both) and channel-divided spam defaults",
+    "5.3.x: register RfChaosApp in main.cpp + add real fire callbacks for DeauthApp(Native), BleJammerApp, SubGhzJammerApp, WifiBeaconFloodApp",
+    "5.1.x: vendor the patched libnet80211.a binary with verified SHA-256 once an operator has built one"
+  ],
+  "notes": "Phase 4.13 + Phase 5 workflow complete. 12 commits, 0 → 404 tests, launcher 42 → 34 entries (8 slots recovered, no functional loss in consolidation phase; full Lab Mode infrastructure landed in Phase 5)."
 }
