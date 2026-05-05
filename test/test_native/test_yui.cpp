@@ -14,6 +14,7 @@
 #include "yui/app/AboutApp.hpp"
 #include "yui/app/RemoteApp.hpp"
 #include "yui/app/StubApp.hpp"
+#include "yui/dsp/Fft.hpp"
 #include "yui/shell/Shell.hpp"
 #include "../../src/hal/native/NativeKeyboard.hpp"
 #include "../../src/hal/native/NativeClock.hpp"
@@ -26,17 +27,11 @@
 #include "yui/app/WifiApp.hpp"
 #include "yui/app/BleApp.hpp"
 #include "yui/app/CalculatorApp.hpp"
-#include "yui/app/ImuApp.hpp"
-#include "yui/app/NotesApp.hpp"
 #include "yui/app/FilesApp.hpp"
 #include "yui/app/IrRemoteApp.hpp"
-#include "yui/app/MicApp.hpp"
 #include "yui/app/SettingsApp.hpp"
 #include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
-#include "yui/app/SnakeApp.hpp"
-#include "yui/app/KeyTestApp.hpp"
-#include "yui/game/SnakeEngine.hpp"
 #include "yui/drivers/AdvKeymap.hpp"
 #include "../../src/hal/native/NativeStorage.hpp"
 #include "../../src/hal/native/NativeRadioLink.hpp"
@@ -66,7 +61,6 @@
 #include "yui/app/WifiDeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
 #include "../../src/hal/native/NativeBleAdvertiser.hpp"
-#include "yui/app/TvBGoneApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
 #include "yui/app/WifiNativeDeauthApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
@@ -84,15 +78,6 @@
 #include "yui/app/SatTrackerApp.hpp"
 #include "yui/proto/Dot11.hpp"
 #include "../../src/hal/native/NativeSpeaker.hpp"
-#include "yui/app/ToneApp.hpp"
-#include "yui/app/PomodoroApp.hpp"
-#include "yui/app/MetronomeApp.hpp"
-#include "yui/app/LifeApp.hpp"
-#include "yui/game/LifeEngine.hpp"
-#include "yui/app/DrawApp.hpp"
-#include "yui/app/CalendarApp.hpp"
-#include "yui/app/TodoApp.hpp"
-#include "yui/util/Date.hpp"
 #include "yui/util/TzPresets.hpp"
 #include "yui/util/NtpPresets.hpp"
 #include <cstring>
@@ -1306,197 +1291,6 @@ void test_calc_app_routes_trig_and_memory_keys() {
   TEST_ASSERT_FALSE(app.engine().m_has());
 }
 
-// ───── ImuApp ───────────────────────────────────────────────────────────────
-
-void test_imu_app_reads_accel_on_tick() {
-  Fixture f;
-  FakeImu imu;
-  imu.set_accel(0.3f, -0.2f, 0.9f);
-  ImuApp app{imu};
-  app.on_enter(f.hal);
-  app.tick(0);
-  AccelXYZ a = app.last_accel();
-  TEST_ASSERT_EQUAL_FLOAT(0.3f,  a.x);
-  TEST_ASSERT_EQUAL_FLOAT(-0.2f, a.y);
-}
-
-void test_imu_app_renders_header_red() {
-  Fixture f;
-  FakeImu imu;
-  ImuApp app{imu};
-  app.on_enter(f.hal);
-  app.tick(0);
-  app.render(f.display);
-  TEST_ASSERT_EQUAL_HEX16(kJapanRed, f.display.pixel_at(20, 5));
-}
-
-// ───── NotesApp ─────────────────────────────────────────────────────────────
-
-void test_notes_starts_empty() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_size_t(0u, app.buffer_len());
-  TEST_ASSERT_FALSE(app.dirty());
-}
-
-void test_notes_typing_marks_dirty() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char; k.ch = 'h'; app.on_key(k);
-  k.ch = 'i'; app.on_key(k);
-  TEST_ASSERT_EQUAL_STRING("hi", app.buffer());
-  TEST_ASSERT_TRUE(app.dirty());
-}
-
-void test_notes_backspace() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char; k.ch = 'a'; app.on_key(k);
-  k.ch = 'b'; app.on_key(k);
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_EQUAL_STRING("a", app.buffer());
-}
-
-void test_notes_arrow_left_right_move_cursor() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char;
-  k.ch = 'a'; app.on_key(k);
-  k.ch = 'b'; app.on_key(k);
-  k.ch = 'c'; app.on_key(k);
-  TEST_ASSERT_EQUAL_size_t(3u, app.cursor());
-  app.on_key(press(Key::Left));
-  TEST_ASSERT_EQUAL_size_t(2u, app.cursor());
-  app.on_key(press(Key::Left));
-  app.on_key(press(Key::Left));
-  app.on_key(press(Key::Left));  // clamps at 0
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
-  app.on_key(press(Key::Right));
-  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
-}
-
-void test_notes_insert_mid_buffer() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char;
-  k.ch = 'a'; app.on_key(k);
-  k.ch = 'c'; app.on_key(k);
-  app.on_key(press(Key::Left));         // between a and c
-  k.ch = 'b'; app.on_key(k);
-  TEST_ASSERT_EQUAL_STRING("abc", app.buffer());
-  TEST_ASSERT_EQUAL_size_t(2u, app.cursor());
-}
-
-void test_notes_backspace_mid_buffer() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char;
-  k.ch = 'a'; app.on_key(k);
-  k.ch = 'b'; app.on_key(k);
-  k.ch = 'c'; app.on_key(k);
-  app.on_key(press(Key::Left));         // cursor between b and c
-  app.on_key(press(Key::Backspace));    // delete b
-  TEST_ASSERT_EQUAL_STRING("ac", app.buffer());
-  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
-}
-
-void test_notes_up_down_preserve_target_column() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char;
-  // line 0: "hello"  line 1: "hi"  line 2: "world"
-  for (char c : "hello") if (c) { k.ch = c; app.on_key(k); }
-  app.on_key(press(Key::Enter));
-  for (char c : "hi") if (c) { k.ch = c; app.on_key(k); }
-  app.on_key(press(Key::Enter));
-  for (char c : "world") if (c) { k.ch = c; app.on_key(k); }
-  // cursor at end of "world" (line 2, col 5)
-  TEST_ASSERT_EQUAL_size_t(2u, app.cursor_line());
-  TEST_ASSERT_EQUAL_size_t(5u, app.cursor_col());
-  // up to line 1: "hi" only has 2 cols, clamps
-  app.on_key(press(Key::Up));
-  TEST_ASSERT_EQUAL_size_t(1u, app.cursor_line());
-  TEST_ASSERT_EQUAL_size_t(2u, app.cursor_col());
-  // up to line 0: target column 5 still remembered, line is "hello" (5)
-  app.on_key(press(Key::Up));
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_line());
-  TEST_ASSERT_EQUAL_size_t(5u, app.cursor_col());
-}
-
-void test_notes_fn_left_jumps_to_line_start() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char;
-  for (char c : "hello") if (c) { k.ch = c; app.on_key(k); }
-  TEST_ASSERT_EQUAL_size_t(5u, app.cursor());
-  KeyEvent fl{};
-  fl.down = true; fl.key = Key::Left; fl.fn = true;
-  app.on_key(fl);
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_col());
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
-}
-
-void test_notes_fn_right_jumps_to_line_end() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char;
-  for (char c : "abc") if (c) { k.ch = c; app.on_key(k); }
-  app.on_key(press(Key::Enter));
-  for (char c : "xyz") if (c) { k.ch = c; app.on_key(k); }
-  // cursor on line 1, col 3.
-  app.on_key(press(Key::Up));    // → line 0, col ≤3 (target_col=3, line len=3)
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_line());
-  TEST_ASSERT_EQUAL_size_t(3u, app.cursor_col());
-  app.on_key(press(Key::Left));   // back to col 2
-  TEST_ASSERT_EQUAL_size_t(2u, app.cursor_col());
-  KeyEvent fr{};
-  fr.down = true; fr.key = Key::Right; fr.fn = true;
-  app.on_key(fr);
-  TEST_ASSERT_EQUAL_size_t(3u, app.cursor_col());
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor_line());  // didn't fall through
-}
-
-void test_notes_save_and_reload() {
-  Fixture f;
-  FakeFs fs;
-  NotesApp app{fs};
-  app.on_enter(f.hal);
-  KeyEvent k{};
-  k.down = true; k.key = Key::Char; k.ch = 'X'; app.on_key(k);
-  app.on_key(press(Key::Tab));   // save
-  TEST_ASSERT_FALSE(app.dirty());
-  // Re-enter — should reload from fs.
-  NotesApp app2{fs};
-  app2.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_STRING("X", app2.buffer());
-}
-
 // ───── FilesApp ─────────────────────────────────────────────────────────────
 
 void test_files_lists_root() {
@@ -1627,51 +1421,6 @@ void test_ir_app_arrow_keys_change_selection() {
   TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
 }
 
-// ───── MicApp ───────────────────────────────────────────────────────────────
-
-void test_mic_app_silent_input_yields_zero_rms() {
-  Fixture f;
-  FakeMic mic;
-  mic.push_constant(0, MicApp::kFrame);
-  MicApp app{mic};
-  app.on_enter(f.hal);
-  app.tick(0);
-  TEST_ASSERT_EQUAL_FLOAT(0.f, app.rms());
-}
-
-void test_mic_app_sine_at_1khz_lands_in_expected_band() {
-  // 16 kHz sample rate, 256-pt FFT → 62.5 Hz/bin. 1 kHz = bin 16, which is
-  // band 4 (bins 16..32).
-  Fixture f;
-  FakeMic mic;
-  mic.push_sine(1000.f, 16000.f, 16000, MicApp::kFrame);
-  MicApp app{mic};
-  app.on_enter(f.hal);
-  app.tick(0);
-  // Band 4 should be the strongest.
-  int peak_band = 0;
-  for (int b = 1; b < MicApp::kBands; ++b) {
-    if (app.band(b) > app.band(peak_band)) peak_band = b;
-  }
-  TEST_ASSERT_EQUAL_INT(4, peak_band);
-  TEST_ASSERT_GREATER_THAN_INT(20, app.band(4));
-}
-
-void test_mic_app_sine_at_300hz_lands_in_low_band() {
-  // 300 Hz → bin ~5, which is band 2 (bins 4..8).
-  Fixture f;
-  FakeMic mic;
-  mic.push_sine(300.f, 16000.f, 16000, MicApp::kFrame);
-  MicApp app{mic};
-  app.on_enter(f.hal);
-  app.tick(0);
-  int peak_band = 0;
-  for (int b = 1; b < MicApp::kBands; ++b) {
-    if (app.band(b) > app.band(peak_band)) peak_band = b;
-  }
-  TEST_ASSERT_EQUAL_INT(2, peak_band);
-}
-
 // ───── FFT ──────────────────────────────────────────────────────────────────
 
 void test_fft_dc_input_concentrates_in_bin_zero() {
@@ -1703,16 +1452,6 @@ void test_fft_single_bin_sine() {
     if (mag > peak_mag) { peak_mag = mag; peak_bin = k; }
   }
   TEST_ASSERT_EQUAL_size_t(k_target, peak_bin);
-}
-
-void test_mic_app_loud_input_yields_high_rms() {
-  Fixture f;
-  FakeMic mic;
-  mic.push_constant(20000, MicApp::kFrame);
-  MicApp app{mic};
-  app.on_enter(f.hal);
-  app.tick(0);
-  TEST_ASSERT_TRUE(app.rms() > 0.1f);
 }
 
 // ───── ADV keymap ───────────────────────────────────────────────────────────
@@ -2122,543 +1861,6 @@ void test_clock_backspace_resets() {
   TEST_ASSERT_FALSE(app.running());
 }
 
-// ───── SnakeApp polish (pause + speed) ─────────────────────────────────────
-
-void test_snake_app_backspace_pauses() {
-  Fixture f;
-  SnakeApp app;
-  app.on_enter(f.hal);
-  TEST_ASSERT_FALSE(app.paused());
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_TRUE(app.paused());
-  // Tick during pause should not advance the engine.
-  const auto h0 = app.engine().head();
-  app.tick(SnakeApp::kStepMs * 5);
-  TEST_ASSERT_EQUAL_INT(h0.x, app.engine().head().x);
-  TEST_ASSERT_EQUAL_INT(h0.y, app.engine().head().y);
-  // Unpause and step.
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_FALSE(app.paused());
-  app.tick(SnakeApp::kStepMs * 5 + SnakeApp::kStepMsBase + 1);
-  TEST_ASSERT_TRUE(app.engine().head().x != h0.x || app.engine().head().y != h0.y);
-}
-
-void test_snake_step_interval_shrinks_with_score() {
-  Fixture f;
-  SnakeApp app;
-  app.on_enter(f.hal);
-  const uint32_t base = app.step_interval();
-  // Force a higher score to test the ramp.
-  // We can't easily eat food deterministically, so just call reset and
-  // assert the formula: at score 0 we get base, and the function clamps.
-  TEST_ASSERT_EQUAL_UINT32(SnakeApp::kStepMsBase, base);
-  // With kStepMsBase=160, kStepMsMin=60, shave=6 per pt: pt 17 → 160-102=58 → clamps.
-  // That's hard to drive without eating; the unit test just confirms base.
-}
-
-// ───── ToneApp ──────────────────────────────────────────────────────────────
-
-void test_tone_app_cursor_moves() {
-  Fixture f;
-  FakeSpeaker spk;
-  ToneApp app{spk};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_size_t(0u, app.cursor());
-  app.on_key(press(Key::Down));
-  TEST_ASSERT_EQUAL_size_t(1u, app.cursor());
-}
-
-void test_tone_app_enter_starts_playing_and_emits_tones() {
-  Fixture f;
-  FakeSpeaker spk;
-  ToneApp app{spk};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_INT(1, spk.init_count());
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.playing());
-  // Tick once at t=0 should emit the first note.
-  app.tick(0);
-  TEST_ASSERT_EQUAL_size_t(1u, spk.count());
-  TEST_ASSERT_EQUAL_UINT32(yui::presets::kCMajor[0].freq_hz, spk.last().freq_hz);
-}
-
-void test_tone_app_advances_through_preset() {
-  Fixture f;
-  FakeSpeaker spk;
-  ToneApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  // Advance beyond all 8 C-major notes (250ms each).
-  uint32_t t = 0;
-  for (int i = 0; i < 12; ++i) {
-    app.tick(t);
-    t += 260;
-  }
-  TEST_ASSERT_FALSE(app.playing());
-  TEST_ASSERT_EQUAL_size_t(8u, spk.count());
-}
-
-void test_tone_app_backspace_stops() {
-  Fixture f;
-  FakeSpeaker spk;
-  ToneApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  app.tick(0);
-  TEST_ASSERT_TRUE(app.playing());
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_FALSE(app.playing());
-  TEST_ASSERT_EQUAL_INT(1, spk.stop_count());
-}
-
-// ───── TodoApp ──────────────────────────────────────────────────────────────
-
-namespace {
-void type_string(TodoApp& app, const char* s) {
-  KeyEvent k{}; k.down = true; k.key = Key::Char;
-  for (const char* p = s; *p; ++p) {
-    if (*p == ' ') { app.on_key(press(Key::Space)); continue; }
-    k.ch = *p;
-    app.on_key(k);
-  }
-}
-}
-
-void test_todo_starts_empty() {
-  Fixture f;
-  FakeFs fs;
-  TodoApp app{fs};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_size_t(0u, app.count());
-}
-
-void test_todo_tab_starts_edit_then_enter_adds() {
-  Fixture f;
-  FakeFs fs;
-  TodoApp app{fs};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::Editing);
-  type_string(app, "milk");
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::List);
-  TEST_ASSERT_EQUAL_size_t(1u, app.count());
-  TEST_ASSERT_EQUAL_STRING("milk", app.text(0));
-  TEST_ASSERT_FALSE(app.done(0));
-}
-
-void test_todo_space_toggles_done() {
-  Fixture f;
-  FakeFs fs;
-  TodoApp app{fs};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  type_string(app, "x");
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_FALSE(app.done(0));
-  app.on_key(press(Key::Space));
-  TEST_ASSERT_TRUE(app.done(0));
-  app.on_key(press(Key::Space));
-  TEST_ASSERT_FALSE(app.done(0));
-}
-
-void test_todo_backspace_deletes_selected() {
-  Fixture f;
-  FakeFs fs;
-  TodoApp app{fs};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab)); type_string(app, "a"); app.on_key(press(Key::Enter));
-  app.on_key(press(Key::Tab)); type_string(app, "b"); app.on_key(press(Key::Enter));
-  TEST_ASSERT_EQUAL_size_t(2u, app.count());
-  app.on_key(press(Key::Backspace));   // delete first item ("a", cursor 0)
-  TEST_ASSERT_EQUAL_size_t(1u, app.count());
-  TEST_ASSERT_EQUAL_STRING("b", app.text(0));
-}
-
-void test_todo_persists_across_instances() {
-  Fixture f;
-  FakeFs fs;
-  {
-    TodoApp app{fs};
-    app.on_enter(f.hal);
-    app.on_key(press(Key::Tab)); type_string(app, "buy beans"); app.on_key(press(Key::Enter));
-    app.on_key(press(Key::Tab)); type_string(app, "ship yui"); app.on_key(press(Key::Enter));
-    app.on_key(press(Key::Down));
-    app.on_key(press(Key::Space));     // mark "ship yui" done
-  }
-  TodoApp app2{fs};
-  app2.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_size_t(2u, app2.count());
-  TEST_ASSERT_EQUAL_STRING("buy beans", app2.text(0));
-  TEST_ASSERT_FALSE(app2.done(0));
-  TEST_ASSERT_EQUAL_STRING("ship yui", app2.text(1));
-  TEST_ASSERT_TRUE(app2.done(1));
-}
-
-void test_todo_edit_backspace_aborts_when_buffer_empty() {
-  Fixture f;
-  FakeFs fs;
-  TodoApp app{fs};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::Editing);
-  app.on_key(press(Key::Backspace));   // empty buffer → abort
-  TEST_ASSERT_TRUE(app.mode() == TodoApp::Mode::List);
-  TEST_ASSERT_EQUAL_size_t(0u, app.count());
-}
-
-// ───── Date helpers + CalendarApp ───────────────────────────────────────────
-
-void test_date_leap_year() {
-  TEST_ASSERT_TRUE(yui::date::is_leap(2024));
-  TEST_ASSERT_FALSE(yui::date::is_leap(2025));
-  TEST_ASSERT_FALSE(yui::date::is_leap(1900));
-  TEST_ASSERT_TRUE(yui::date::is_leap(2000));
-}
-
-void test_date_days_in_month() {
-  TEST_ASSERT_EQUAL_INT(31, yui::date::days_in_month(2026, 1));
-  TEST_ASSERT_EQUAL_INT(28, yui::date::days_in_month(2026, 2));
-  TEST_ASSERT_EQUAL_INT(29, yui::date::days_in_month(2024, 2));
-  TEST_ASSERT_EQUAL_INT(30, yui::date::days_in_month(2026, 4));
-}
-
-void test_date_day_of_week_known_dates() {
-  // 2026-05-01 is a Friday (= 5 in Sun=0..Sat=6).
-  TEST_ASSERT_EQUAL_INT(5, yui::date::day_of_week(2026, 5, 1));
-  // 2000-01-01 was a Saturday.
-  TEST_ASSERT_EQUAL_INT(6, yui::date::day_of_week(2000, 1, 1));
-}
-
-void test_date_add_days_crosses_month() {
-  auto d = yui::date::add_days({2026, 1, 31}, 1);
-  TEST_ASSERT_EQUAL_INT(2026, d.y);
-  TEST_ASSERT_EQUAL_INT(2,    d.m);
-  TEST_ASSERT_EQUAL_INT(1,    d.d);
-}
-
-void test_date_add_days_crosses_year_back() {
-  auto d = yui::date::add_days({2026, 1, 1}, -1);
-  TEST_ASSERT_EQUAL_INT(2025, d.y);
-  TEST_ASSERT_EQUAL_INT(12,   d.m);
-  TEST_ASSERT_EQUAL_INT(31,   d.d);
-}
-
-void test_date_add_months_clamps_day() {
-  // Jan 31 + 1 month → Feb 28 (non-leap).
-  auto d = yui::date::add_months({2026, 1, 31}, 1);
-  TEST_ASSERT_EQUAL_INT(2,  d.m);
-  TEST_ASSERT_EQUAL_INT(28, d.d);
-}
-
-void test_calendar_app_arrow_keys_navigate() {
-  Fixture f;
-  CalendarApp app;
-  app.set_today({2026, 5, 1});
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Right));
-  TEST_ASSERT_EQUAL_INT(2, app.selected().d);
-  app.on_key(press(Key::Down));
-  TEST_ASSERT_EQUAL_INT(9, app.selected().d);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_EQUAL_INT(6, app.selected().m);
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_EQUAL_INT(5, app.selected().m);
-}
-
-void test_calendar_app_enter_jumps_to_today() {
-  Fixture f;
-  CalendarApp app;
-  app.set_today({2026, 5, 1});
-  app.on_enter(f.hal);
-  for (int i = 0; i < 30; ++i) app.on_key(press(Key::Right));
-  TEST_ASSERT_NOT_EQUAL(1, app.selected().d);
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_EQUAL_INT(1, app.selected().d);
-  TEST_ASSERT_EQUAL_INT(5, app.selected().m);
-}
-
-// ───── DrawApp ──────────────────────────────────────────────────────────────
-
-void test_draw_starts_blank_with_centered_cursor() {
-  Fixture f;
-  FakeFs fs;
-  DrawApp app{fs};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_INT(DrawApp::kCols / 2, app.cursor_x());
-  TEST_ASSERT_EQUAL_INT(DrawApp::kRows / 2, app.cursor_y());
-  for (int y = 0; y < DrawApp::kRows; ++y)
-    for (int x = 0; x < DrawApp::kCols; ++x)
-      TEST_ASSERT_FALSE(app.at(x, y));
-}
-
-void test_draw_arrows_move_cursor_with_clamp() {
-  Fixture f;
-  FakeFs fs;
-  DrawApp app{fs};
-  app.on_enter(f.hal);
-  for (int i = 0; i < 100; ++i) app.on_key(press(Key::Left));
-  TEST_ASSERT_EQUAL_INT(0, app.cursor_x());
-  for (int i = 0; i < 100; ++i) app.on_key(press(Key::Up));
-  TEST_ASSERT_EQUAL_INT(0, app.cursor_y());
-  for (int i = 0; i < 200; ++i) app.on_key(press(Key::Right));
-  TEST_ASSERT_EQUAL_INT(DrawApp::kCols - 1, app.cursor_x());
-}
-
-void test_draw_enter_toggles_cell() {
-  Fixture f;
-  FakeFs fs;
-  DrawApp app{fs};
-  app.on_enter(f.hal);
-  const int x = app.cursor_x();
-  const int y = app.cursor_y();
-  TEST_ASSERT_FALSE(app.at(x, y));
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.at(x, y));
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_FALSE(app.at(x, y));
-}
-
-void test_draw_backspace_clears() {
-  Fixture f;
-  FakeFs fs;
-  DrawApp app{fs};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_FALSE(app.at(app.cursor_x(), app.cursor_y()));
-}
-
-void test_draw_save_then_reload_round_trips() {
-  Fixture f;
-  FakeFs fs;
-  DrawApp app{fs};
-  app.on_enter(f.hal);
-  // Set three pixels.
-  app.on_key(press(Key::Enter));      // cursor at (30, 12)
-  app.on_key(press(Key::Right));
-  app.on_key(press(Key::Enter));      // (31, 12)
-  app.on_key(press(Key::Down));
-  app.on_key(press(Key::Enter));      // (31, 13)
-  app.on_key(press(Key::Tab));        // save
-  TEST_ASSERT_TRUE(app.just_saved());
-
-  // New instance should reload them.
-  DrawApp app2{fs};
-  app2.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app2.at(30, 12));
-  TEST_ASSERT_TRUE(app2.at(31, 12));
-  TEST_ASSERT_TRUE(app2.at(31, 13));
-  TEST_ASSERT_FALSE(app2.at(0, 0));
-}
-
-// ───── LifeEngine + LifeApp ─────────────────────────────────────────────────
-
-void test_life_blinker_oscillates_period_2() {
-  LifeEngine e;
-  e.seed(LifeEngine::Seed::Blinker, 1);
-  // After clear+seed, expect a horizontal blinker around the center.
-  const int cx = LifeEngine::kCols / 2;
-  const int cy = LifeEngine::kRows / 2;
-  TEST_ASSERT_TRUE(e.alive(cx - 1, cy));
-  TEST_ASSERT_TRUE(e.alive(cx,     cy));
-  TEST_ASSERT_TRUE(e.alive(cx + 1, cy));
-  e.step();
-  // Should now be vertical.
-  TEST_ASSERT_TRUE(e.alive(cx, cy - 1));
-  TEST_ASSERT_TRUE(e.alive(cx, cy));
-  TEST_ASSERT_TRUE(e.alive(cx, cy + 1));
-  TEST_ASSERT_FALSE(e.alive(cx - 1, cy));
-  e.step();
-  // Back to horizontal.
-  TEST_ASSERT_TRUE(e.alive(cx - 1, cy));
-  TEST_ASSERT_TRUE(e.alive(cx + 1, cy));
-}
-
-void test_life_glider_translates_after_4_steps() {
-  LifeEngine e;
-  e.seed(LifeEngine::Seed::Glider, 1);
-  const size_t pop0 = e.population();
-  for (int i = 0; i < 4; ++i) e.step();
-  TEST_ASSERT_EQUAL_size_t(pop0, e.population());  // glider preserves cells
-  TEST_ASSERT_EQUAL_size_t(5u, e.population());
-}
-
-void test_life_clear_zeros_grid() {
-  LifeEngine e;
-  e.seed(LifeEngine::Seed::Glider, 1);
-  TEST_ASSERT_GREATER_THAN_size_t(0u, e.population());
-  e.clear();
-  TEST_ASSERT_EQUAL_size_t(0u, e.population());
-}
-
-void test_life_app_enter_pauses() {
-  Fixture f;
-  LifeApp app;
-  app.on_enter(f.hal);
-  TEST_ASSERT_FALSE(app.paused());
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.paused());
-  // Tick during pause should not advance generation.
-  const auto g0 = app.engine().generation();
-  app.tick(0);
-  app.tick(1000);
-  TEST_ASSERT_EQUAL_UINT32(g0, app.engine().generation());
-}
-
-void test_life_app_right_single_steps() {
-  Fixture f;
-  LifeApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));  // pause
-  const auto g0 = app.engine().generation();
-  app.on_key(press(Key::Right));
-  TEST_ASSERT_EQUAL_UINT32(g0 + 1, app.engine().generation());
-}
-
-void test_life_app_backspace_clears() {
-  Fixture f;
-  LifeApp app;
-  app.on_enter(f.hal);
-  TEST_ASSERT_GREATER_THAN_size_t(0u, app.engine().population());
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_EQUAL_size_t(0u, app.engine().population());
-  TEST_ASSERT_TRUE(app.paused());
-}
-
-// ───── PomodoroApp ──────────────────────────────────────────────────────────
-
-void test_pomodoro_starts_idle_in_work_phase() {
-  Fixture f;
-  FakeSpeaker spk;
-  PomodoroApp app{spk};
-  app.on_enter(f.hal);
-  TEST_ASSERT_TRUE(app.state() == PomodoroApp::State::Idle);
-  TEST_ASSERT_TRUE(app.phase() == PomodoroApp::Phase::Work);
-}
-
-void test_pomodoro_enter_starts_running() {
-  Fixture f;
-  FakeSpeaker spk;
-  PomodoroApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.state() == PomodoroApp::State::Running);
-}
-
-void test_pomodoro_work_phase_completes_and_chimes() {
-  Fixture f;
-  FakeSpeaker spk;
-  PomodoroApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  // First tick at t=0 anchors last_ms_ to 0.
-  app.tick(0);
-  // Jump past 25 minutes (default preset).
-  app.tick(25u * 60u * 1000u + 1u);
-  TEST_ASSERT_TRUE(app.phase() == PomodoroApp::Phase::Break);
-  TEST_ASSERT_EQUAL_UINT(1u, app.completed());
-  TEST_ASSERT_GREATER_THAN_size_t(0u, spk.count());
-}
-
-void test_pomodoro_backspace_resets() {
-  Fixture f;
-  FakeSpeaker spk;
-  PomodoroApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  app.tick(1000);
-  app.tick(60000);
-  app.on_key(press(Key::Backspace));
-  TEST_ASSERT_TRUE(app.state() == PomodoroApp::State::Idle);
-  TEST_ASSERT_TRUE(app.phase() == PomodoroApp::Phase::Work);
-  TEST_ASSERT_EQUAL_UINT32(0u, app.elapsed_ms());
-}
-
-void test_pomodoro_tab_cycles_preset_only_when_idle() {
-  Fixture f;
-  FakeSpeaker spk;
-  PomodoroApp app{spk};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_size_t(0u, app.preset());
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_EQUAL_size_t(1u, app.preset());
-  app.on_key(press(Key::Enter));  // start
-  app.on_key(press(Key::Tab));    // ignored while running
-  TEST_ASSERT_EQUAL_size_t(1u, app.preset());
-}
-
-// ───── MetronomeApp ─────────────────────────────────────────────────────────
-
-void test_metronome_default_bpm_100() {
-  Fixture f;
-  FakeSpeaker spk;
-  MetronomeApp app{spk};
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_INT(100, app.bpm());
-  TEST_ASSERT_EQUAL_UINT32(600u, app.interval_ms());
-}
-
-void test_metronome_up_down_adjust_bpm_with_clamp() {
-  Fixture f;
-  FakeSpeaker spk;
-  MetronomeApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Up));
-  TEST_ASSERT_EQUAL_INT(104, app.bpm());
-  // Bash down past minimum.
-  for (int i = 0; i < 100; ++i) app.on_key(press(Key::Down));
-  TEST_ASSERT_EQUAL_INT(MetronomeApp::kBpmMin, app.bpm());
-}
-
-void test_metronome_enter_starts_and_clicks() {
-  Fixture f;
-  FakeSpeaker spk;
-  MetronomeApp app{spk};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Enter));
-  TEST_ASSERT_TRUE(app.running());
-  app.tick(0);  // immediate downbeat
-  TEST_ASSERT_GREATER_THAN_size_t(0u, spk.count());
-  TEST_ASSERT_EQUAL_UINT32(2000u, spk.last().freq_hz);  // downbeat freq
-}
-
-void test_metronome_advances_through_beats_in_4_4() {
-  Fixture f;
-  FakeSpeaker spk;
-  MetronomeApp app{spk};
-  app.on_enter(f.hal);
-  // Default sig is 4/4. Start, then tick across 4 intervals.
-  app.on_key(press(Key::Enter));
-  uint32_t t = 0;
-  for (int i = 0; i < 5; ++i) {
-    app.tick(t);
-    t += app.interval_ms();
-  }
-  TEST_ASSERT_EQUAL_size_t(5u, spk.count());  // 4 beats + the next downbeat
-}
-
-// ───── KeyTestApp ───────────────────────────────────────────────────────────
-
-void test_keytest_records_events() {
-  Fixture f;
-  KeyTestApp app;
-  app.on_enter(f.hal);
-  TEST_ASSERT_EQUAL_size_t(0u, app.count());
-  KeyEvent k{}; k.down = true; k.key = Key::Char; k.ch = 'q';
-  app.on_key(k);
-  TEST_ASSERT_EQUAL_size_t(1u, app.count());
-  TEST_ASSERT_EQUAL_CHAR('q', app.newest().ch);
-}
-
-void test_keytest_ring_buffer_caps_history() {
-  Fixture f;
-  KeyTestApp app;
-  app.on_enter(f.hal);
-  KeyEvent k{}; k.down = true; k.key = Key::Char;
-  for (int i = 0; i < 20; ++i) { k.ch = 'a' + (i % 26); app.on_key(k); }
-  TEST_ASSERT_EQUAL_size_t(KeyTestApp::kHistory, app.count());
-}
 
 // ───── FilesApp hex toggle ──────────────────────────────────────────────────
 
@@ -2675,100 +1877,6 @@ void test_files_view_tab_toggles_hex() {
   TEST_ASSERT_TRUE(app.hex());
   app.on_key(press(Key::Tab));
   TEST_ASSERT_FALSE(app.hex());
-}
-
-// ───── SnakeEngine + SnakeApp ───────────────────────────────────────────────
-
-void test_snake_starts_running_with_length_3() {
-  SnakeEngine s;
-  s.reset(42);
-  TEST_ASSERT_TRUE(s.state() == SnakeEngine::State::Running);
-  TEST_ASSERT_EQUAL_size_t(3u, s.length());
-}
-
-void test_snake_step_moves_head_in_direction() {
-  SnakeEngine s;
-  s.reset(42);
-  const auto h0 = s.head();
-  s.step();
-  const auto h1 = s.head();
-  TEST_ASSERT_EQUAL_INT(h0.x + 1, h1.x);  // default dir is Right
-  TEST_ASSERT_EQUAL_INT(h0.y, h1.y);
-}
-
-void test_snake_wall_collision_ends_game() {
-  SnakeEngine s;
-  s.reset(1);
-  // Run right until we hit the wall.
-  for (int i = 0; i < SnakeEngine::kCols + 5; ++i) s.step();
-  TEST_ASSERT_TRUE(s.state() == SnakeEngine::State::GameOver);
-}
-
-void test_snake_reverse_turn_is_ignored() {
-  SnakeEngine s;
-  s.reset(1);
-  // Default Right; try to U-turn Left.
-  s.turn(SnakeEngine::Dir::Left);
-  s.step();
-  // Head should still have moved Right (dir unchanged).
-  TEST_ASSERT_TRUE(s.dir() == SnakeEngine::Dir::Right);
-  TEST_ASSERT_TRUE(s.state() == SnakeEngine::State::Running);
-}
-
-void test_snake_perpendicular_turn_works() {
-  SnakeEngine s;
-  s.reset(1);
-  s.turn(SnakeEngine::Dir::Up);
-  s.step();
-  TEST_ASSERT_TRUE(s.dir() == SnakeEngine::Dir::Up);
-}
-
-void test_snake_eating_food_grows_snake() {
-  SnakeEngine s;
-  s.reset(1);
-  // Find food by stepping (deterministic seed); when we first see length grow,
-  // the previous head must equal the food position.
-  const size_t initial = s.length();
-  for (int i = 0; i < 200; ++i) {
-    // Steer toward food in a primitive way: orthogonal hop.
-    const auto h = s.head();
-    const auto f = s.food();
-    if (f.x > h.x)      s.turn(SnakeEngine::Dir::Right);
-    else if (f.x < h.x) s.turn(SnakeEngine::Dir::Left);
-    else if (f.y > h.y) s.turn(SnakeEngine::Dir::Down);
-    else if (f.y < h.y) s.turn(SnakeEngine::Dir::Up);
-    s.step();
-    if (s.state() != SnakeEngine::State::Running) break;
-    if (s.length() > initial) {
-      TEST_ASSERT_EQUAL_INT(1, s.score());
-      return;
-    }
-  }
-  TEST_FAIL_MESSAGE("snake never ate food in 200 steps");
-}
-
-void test_snake_app_arrow_keys_steer() {
-  Fixture f;
-  SnakeApp app;
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Up));
-  // dir doesn't commit until step(); confirm via head movement instead.
-  const auto h0 = app.engine().head();
-  app.engine().step();
-  const auto h1 = app.engine().head();
-  TEST_ASSERT_EQUAL_INT(h0.y - 1, h1.y);
-  TEST_ASSERT_EQUAL_INT(h0.x, h1.x);
-}
-
-void test_snake_app_tick_advances_engine_after_step_ms() {
-  Fixture f;
-  SnakeApp app;
-  app.on_enter(f.hal);
-  const auto h0 = app.engine().head();
-  app.tick(0);
-  app.tick(SnakeApp::kStepMs + 1);
-  const auto h1 = app.engine().head();
-  TEST_ASSERT_TRUE(h0.x != h1.x || h0.y != h1.y);
 }
 
 // ───── SysinfoApp ───────────────────────────────────────────────────────────
@@ -4537,44 +3645,6 @@ void test_ble_spam_cycles_payloads() {
 
 // ───── Bruce-parity sweep apps ────────────────────────────────────────────
 
-// TvBGoneApp
-
-void test_tvbgone_starts_disabled() {
-  Fixture f;
-  FakeIr ir;
-  TvBGoneApp app{ir};
-  app.on_enter(f.hal);
-  TEST_ASSERT_FALSE(app.enabled());
-  app.tick(0);
-  TEST_ASSERT_EQUAL_UINT32(0u, ir.sent_count());
-}
-
-void test_tvbgone_tab_enables_and_first_tick_fires() {
-  Fixture f;
-  FakeIr ir;
-  TvBGoneApp app{ir};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  TEST_ASSERT_TRUE(app.enabled());
-  app.tick(0);
-  TEST_ASSERT_EQUAL_UINT32(1u, ir.sent_count());
-  TEST_ASSERT_EQUAL_size_t(1u, app.idx());
-}
-
-void test_tvbgone_iterates_full_table_then_disables() {
-  Fixture f;
-  FakeIr ir;
-  TvBGoneApp app{ir};
-  app.on_enter(f.hal);
-  app.on_key(press(Key::Tab));
-  size_t n = 0; TvBGoneApp::codes(n);
-  for (size_t i = 0; i < n; ++i) app.tick(static_cast<uint32_t>((i + 1) * 100));
-  TEST_ASSERT_EQUAL_UINT32(static_cast<uint32_t>(n), ir.sent_count());
-  // One more tick after exhaustion → enabled flips off
-  app.tick(static_cast<uint32_t>((n + 1) * 100));
-  TEST_ASSERT_FALSE(app.enabled());
-}
-
 // WifiBeaconFloodApp
 
 void test_beacon_flood_off_by_default() {
@@ -6010,6 +5080,62 @@ void test_hydra_status_enter_reprobes() {
   TEST_ASSERT_TRUE(app.cc_present());
 }
 
+// ───── Radio-presence indicators in app headers ────────────────────────────
+
+namespace {
+// Count "on-accent" pixels in the rightmost 60 px of the header band.
+// That's where Chrome::radio_header paints the C/N indicators.
+int count_indicator_pixels(NativeDisplay& d) {
+  int n = 0;
+  const int x0 = d.width() - 60;
+  for (int y = 0; y < yui::ui::kHeaderH; ++y)
+    for (int x = x0; x < d.width(); ++x)
+      if (d.pixel_at(x, y) == yui::ui::kOnAccent) ++n;
+  return n;
+}
+}  // namespace
+
+void test_radio_header_filled_dot_when_cc1101_present() {
+  NativeDisplay d;
+  yui::ui::Chrome::radio_header(d, "Sub-GHz Scan", "433 MHz", 1, -1);
+  // Filled 6x6 box paints 36 on-accent pixels (the native test font
+  // doesn't render glyph pixels, so we only count the dot itself).
+  TEST_ASSERT_GREATER_OR_EQUAL_INT(36, count_indicator_pixels(d));
+}
+
+void test_radio_header_hollow_dot_when_cc1101_absent() {
+  NativeDisplay d_full, d_hollow;
+  yui::ui::Chrome::radio_header(d_full,   "x", nullptr, 1, -1);
+  yui::ui::Chrome::radio_header(d_hollow, "x", nullptr, 0, -1);
+  // Hollow outline is strictly fewer pixels than the filled box.
+  TEST_ASSERT_LESS_THAN_INT(count_indicator_pixels(d_full),
+                            count_indicator_pixels(d_hollow));
+}
+
+void test_radio_header_hides_indicator_when_state_negative() {
+  NativeDisplay d_one, d_two;
+  yui::ui::Chrome::radio_header(d_one, "x", nullptr, 1, -1);  // CC only
+  yui::ui::Chrome::radio_header(d_two, "x", nullptr, 1,  1);  // CC + NRF
+  // Two visible dots paint strictly more on-accent pixels than one.
+  TEST_ASSERT_LESS_THAN_INT(count_indicator_pixels(d_two),
+                            count_indicator_pixels(d_one));
+}
+
+void test_radio_header_subtitle_does_not_collide_with_indicator() {
+  // With a subtitle set, the indicator must still paint its dot — the
+  // subtitle should be shifted left rather than overwriting the indicator
+  // box on the right edge.
+  NativeDisplay d;
+  yui::ui::Chrome::radio_header(d, "App", "433 MHz", 1, -1);
+  // The far-right edge of the header band must contain on-accent pixels
+  // from the indicator (subtitle never reaches that far right).
+  int hits = 0;
+  for (int y = 0; y < yui::ui::kHeaderH; ++y)
+    for (int x = d.width() - 12; x < d.width() - 4; ++x)
+      if (d.pixel_at(x, y) == yui::ui::kOnAccent) ++hits;
+  TEST_ASSERT_GREATER_THAN_INT(8, hits);
+}
+
 void test_rolljam_replay_uses_real_capture_when_present() {
   yui::NativeCc1101 c;
   yui::FakeClock clock;
@@ -6169,18 +5295,6 @@ int main(int, char**) {
   RUN_TEST(test_calc_engine_reset_preserves_angle_mode);
   RUN_TEST(test_calc_app_d_toggles_angle_mode);
   RUN_TEST(test_calc_app_g_pushes_pi);
-  RUN_TEST(test_imu_app_reads_accel_on_tick);
-  RUN_TEST(test_imu_app_renders_header_red);
-  RUN_TEST(test_notes_starts_empty);
-  RUN_TEST(test_notes_typing_marks_dirty);
-  RUN_TEST(test_notes_backspace);
-  RUN_TEST(test_notes_arrow_left_right_move_cursor);
-  RUN_TEST(test_notes_insert_mid_buffer);
-  RUN_TEST(test_notes_backspace_mid_buffer);
-  RUN_TEST(test_notes_up_down_preserve_target_column);
-  RUN_TEST(test_notes_fn_left_jumps_to_line_start);
-  RUN_TEST(test_notes_fn_right_jumps_to_line_end);
-  RUN_TEST(test_notes_save_and_reload);
   RUN_TEST(test_files_lists_root);
   RUN_TEST(test_files_enter_descends_into_dir);
   RUN_TEST(test_files_dotdot_at_subdir_pops_to_parent);
@@ -6190,10 +5304,6 @@ int main(int, char**) {
   RUN_TEST(test_files_view_backspace_returns_to_list);
   RUN_TEST(test_ir_app_sends_nec_on_enter);
   RUN_TEST(test_ir_app_arrow_keys_change_selection);
-  RUN_TEST(test_mic_app_silent_input_yields_zero_rms);
-  RUN_TEST(test_mic_app_loud_input_yields_high_rms);
-  RUN_TEST(test_mic_app_sine_at_1khz_lands_in_expected_band);
-  RUN_TEST(test_mic_app_sine_at_300hz_lands_in_low_band);
   RUN_TEST(test_fft_dc_input_concentrates_in_bin_zero);
   RUN_TEST(test_fft_single_bin_sine);
   RUN_TEST(test_adv_decode_pos_keycode_1_is_tab_row1_col0);
@@ -6233,57 +5343,7 @@ int main(int, char**) {
   RUN_TEST(test_fakenet_ntp_sync_requires_connected);
   RUN_TEST(test_fakeclock_epoch_defaults_to_zero);
   RUN_TEST(test_fakeclock_set_epoch_round_trips);
-  RUN_TEST(test_snake_app_backspace_pauses);
-  RUN_TEST(test_snake_step_interval_shrinks_with_score);
-  RUN_TEST(test_tone_app_cursor_moves);
-  RUN_TEST(test_tone_app_enter_starts_playing_and_emits_tones);
-  RUN_TEST(test_tone_app_advances_through_preset);
-  RUN_TEST(test_tone_app_backspace_stops);
-  RUN_TEST(test_todo_starts_empty);
-  RUN_TEST(test_todo_tab_starts_edit_then_enter_adds);
-  RUN_TEST(test_todo_space_toggles_done);
-  RUN_TEST(test_todo_backspace_deletes_selected);
-  RUN_TEST(test_todo_persists_across_instances);
-  RUN_TEST(test_todo_edit_backspace_aborts_when_buffer_empty);
-  RUN_TEST(test_date_leap_year);
-  RUN_TEST(test_date_days_in_month);
-  RUN_TEST(test_date_day_of_week_known_dates);
-  RUN_TEST(test_date_add_days_crosses_month);
-  RUN_TEST(test_date_add_days_crosses_year_back);
-  RUN_TEST(test_date_add_months_clamps_day);
-  RUN_TEST(test_calendar_app_arrow_keys_navigate);
-  RUN_TEST(test_calendar_app_enter_jumps_to_today);
-  RUN_TEST(test_draw_starts_blank_with_centered_cursor);
-  RUN_TEST(test_draw_arrows_move_cursor_with_clamp);
-  RUN_TEST(test_draw_enter_toggles_cell);
-  RUN_TEST(test_draw_backspace_clears);
-  RUN_TEST(test_draw_save_then_reload_round_trips);
-  RUN_TEST(test_life_blinker_oscillates_period_2);
-  RUN_TEST(test_life_glider_translates_after_4_steps);
-  RUN_TEST(test_life_clear_zeros_grid);
-  RUN_TEST(test_life_app_enter_pauses);
-  RUN_TEST(test_life_app_right_single_steps);
-  RUN_TEST(test_life_app_backspace_clears);
-  RUN_TEST(test_pomodoro_starts_idle_in_work_phase);
-  RUN_TEST(test_pomodoro_enter_starts_running);
-  RUN_TEST(test_pomodoro_work_phase_completes_and_chimes);
-  RUN_TEST(test_pomodoro_backspace_resets);
-  RUN_TEST(test_pomodoro_tab_cycles_preset_only_when_idle);
-  RUN_TEST(test_metronome_default_bpm_100);
-  RUN_TEST(test_metronome_up_down_adjust_bpm_with_clamp);
-  RUN_TEST(test_metronome_enter_starts_and_clicks);
-  RUN_TEST(test_metronome_advances_through_beats_in_4_4);
-  RUN_TEST(test_keytest_records_events);
-  RUN_TEST(test_keytest_ring_buffer_caps_history);
   RUN_TEST(test_files_view_tab_toggles_hex);
-  RUN_TEST(test_snake_starts_running_with_length_3);
-  RUN_TEST(test_snake_step_moves_head_in_direction);
-  RUN_TEST(test_snake_wall_collision_ends_game);
-  RUN_TEST(test_snake_reverse_turn_is_ignored);
-  RUN_TEST(test_snake_perpendicular_turn_works);
-  RUN_TEST(test_snake_eating_food_grows_snake);
-  RUN_TEST(test_snake_app_arrow_keys_steer);
-  RUN_TEST(test_snake_app_tick_advances_engine_after_step_ms);
   RUN_TEST(test_sysinfo_renders_header_red);
   RUN_TEST(test_sysinfo_renders_time_when_synced);
   RUN_TEST(test_sysinfo_renders_no_sync_message_when_unsynced);
@@ -6412,9 +5472,6 @@ int main(int, char**) {
   RUN_TEST(test_ble_spam_cycles_payloads);
   RUN_TEST(test_ble_spam_disable_stops_advertiser);
   // Bruce-parity sweep
-  RUN_TEST(test_tvbgone_starts_disabled);
-  RUN_TEST(test_tvbgone_tab_enables_and_first_tick_fires);
-  RUN_TEST(test_tvbgone_iterates_full_table_then_disables);
   RUN_TEST(test_beacon_flood_off_by_default);
   RUN_TEST(test_beacon_flood_tab_enables_and_tx_cycles);
   RUN_TEST(test_beacon_flood_frame_contains_ssid_bytes);
@@ -6517,5 +5574,9 @@ int main(int, char**) {
   RUN_TEST(test_mousejack_on_exit_disables_promiscuous);
   RUN_TEST(test_clock_micros_default_derives_from_millis);
   RUN_TEST(test_hydra_status_enter_reprobes);
+  RUN_TEST(test_radio_header_filled_dot_when_cc1101_present);
+  RUN_TEST(test_radio_header_hollow_dot_when_cc1101_absent);
+  RUN_TEST(test_radio_header_hides_indicator_when_state_negative);
+  RUN_TEST(test_radio_header_subtitle_does_not_collide_with_indicator);
   return UNITY_END();
 }

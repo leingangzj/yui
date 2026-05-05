@@ -110,7 +110,8 @@ public:
       case Mode::Stopped: sub = "STOPPED"; break;
       default: break;
     }
-    ui::Chrome::header(d, "Sub-GHz Brute", sub);
+    ui::Chrome::radio_header(d, "Sub-GHz Brute", sub,
+                             radio_ && radio_->is_present() ? 1 : 0, -1);
 
     char line[40];
     std::snprintf(line, sizeof(line), "%u.%03u MHz",

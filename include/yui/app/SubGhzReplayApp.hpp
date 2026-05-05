@@ -71,26 +71,30 @@ public:
         ui::Chrome::cap_missing_dialog(d, "Sub-GHz Replay", "CC1101", "CS=13");
         return;
       case Mode::NoFs:
-        ui::Chrome::header(d, "Sub-GHz Replay");
+        ui::Chrome::radio_header(d, "Sub-GHz Replay", nullptr,
+                                 radio_ && radio_->is_present() ? 1 : 0, -1);
         ui::Chrome::dialog(d, "No filesystem",
                            "SD card not mounted.", "OK", nullptr, true);
         break;
       case Mode::Browsing: render_browser_(d); break;
       case Mode::Transmitting:
-        ui::Chrome::header(d, "Sub-GHz Replay", "TX...");
+        ui::Chrome::radio_header(d, "Sub-GHz Replay", "TX...",
+                                 radio_ && radio_->is_present() ? 1 : 0, -1);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            "Transmitting...", ui::kAccent, ui::kSurface,
                            FontStyle::Title);
         break;
       case Mode::Done:
-        ui::Chrome::header(d, "Sub-GHz Replay", "OK");
+        ui::Chrome::radio_header(d, "Sub-GHz Replay", "OK",
+                                 radio_ && radio_->is_present() ? 1 : 0, -1);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8, "Sent",
                            ui::kAccent, ui::kSurface, FontStyle::Title);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 32, status_,
                            ui::kHint, ui::kSurface, FontStyle::Caption);
         break;
       case Mode::Error:
-        ui::Chrome::header(d, "Sub-GHz Replay", "FAIL");
+        ui::Chrome::radio_header(d, "Sub-GHz Replay", "FAIL",
+                                 radio_ && radio_->is_present() ? 1 : 0, -1);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8, "Error",
                            ui::kWarn, ui::kSurface, FontStyle::Title);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 32, status_,
@@ -115,7 +119,8 @@ private:
   void render_browser_(IDisplay& d) {
     char sub[24];
     std::snprintf(sub, sizeof(sub), "%d files", count_);
-    ui::Chrome::header(d, "Sub-GHz Replay", sub);
+    ui::Chrome::radio_header(d, "Sub-GHz Replay", sub,
+                             radio_ && radio_->is_present() ? 1 : 0, -1);
     if (count_ == 0) {
       d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                          "No .sub files in /sub/",

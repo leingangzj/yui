@@ -71,7 +71,9 @@ public:
       ui::Chrome::cap_missing_dialog(d, "NRF24 Jam", "nRF24", "CS=6");
       return;
     }
-    ui::Chrome::header(d, "NRF24 Jam", active_ ? "ACTIVE" : nullptr);
+    ui::Chrome::radio_header(d, "NRF24 Jam",
+                             active_ ? "ACTIVE" : nullptr, -1,
+                             radio_ && radio_->is_present() ? 1 : 0);
     for (int i = 0; i < kModeCount; ++i) {
       ui::Chrome::list_row(d, i, kModes[i], i == mode_);
     }

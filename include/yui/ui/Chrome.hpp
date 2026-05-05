@@ -46,6 +46,33 @@ public:
     }
   }
 
+  // Header variant for Hydra-cap apps. Same as header() but right-aligns
+  // small CC1101 / nRF24 connection indicators after the subtitle. State
+  // codes per indicator:
+  //   -1 = hide (chip not relevant to this app)
+  //    0 = absent (hollow box)
+  //    1 = present (filled box)
+  // Indicators read "C●" / "N●" (filled = connected) or "C○" / "N○"
+  // (hollow = disconnected) so a glance at the bar tells you whether the
+  // cap is seated for the chip this app needs.
+  static void radio_header(IDisplay& d, const char* title,
+                           const char* subtitle,
+                           int cc1101_state, int nrf24_state) {
+    d.fill_rect({0, 0, d.width(), kHeaderH}, kAccent);
+    d.draw_text_styled(kBodyPadX, 2, title, kOnAccent, kAccent,
+                       FontStyle::Title);
+
+    int right_edge = d.width() - 4;
+    right_edge = radio_dot_(d, right_edge, 'N', nrf24_state);
+    right_edge = radio_dot_(d, right_edge, 'C', cc1101_state);
+
+    if (subtitle && *subtitle) {
+      const int sw = d.text_width(subtitle, FontStyle::Caption);
+      d.draw_text_styled(right_edge - sw, 8, subtitle, kOnAccent, kAccent,
+                         FontStyle::Caption);
+    }
+  }
+
   // Bottom hint line. Caption style, dim — reads as a hint, not a
   // heading. Pass nullptr to skip.
   static void footer(IDisplay& d, const char* hint) {
@@ -242,6 +269,36 @@ public:
       const int bw = card_w - 2 * kPad;
       draw_btn(card_x + kPad, bw, primary, true);
     }
+  }
+
+  // ── Hydra connection-indicator (private) ─────────────────────────────
+  // Draws a single radio-presence dot at the right side of the header
+  // band. Returns the new right_edge x (left side of this indicator,
+  // minus a 4-px gap) so the caller can stack multiple dots and the
+  // subtitle to the left of them. state: -1 hide, 0 absent, 1 present.
+  static int radio_dot_(IDisplay& d, int right_edge, char letter,
+                        int state) {
+    if (state < 0) return right_edge;
+    constexpr int kBox = 6;
+    constexpr int kPadL = 2;
+    char l[2] = {letter, 0};
+    const int letter_w = d.text_width(l, FontStyle::Caption);
+    const int total_w  = letter_w + kPadL + kBox;
+    const int x = right_edge - total_w;
+    constexpr int y = 6;  // top-aligned within the 24-px header
+    d.draw_text_styled(x, y, l, kOnAccent, kAccent, FontStyle::Caption);
+    const int box_x = x + letter_w + kPadL;
+    const int box_y = y + 2;
+    if (state >= 1) {
+      d.fill_rect({box_x, box_y, kBox, kBox}, kOnAccent);
+    } else {
+      // hollow outline — 4 thin rects
+      d.fill_rect({box_x,            box_y,            kBox, 1},    kOnAccent);
+      d.fill_rect({box_x,            box_y + kBox - 1, kBox, 1},    kOnAccent);
+      d.fill_rect({box_x,            box_y,            1,    kBox}, kOnAccent);
+      d.fill_rect({box_x + kBox - 1, box_y,            1,    kBox}, kOnAccent);
+    }
+    return x - 4;
   }
 
   // ── Cap-missing dialog (Hydra-aware shorthand) ───────────────────────

@@ -109,7 +109,8 @@ public:
     std::snprintf(sub, sizeof(sub), "%s%s",
                   kBands[band_].label,
                   mode_ == Mode::Paused ? "  PAUSED" : "");
-    ui::Chrome::header(d, "Sub-GHz Scan", sub);
+    ui::Chrome::radio_header(d, "Sub-GHz Scan", sub,
+                             radio_ && radio_->is_present() ? 1 : 0, -1);
 
     // Body: bar chart, baseline = bottom of body.
     const int W = d.width();

@@ -71,7 +71,8 @@ public:
     }
 
     const char* sub = (mode_ == Mode::Paused) ? "PAUSED" : nullptr;
-    ui::Chrome::header(d, "NRF24 Scan", sub);
+    ui::Chrome::radio_header(d, "NRF24 Scan", sub, -1,
+                             radio_ && radio_->is_present() ? 1 : 0);
 
     const int W = d.width();
     const int top_y = ui::kBodyTopY;

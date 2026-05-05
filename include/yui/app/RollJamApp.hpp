@@ -105,7 +105,8 @@ public:
       case Stage::Replayed: sub = "Replayed"; break;
       default: break;
     }
-    ui::Chrome::header(d, "RollJam", sub);
+    ui::Chrome::radio_header(d, "RollJam", sub,
+                             radio_ && radio_->is_present() ? 1 : 0, -1);
 
     char line[40];
     std::snprintf(line, sizeof(line), "%u.%03u MHz",

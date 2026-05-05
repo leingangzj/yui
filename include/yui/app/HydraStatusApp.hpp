@@ -41,7 +41,9 @@ public:
     const char* sub = (cc_present_ && nrf_present_) ? "OK"
                     : (cc_present_ || nrf_present_) ? "PARTIAL"
                                                     : "MISSING";
-    ui::Chrome::header(d, "Hydra Status", sub);
+    ui::Chrome::radio_header(d, "Hydra Status", sub,
+                             cc_present_ ? 1 : 0,
+                             nrf_present_ ? 1 : 0);
 
     ui::Chrome::stat(d, 0, "CC1101",
                      cc_present_ ? "present" : "absent");

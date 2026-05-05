@@ -2,9 +2,9 @@
 
 Print this page. Plug in the M5Cardputer ADV. Work top to bottom. Tick each box as you go. **If any step fails, stop and file an issue before continuing** — most failures cascade.
 
-**Build under test:** ******\*\*\*\*******\_\_\_******\*\*\*\******* (e.g. `f16b43e`)
-**Date:** ******\*\*\*\*******\_\_\_******\*\*\*\*******
-**Tester:** ******\*\*\*\*******\_\_\_******\*\*\*\*******
+**Build under test:** **\*\***\*\*\*\***\*\***\_\_\_**\*\***\*\*\*\***\*\*** (e.g. `f16b43e`)
+**Date:** **\*\***\*\*\*\***\*\***\_\_\_**\*\***\*\*\*\***\*\***
+**Tester:** **\*\***\*\*\*\***\*\***\_\_\_**\*\***\*\*\*\***\*\***
 
 ---
 
@@ -12,7 +12,7 @@ Print this page. Plug in the M5Cardputer ADV. Work top to bottom. Tick each box 
 
 - [ ] **0.1** USB-C cable connects to a port that enumerates (not power-only). Linux: `dmesg | tail` shows `cdc_acm` or `ttyACM0`. macOS: `ls /dev/tty.usbmodem*` shows the device.
 - [ ] **0.2** `~/.platformio/penv/bin/pio device list` shows the port (typically `/dev/ttyACM0`).
-- [ ] **0.3** Battery is at ≥20% (otherwise tests 12-13 are noisy).
+- [ ] **0.3** Battery is at ≥20% (otherwise tests 9-10 are noisy).
 
 ---
 
@@ -48,8 +48,8 @@ Print this page. Plug in the M5Cardputer ADV. Work top to bottom. Tick each box 
 
 ## 3. Launcher categories
 
-- [ ] **3.1** After splash, launcher shows category list: **Tools / Fun / WiFi / Ble / Radio / System**.
-- [ ] **3.2** Status bar at bottom shows BATT% + RSSI/UPTIME.
+- [ ] **3.1** After splash, launcher shows category list: **Radio / WiFi / Bluetooth / Tools / System / Fun**.
+- [ ] **3.2** Status strip shows BATT% + Hydra cap badge (`H+`/`H~`/`H-`) + clock/uptime.
 - [ ] **3.3** Up/Down arrows move the cursor; selected row is highlighted.
 - [ ] **3.4** Enter drills into a category; Esc returns to category list.
 
@@ -57,141 +57,107 @@ Print this page. Plug in the M5Cardputer ADV. Work top to bottom. Tick each box 
 
 ---
 
-## 4. KeyTestApp — full keymap matrix
-
-Open **System → KeyTest**.
-
-- [ ] **4.1** Press every key in the 4×14 ADV matrix. Each press shows the logical row/col.
-- [ ] **4.2** All 56 keys produce a unique (row, col).
-- [ ] **4.3** Shift / Fn / Ctrl / Alt modifier flags appear when held.
-- [ ] **4.4** No "stuck" keys (release should clear the displayed event).
-
-**Mark mismatches:** any key whose physical position doesn't match the logical (row, col) is a bug in `src/drivers/AdvKeymap.hpp`. Note which keys, fix later.
-
----
-
-## 5. Audio out — ToneApp
-
-Open **Fun → Tone**.
-
-- [ ] **5.1** Default 440 Hz tone plays through the onboard speaker, audible at arm's length.
-- [ ] **5.2** Cycle through all 4 presets (Tab) — each is clearly different in pitch.
-- [ ] **5.3** No buzzing, distortion, or DC offset click on tone-on / tone-off.
-
-**Abort if:** silent (likely I²S pins or codec init failure — check `pins.hpp` lines for I²S + ES8311 address `0x18`).
-
----
-
-## 6. Pomodoro alarm — full audio chain
-
-Open **Fun → Pomodoro**.
-
-- [ ] **6.1** Set work duration to 5 seconds (Up/Down adjusts when in setup).
-- [ ] **6.2** Start the cycle. After 5s, alarm tone fires.
-- [ ] **6.3** Break-period auto-starts; another 5s elapses, second alarm fires.
-
----
-
-## 7. WifiApp — connect + persist
+## 4. WifiApp — connect + persist
 
 Open **WiFi → Wifi**.
 
-- [ ] **7.1** Scan results populate within 5-10 s.
-- [ ] **7.2** Pick a known AP. Enter passphrase. Status transitions: `Scanning → Connecting → Connected`.
-- [ ] **7.3** Status bar RSSI shows a non-zero dBm value.
-- [ ] **7.4** Note the IP from SysinfoApp (System → Sysinfo).
+- [ ] **4.1** Scan results populate within 5-10 s.
+- [ ] **4.2** Pick a known AP. Enter passphrase. Status transitions: `Scanning → Connecting → Connected`.
+- [ ] **4.3** Status bar RSSI shows a non-zero dBm value.
+- [ ] **4.4** Note the IP from SysinfoApp (System → Sysinfo).
 
 ---
 
-## 8. NTP + ClockApp
+## 5. NTP + ClockApp
 
-Open **Tools → Clock**.
+Open **System → Clock**.
 
-- [ ] **8.1** Tab to **TimeOfDay** mode.
-- [ ] **8.2** Displayed time matches local wallclock (within 1 s) — confirms NTP sync ran.
-- [ ] **8.3** Stopwatch + Timer modes still function.
+- [ ] **5.1** Tab to **TimeOfDay** mode.
+- [ ] **5.2** Displayed time matches local wallclock (within 1 s) — confirms NTP sync ran.
+- [ ] **5.3** Stopwatch + Timer modes still function.
 
 ---
 
-## 9. Reboot persistence
+## 6. Reboot persistence
 
-- [ ] **9.1** Power-cycle (unplug USB, plug back in).
-- [ ] **9.2** Splash → launcher (no first-time prompts).
-- [ ] **9.3** WifiApp shows `Connected: <ssid>` without retyping the passphrase (NVS persistence works).
-- [ ] **9.4** ClockApp TimeOfDay shows synced time within ~10 s of boot.
+- [ ] **6.1** Power-cycle (unplug USB, plug back in).
+- [ ] **6.2** Splash → launcher (no first-time prompts).
+- [ ] **6.3** WifiApp shows `Connected: <ssid>` without retyping the passphrase (NVS persistence works).
+- [ ] **6.4** ClockApp TimeOfDay shows synced time within ~10 s of boot.
 
 **Abort if:** WiFi or settings don't persist (NVS init or `Esp32Storage` bug).
 
 ---
 
-## 10. Settings → Timezone
+## 7. Settings → Timezone
 
 Open **System → Settings**.
 
-- [ ] **10.1** Timezone row visible. Pick a different TZ (use Up/Down to cycle presets).
-- [ ] **10.2** Open ClockApp TimeOfDay. Displayed time has shifted by the expected offset.
-- [ ] **10.3** Power-cycle. New TZ persists.
+- [ ] **7.1** Timezone row visible. Pick a different TZ (use Up/Down to cycle presets).
+- [ ] **7.2** Open ClockApp TimeOfDay. Displayed time has shifted by the expected offset.
+- [ ] **7.3** Power-cycle. New TZ persists.
 
 ---
 
-## 11. MicApp — input chain
-
-Open **Tools → Mic**.
-
-- [ ] **11.1** VU bar reacts to ambient sound.
-- [ ] **11.2** Snap fingers near the device — at least one of the 8 FFT bands spikes.
-- [ ] **11.3** Whistle a steady tone — band corresponding to the pitch is brightest.
-
----
-
-## 12. IrRemoteApp
+## 8. IrRemoteApp
 
 Open **Tools → IR**.
 
-- [ ] **12.1** Point at a TV. Pick Power preset. Tab to fire.
-- [ ] **12.2** TV responds (turns on/off).
-- [ ] **12.3** Try at 2-3 m distance — confirms IR LED has reasonable throw.
+- [ ] **8.1** Point at a TV. Pick Power preset. Tab to fire.
+- [ ] **8.2** TV responds (turns on/off).
+- [ ] **8.3** Try at 2-3 m distance — confirms IR LED has reasonable throw.
 
 ---
 
-## 13. WiFi + BLE concurrency stress
+## 9. WiFi + BLE concurrency stress
 
-Open **WiFi → Wifi** (still connected from step 7), then **without disconnecting** open **Ble → Ble** in another launcher entry.
+Open **WiFi → Wifi** (still connected from step 4), then **without disconnecting** open **Bluetooth → Ble**.
 
-- [ ] **13.1** BLE scan runs while WiFi STA is connected.
-- [ ] **13.2** WiFi connection survives the BLE scan (status bar RSSI doesn't drop to 0).
-- [ ] **13.3** Check SysinfoApp: heap-free didn't drop below 60 KB.
+- [ ] **9.1** BLE scan runs while WiFi STA is connected.
+- [ ] **9.2** WiFi connection survives the BLE scan (status bar RSSI doesn't drop to 0).
+- [ ] **9.3** Check SysinfoApp: heap-free didn't drop below 60 KB.
 
-**Note packet drops or disconnects** — these inform whether v1.0 needs to serialize radio access by category.
-
----
-
-## 14. Battery + charging
-
-- [ ] **14.1** Unplug USB. Sit on launcher 10 minutes.
-- [ ] **14.2** BATT% shows a measurable decrease (>1 %).
-- [ ] **14.3** Plug USB back in. Battery indicator shows charging state.
-- [ ] **14.4** Sysinfo `BAT V` reads >3.7 V on charge.
+**Note packet drops or disconnects** — these inform whether the firmware needs to serialize radio access by category.
 
 ---
 
-## 15. SD persistence
+## 10. Battery + charging
 
-- [ ] **15.1** Open **Tools → Notes**. Type a few lines. Tab to save.
-- [ ] **15.2** Power-cycle.
-- [ ] **15.3** Reopen Notes. Saved content loads back.
-- [ ] **15.4** Open **Tools → Files**. Browse to `/yui-notes.txt` — file is present.
+- [ ] **10.1** Unplug USB. Sit on launcher 10 minutes.
+- [ ] **10.2** BATT% shows a measurable decrease (>1 %).
+- [ ] **10.3** Plug USB back in. Battery indicator shows charging state.
+- [ ] **10.4** Sysinfo `BAT V` reads >3.7 V on charge.
+
+---
+
+## 11. Hydra RF cap — CC1101 + nRF24 detection
+
+Plug in the **Pingequa Hydra Cap 424** before powering up.
+
+- [ ] **11.1** Open **System → HydraStatus**. Both `CC1101` and `nRF24` rows show `present`.
+- [ ] **11.2** Launcher status strip shows `H+`. Pull the cap, reboot — strip shows `H-`.
+- [ ] **11.3** With cap seated, open every CC1101 app (Radio → SubGhz Scan / Capture / Replay / Brute / Jammer / RollJam) — none crash, each shows the connection icon as **connected**.
+- [ ] **11.4** Open every nRF24 app (Bluetooth → Nrf24 Scan / Nrf24 Jammer / Mousejack) — none crash, each shows the connection icon as **connected**.
+- [ ] **11.5** Pull the cap (without rebooting) and reopen any RF app — each surfaces a "module not detected" dialog rather than crashing, and the connection icon flips to **disconnected**.
+
+---
+
+## 12. SD persistence
+
+- [ ] **12.1** Open **Tools → Files**. Confirm root filesystem mounts.
+- [ ] **12.2** From Radio → SubGhz Capture, capture a signal and save. File appears under `/captures/`.
+- [ ] **12.3** Power-cycle. Capture file is still present in Files.
 
 ---
 
 ## Sign-off
 
-If all boxes above are ticked, v0.3 is **hardware-validated**. Move on to:
+If all boxes above are ticked, the firmware is **hardware-validated**. Move on to:
 
 - [ ] bb-link bridge pairing — see `docs/protocols/KENWOOD_THD75.md`
 - [ ] 24-hour soak test — see `tools/soak-monitor.py`
 
-Tester signature: ******\*\*\*\*******\_\_\_******\*\*\*\******* Date: \***\*\_\_\_\_\*\***
+Tester signature: **\*\***\*\*\*\***\*\***\_\_\_**\*\***\*\*\*\***\*\*** Date: \***\*\_\_\_\_\*\***
 
 ---
 

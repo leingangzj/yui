@@ -100,7 +100,8 @@ public:
     std::snprintf(sub, sizeof(sub), "%u.%03u MHz",
                   static_cast<unsigned>(freq_hz_ / 1'000'000),
                   static_cast<unsigned>((freq_hz_ / 1000) % 1000));
-    ui::Chrome::header(d, "Sub-GHz Capture", sub);
+    ui::Chrome::radio_header(d, "Sub-GHz Capture", sub,
+                             radio_ && radio_->is_present() ? 1 : 0, -1);
 
     const int y0 = ui::kBodyTopY + 4;
     char line[40];

@@ -145,7 +145,8 @@ public:
     switch (mode_) {
       case Mode::Scanning:
         std::snprintf(sub, sizeof(sub), "ch %d  %d found", ch_, target_count_);
-        ui::Chrome::header(d, "Mousejack", sub);
+        ui::Chrome::radio_header(d, "Mousejack", sub, -1,
+                                 radio_ && radio_->is_present() ? 1 : 0);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            "Scanning channels 0..125",
                            ui::kAccent, ui::kSurface, FontStyle::Title);
@@ -156,7 +157,8 @@ public:
         break;
       case Mode::TargetList:
         std::snprintf(sub, sizeof(sub), "%d targets", target_count_);
-        ui::Chrome::header(d, "Mousejack", sub);
+        ui::Chrome::radio_header(d, "Mousejack", sub, -1,
+                                 radio_ && radio_->is_present() ? 1 : 0);
         for (int i = 0; i < target_count_; ++i) {
           char line[40];
           const auto& a = targets_[i].addr;
@@ -169,7 +171,8 @@ public:
         ui::Chrome::footer(d, "Enter:inject  Esc:rescan");
         break;
       case Mode::Injecting:
-        ui::Chrome::header(d, "Mousejack", "INJECTING");
+        ui::Chrome::radio_header(d, "Mousejack", "INJECTING", -1,
+                                 radio_ && radio_->is_present() ? 1 : 0);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            "Sending payload...",
                            ui::kWarn, ui::kSurface, FontStyle::Title);
@@ -180,7 +183,8 @@ public:
         ui::Chrome::footer(d, "Esc:abort");
         break;
       case Mode::Done:
-        ui::Chrome::header(d, "Mousejack", "DONE");
+        ui::Chrome::radio_header(d, "Mousejack", "DONE", -1,
+                                 radio_ && radio_->is_present() ? 1 : 0);
         d.draw_text_styled(ui::kBodyPadX, ui::kBodyTopY + 8,
                            target_count_ > 0 ? "Inject complete" : "No targets",
                            ui::kAccent, ui::kSurface, FontStyle::Title);

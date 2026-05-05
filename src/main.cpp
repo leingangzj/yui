@@ -15,23 +15,11 @@
 #include "yui/app/WifiApp.hpp"
 #include "yui/app/BleApp.hpp"
 #include "yui/app/CalculatorApp.hpp"
-#include "yui/app/ImuApp.hpp"
-#include "yui/app/NotesApp.hpp"
 #include "yui/app/FilesApp.hpp"
 #include "yui/app/IrRemoteApp.hpp"
-#include "yui/app/MicApp.hpp"
 #include "yui/app/SettingsApp.hpp"
 #include "yui/app/ClockApp.hpp"
 #include "yui/app/SysinfoApp.hpp"
-#include "yui/app/SnakeApp.hpp"
-#include "yui/app/KeyTestApp.hpp"
-#include "yui/app/ToneApp.hpp"
-#include "yui/app/PomodoroApp.hpp"
-#include "yui/app/MetronomeApp.hpp"
-#include "yui/app/LifeApp.hpp"
-#include "yui/app/DrawApp.hpp"
-#include "yui/app/CalendarApp.hpp"
-#include "yui/app/TodoApp.hpp"
 #include "yui/app/AprsApp.hpp"
 #include "yui/app/KenwoodApp.hpp"
 #include "yui/app/GpsApp.hpp"
@@ -46,7 +34,6 @@
 #include "yui/app/KarmaApp.hpp"
 #include "yui/app/WifiDeauthApp.hpp"
 #include "yui/app/BleSpamApp.hpp"
-#include "yui/app/TvBGoneApp.hpp"
 #include "yui/app/WifiBeaconFloodApp.hpp"
 #include "yui/app/WifiNativeDeauthApp.hpp"
 #include "yui/app/WpsScanApp.hpp"
@@ -160,24 +147,12 @@ yui::AboutApp    about_app{kVersion};
 yui::RemoteApp   remote_app{remote_, &store_};
 yui::WifiApp     wifi_app{net_, &store_};
 yui::BleApp      ble_app{net_};
-yui::ImuApp      imu_app{imu_};
 yui::CalculatorApp calc_app;
-yui::NotesApp    notes_app{fs_};
 yui::FilesApp    files_app{fs_};
 yui::IrRemoteApp ir_app{ir_};
-yui::MicApp      mic_app{mic_};
 yui::SettingsApp settings_app{store_};
 yui::ClockApp    clock_app{&net_, "pool.ntp.org", "UTC0", &store_};
 yui::SysinfoApp  sysinfo_app{make_sys_probe()};
-yui::SnakeApp    snake_app;
-yui::KeyTestApp  keytest_app;
-yui::ToneApp     tone_app{spk_};
-yui::PomodoroApp pomodoro_app{spk_};
-yui::MetronomeApp metronome_app{spk_};
-yui::LifeApp     life_app;
-yui::DrawApp     draw_app{fs_};
-yui::CalendarApp calendar_app;
-yui::TodoApp     todo_app{fs_};
 yui::AprsApp     aprs_app{radio_};
 yui::KenwoodApp  kenwood_app{radio_, &store_};
 yui::GpsApp      gps_app{gnss_, fs_};
@@ -192,7 +167,6 @@ yui::EvilTwinApp         evil_twin_app{http_, store_};
 yui::KarmaApp            karma_app{http_, store_};
 yui::WifiDeauthApp       deauth_app{http_, store_};
 yui::BleSpamApp          ble_spam_app{ble_adv_};
-yui::TvBGoneApp          tvbgone_app{ir_};
 yui::WifiBeaconFloodApp  beacon_flood_app{wmon_};
 yui::WifiNativeDeauthApp native_deauth_app{wmon_};
 yui::WpsScanApp          wps_scan_app{wmon_};
@@ -308,30 +282,17 @@ void setup() {
   registry.add(&beacon_flood_app);
   registry.add(&wps_scan_app);
   registry.add(&captive_app);
-  // TOOLS category
-  registry.add(&tvbgone_app);
   // BLUETOOTH category
   registry.add(&ble_spam_app);
   registry.add(&ble_gatt_app);
   registry.add(&ble_jammer_app);
   registry.add(&ble_app);
+  // TOOLS / SYSTEM
   registry.add(&ir_app);
-  registry.add(&imu_app);
-  registry.add(&notes_app);
-  registry.add(&todo_app);
   registry.add(&files_app);
   registry.add(&calc_app);
-  registry.add(&mic_app);
-  registry.add(&tone_app);
-  registry.add(&metronome_app);
-  registry.add(&pomodoro_app);
   registry.add(&clock_app);
-  registry.add(&snake_app);
   registry.add(&koigotchi_app);
-  registry.add(&life_app);
-  registry.add(&draw_app);
-  registry.add(&calendar_app);
-  registry.add(&keytest_app);
   registry.add(&sysinfo_app);
   registry.add(&settings_app);
   registry.add(&theme_app);

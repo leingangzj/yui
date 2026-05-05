@@ -94,7 +94,9 @@ public:
       ui::Chrome::cap_missing_dialog(d, "Sub-GHz Jam", "CC1101", "CS=13");
       return;
     }
-    ui::Chrome::header(d, "Sub-GHz Jam", active_ ? "ACTIVE" : nullptr);
+    ui::Chrome::radio_header(d, "Sub-GHz Jam",
+                             active_ ? "ACTIVE" : nullptr,
+                             radio_ && radio_->is_present() ? 1 : 0, -1);
 
     // Mode picker (4 visible at a time; arrows scroll selection).
     for (int i = 0; i < kModeCount; ++i) {
