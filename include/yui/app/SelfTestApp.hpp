@@ -112,7 +112,7 @@ class SelfTestApp : public App {
                            probes_[i].detail, fg, ui::kSurface, FontStyle::Caption);
       }
     }
-    ui::Chrome::footer(d, started_ ? "Up/Dn:scroll Esc:back"
+    ui::Chrome::footer(d, started_ ? "^/v:scroll Esc:back"
                                     : "Enter:run all");
     d.flush();
   }

@@ -102,7 +102,7 @@ class RfChaosApp : public App {
                 ui::kSurface); y += 14;
     std::snprintf(line, sizeof(line), "Fired    : %u", static_cast<unsigned>(fired_count_));
     d.draw_text(8, y, line, ui::kOnSurface, ui::kSurface);
-    ui::Chrome::footer(d, "Up/Dn:dur </>:int Fn+Enter:arm Bksp:stop");
+    ui::Chrome::footer(d, "^/v:dur </>:int Fn+Enter:arm Bksp:stop");
     d.flush();
   }
 

@@ -127,7 +127,7 @@ public:
       d.draw_text(8, y + 3, line, fg, bg);
     }
 
-    ui::Chrome::footer(d, "<-/->  to change");
+    ui::Chrome::footer(d, "^/v:row </>:change Esc:back");
     d.flush();
   }
 
