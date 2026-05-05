@@ -1,99 +1,101 @@
 # Architecture
 
-## Guiding Principles
+## Principles
 
-1. **HAL first.** Every byte of hardware access goes through an interface in
-   `include/yui/hal/`. No app code calls `Wire.beginTransmission()` directly.
-   This is what lets us run the same firmware on the device _and_ in a desktop
-   test harness.
-2. **Apps are small and finishable.** Each app implements a tiny interface
-   (`init`, `tick`, `render`, `on_key`, `cleanup`). One file when possible.
-3. **No dynamic allocation in the hot path.** Heap use at startup is fine;
-   per-frame allocations are a bug.
-4. **Keep dependencies thin.** The only mandatory libs are M5GFX (display) and
-   the ESP32 Arduino core. Per-app libs (BLE, IR, etc.) are pulled in only
-   where used and gated behind build flags.
-5. **MIT-clean.** No code copied from AGPL/GPL projects (Bruce, NEMO). We may
-   read them; we may not paste from them.
+1. **HAL first.** Every byte of hardware access goes through an interface in `include/yui/hal/`. App code doesn't `#include <Wire.h>` or call `digitalWrite()` directly. This is what lets the same firmware build for the device and run in a host test harness.
+2. **Apps are small and finishable.** Each app implements a tiny interface (`on_enter` / `on_key` / `tick` / `render` / `on_exit`). One file when possible.
+3. **No allocation in the hot path.** Heap at startup is fine; per-frame `new` / `std::string` is a bug.
+4. **Thin dependencies.** Mandatory: M5GFX, M5Unified, Arduino-ESP32. Per-feature: NimBLE, RadioLib, IRremoteESP8266, WebSockets — gated behind app inclusion.
+5. **MIT-clean.** No code copied from AGPL/GPL projects (Bruce, Marauder, NEMO). Reading them is fine; pasting from them is not.
 
 ## Layers
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Apps        notes, wifi_scan, ir_remote,…  │
+│  Apps        ~32 launcher entries           │
 ├─────────────────────────────────────────────┤
 │  Shell       launcher, menu, theme, nav     │
 ├─────────────────────────────────────────────┤
 │  Services    storage, time, settings, evt   │
 ├─────────────────────────────────────────────┤
-│  HAL         IDisplay, IKeyboard, IClock,…  │  ← only this is mocked
+│  HAL         IDisplay, IKeyboard, IClock... │  ← only this is mocked
 ├─────────────────────────────────────────────┤
 │  Backends    esp32/  |  native/             │
 └─────────────────────────────────────────────┘
 ```
 
-The same Shell + Apps build against either backend. Native backend is for
-host-side tests (and later, an SDL desktop simulator).
+Same Shell + Apps build against either backend. The native backend runs the host-side test suite (387 cases, ~4 s) and could later drive an SDL desktop simulator.
 
-## HAL Interfaces (initial set)
+## HAL interfaces
 
-| Interface   | Purpose                                                    |
-| ----------- | ---------------------------------------------------------- |
-| `IDisplay`  | Pixel-level drawing, text, fills, push-buffer              |
-| `IKeyboard` | Key events (down/up/repeat) + modifier state               |
-| `IClock`    | Monotonic ms + wall-clock time                             |
-| `IStorage`  | Read/write key-value blobs (NVS on device, file on native) |
-| `IFs`       | microSD / filesystem ops                                   |
-| `INet`      | WiFi scan/connect, BLE scan                                |
-| `IRadio`    | IR transmit, IMU read                                      |
-| `ILog`      | `info` / `warn` / `error` sinks                            |
+| Interface        | Purpose                                                  |
+| ---------------- | -------------------------------------------------------- |
+| `IDisplay`       | Pixel drawing, styled text, fills, push-buffer           |
+| `IKeyboard`      | Key events (down/up) + modifier state                    |
+| `IClock`         | Monotonic ms + wall-clock + epoch seconds                |
+| `IStorage`       | NVS key/value (file-backed on native)                    |
+| `IFs`            | microSD / filesystem ops                                 |
+| `INet`           | WiFi scan/connect, BLE scan, NTP                         |
+| `ILog`           | `info` / `warn` / `error` sinks                          |
+| `IIr`            | IR TX / decode                                           |
+| `IImu`           | Accel + gyro reads                                       |
+| `IMic`           | PCM sample stream                                        |
+| `ISpeaker`       | Tone / waveform out                                      |
+| `IPcap`          | libpcap-format writer to SD                              |
+| `IWifiMonitor`   | Promiscuous-mode RX + raw 802.11 TX                      |
+| `IBleAdvertiser` | NimBLE GAP advertise                                     |
+| `IBleCentral`    | NimBLE BLEClient + GATT walk                             |
+| `IWifiAp`        | SoftAP + DNS server + HTTP captive portal                |
+| `IRadioLink`     | BT-Classic SPP for the TH-D75 (via bb-link bridge)       |
+| `IGnss`          | NMEA stream from the radio                               |
+| `IHttp`          | HTTPClient wrapper for Pineapple REST                    |
+| `IBleRawTx`      | Per-channel raw BLE TX (NimBLE + nRF24 dual-rail)        |
+| `ICc1101`        | Sub-GHz radio: tune, OOK/FSK, edge-toggle TX, packet IRQ |
+| `INrf24`         | 2.4 GHz raw radio: channel, TX/RX, RPD-bit promiscuous   |
 
-Interfaces live in `include/yui/hal/*.hpp`. Implementations:
+Implementations:
 
-- `src/hal/esp32/*.cpp` — real hardware (Arduino core / M5GFX / ESP-IDF)
-- `src/hal/native/*.cpp` — no-ops, fakes, in-memory state for host tests
+- `src/hal/esp32/*.hpp` — real hardware via Arduino-ESP32 / M5Unified / NimBLE / ESP-IDF / RadioLib
+- `src/hal/native/*.hpp` — fakes with in-memory state and test seams
 
-## App Interface
+## App interface
 
 ```cpp
 class App {
 public:
   virtual ~App() = default;
   virtual const char* name() const = 0;
+  virtual Category    category() const = 0;
   virtual void on_enter(Hal& hal) = 0;     // app becomes active
   virtual void on_key(KeyEvent k) = 0;     // user input
-  virtual void tick(uint32_t now_ms) = 0;  // cooperative scheduling
-  virtual void render(IDisplay& d) = 0;    // draw frame
-  virtual void on_exit() = 0;              // free resources
+  virtual void tick(uint32_t now_ms) {}    // cooperative scheduling
+  virtual void render(IDisplay& d) = 0;    // draw a frame
+  virtual void on_exit() {}                // free resources
 };
 ```
 
-Apps register themselves at startup via a static registry (no dynamic
-discovery). Adding an app = one new file + one line in `src/app_registry.cpp`.
+Apps register at startup via `AppRegistry::add(&app_instance)` from `src/main.cpp`. No dynamic discovery; `kMaxApps = 64`. Adding an app = one new header + one line in `main.cpp`.
 
-## Build Profiles
+## Build profiles
 
-Two PlatformIO environments to start:
+| Env             | Purpose                                                       |
+| --------------- | ------------------------------------------------------------- |
+| `cardputer_adv` | Real device build, all ESP32 backends                         |
+| `native`        | Host x86 build for unit tests, native HAL backend, no Arduino |
 
-- `cardputer_adv` — real device build, all hardware backends
-- `native` — host x86 build for unit tests, native HAL backend, no Arduino
+`cardputer_base` (original Cardputer) and `desktop_sdl` are possibilities; not pre-built for hardware nobody owns.
 
-We may add `cardputer_base` (original Cardputer) and `desktop_sdl` later. We
-don't pre-build for hardware we don't own.
+## Memory targets
 
-## Memory Targets (soft)
+- **Flash:** ~2 MB / 8 MB (huge_app partition leaves room for SPIFFS / OTA later)
+- **RAM:** apps under ~32 KB long-lived; current footprint ~56% of 320 KB
 
-- **Flash:** stay under 4 MB for the firmware partition (8 MB total, leaves
-  room for a SPIFFS/LittleFS data partition + OTA later).
-- **RAM:** apps shouldn't allocate more than ~32 KB of long-lived state.
+## Lab-mode override path
+
+The deauth-block override (`ieee80211_freedom_inside_cb` → `return 1`) lives as committed C source at `src/lib_extra_override/freedom_override.c` rather than a vendored binary. With `-Wl,-zmuldefs` in the link, the project archive's symbol wins over Espressif's `libnet80211.a`. See [`board/lib_extra/README.md`](../board/lib_extra/README.md) for the audit trail and the alternative pre-built path.
 
 ## What Yui is not
 
-- Not a Flipper Zero. We don't have the sub-GHz, NFC, or 125 kHz radios,
-  and we're not adding them — see `ROADMAP.md` for what's explicitly out
-  of scope.
-- Not a Pineapple replacement. The Pineapple companion app drives a real
-  Pineapple over its REST API; it doesn't reimplement PineAP.
-- Not Meshtastic. If you want mesh, flash Meshtastic — M5Stack ships
-  their Mesh Kit pre-flashed for it. Yui can coexist in a separate slot
-  if/when OTA lands.
+- **Not a Flipper Zero.** It can do most of the same RF tricks with the Hydra cap, but no NFC, no 125 kHz, no IButton.
+- **Not a Pineapple replacement.** The Pineapple suite drives a real Pineapple over its REST API; it doesn't reimplement PineAP.
+- **Not Meshtastic.** If you want mesh, flash Meshtastic — M5Stack ship a Mesh Kit pre-flashed for it. Yui can coexist in a separate slot when OTA lands.

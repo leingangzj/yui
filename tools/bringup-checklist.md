@@ -1,5 +1,7 @@
 # Yui — Phase 0 Hardware Bring-Up Checklist
 
+> **As of v1.2:** the 14 hardware probes in this checklist are also available as an on-device app — open **System → Self-Test**, press Enter, watch the verdict. The paper checklist below stays useful for documenting a fresh-build certification (signed off by a human tester, written down on paper, dated). For routine bring-ups, use the app.
+
 Print this page. Plug in the M5Cardputer ADV. Work top to bottom. Tick each box as you go. **If any step fails, stop and file an issue before continuing** — most failures cascade.
 
 **Build under test:** **\*\***\*\*\*\***\*\***\_\_\_**\*\***\*\*\*\***\*\*** (e.g. `f16b43e`)

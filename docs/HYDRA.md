@@ -1,41 +1,33 @@
 # Hydra RF Cap 424 — operator's guide
 
-[Pingequa Hydra RF Cap 424][pq] is a dual-band RF expansion for the
-Cardputer ADV: a TI **CC1101** sub-GHz radio (300/433/868/915 MHz) and
-a Nordic **nRF24L01+** 2.4 GHz radio share one SPI bus, with auto-
-switching of CS handled on the cap. This page covers how Yui drives it.
+The [Pingequa Hydra RF Cap 424][pq] is a dual-band RF expansion for the Cardputer ADV. A TI **CC1101** sub-GHz radio (300 / 433 / 868 / 915 MHz) and a Nordic **nRF24L01+** 2.4 GHz radio share one SPI bus. Auto-switching of CS happens on the cap. This page is how Yui drives it.
 
 [pq]: https://www.pingequa.com/products/m5stack-cardputer-adv-2-in-1-rf-module
 
 ## Pin map
 
 ```
-Shared SPI bus (HSPI):      SCK = GPIO 40
-                            MOSI = GPIO 14   (also SD card)
-                            MISO = GPIO 39
+Shared SPI bus (HSPI):    SCK  = GPIO 40
+                          MOSI = GPIO 14   (also SD card)
+                          MISO = GPIO 39
 
-CC1101 (sub-GHz):           CS  = GPIO 13
-                            io0 = GPIO 5     (GDO0 — data + IRQ)
-                            io2 = unused (-1)
+CC1101 (sub-GHz):         CS   = GPIO 13
+                          io0  = GPIO 5    (GDO0 — data + IRQ)
+                          io2  = unused
 
-nRF24L01+ (2.4 GHz):        CS  = GPIO 6
-                            io0 = GPIO 4     (chip-enable / CE)
-                            io2 = unused (-1)
+nRF24L01+ (2.4 GHz):      CS   = GPIO 6
+                          io0  = GPIO 4    (CE)
+                          io2  = unused
 ```
 
-Constants: `include/yui/config/pins.hpp` under "Pingequa Hydra RF Cap
-424". Pingequa's brucePins.conf uses the same symbols (cs / io0 /
-io2) — the `io0` slot carries CC1101's GDO0 on the sub-GHz side and
-nRF24's CE on the 2.4 GHz side.
+Constants in `include/yui/config/pins.hpp`. Pingequa's `brucePins.conf` uses the same naming (cs / io0 / io2) — `io0` carries CC1101's GDO0 on the sub-GHz side and nRF24's CE on the 2.4 GHz side.
 
 ## HAL
 
-Two abstract interfaces in `include/yui/hal/`:
-
-| Interface | What it covers                                        |
-| --------- | ----------------------------------------------------- |
-| `ICc1101` | freq + modulation + bitrate, RSSI, RX/TX, carrier     |
-| `INrf24`  | channel + data rate + address, listen, RX/TX, carrier |
+| Interface | Covers                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------- |
+| `ICc1101` | freq + modulation + bitrate, RSSI, RX/TX, carrier, edge-toggle async TX, packet/preamble IRQ |
+| `INrf24`  | channel + data rate + address, listen, RX/TX, carrier, RPD-bit promiscuous mode              |
 
 Concrete impls in `src/hal/esp32/`:
 
@@ -43,12 +35,7 @@ Concrete impls in `src/hal/esp32/`:
 - `Nrf24Radio.hpp` — RadioLib-backed nRF24 on the shared bus
 - `HydraSpiBus.hpp` — singleton `SPIClass(HSPI)` both chips share
 
-Native fakes in `src/hal/native/`:
-
-- `NativeCc1101.hpp` — present-flag toggle, freq band check, RX
-  queue, last-TX inspect, carrier toggle, RSSI canned values
-- `NativeNrf24.hpp` — same shape for nRF24 (channel/address-width
-  validation, listen state, carrier toggle)
+Native fakes in `src/hal/native/`: `NativeCc1101.hpp`, `NativeNrf24.hpp`. Both expose test seams (`set_present`, `enqueue_rx`, `simulate_packet_irq`, `force_promiscuous_fail`, etc.) so the host test suite can exercise everything without real hardware.
 
 ## Boot probe
 
@@ -57,41 +44,49 @@ Native fakes in `src/hal/native/`:
 ```cpp
 cc1101_present_ = cc1101_.begin();
 nrf24_present_  = nrf24_.begin();
-log_.info("[hydra] cc1101=%s nrf24=%s ...", ...);
 ```
 
-`begin()` issues the chip's standard SPI handshake. If the chip
-doesn't ACK, the present flag stays false, every RF app picks up the
-nullable pointer and renders `Chrome::dialog` "Hydra not found" on
-entry instead of crashing.
+`begin()` issues the chip's standard SPI handshake. If the chip doesn't ACK, the present flag stays false. Every RF app picks up the nullable pointer and renders `Chrome::cap_missing_dialog` ("Hydra not found") instead of crashing.
+
+The launcher status strip shows `H+` / `H~` / `H-` (both up / one up / cap absent) so you know without opening anything.
 
 ## Apps
 
-### Sub-GHz (CC1101) — Category::Radio
+### Sub-GHz (CC1101)
 
-| App           | What it does                                                                                                                                         |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SubGhzScan    | RSSI sweep across 4 ISM bands (315 / 433 / 868 / 915). 60 bins, peak highlight, Left/Right band-flip, Enter pause/resume.                            |
-| SubGhzCapture | Records to `/sub/<freq>_<ts>.sub` (Flipper format). 30 s safety stop, 4096-edge cap.                                                                 |
-| SubGhzReplay  | File picker for `/sub/*.sub`. Loads, retunes to the file's frequency, packs RAW timings, transmits via packet mode.                                  |
-| SubGhzBrute   | 24-bit fixed-code dictionary walker. Configurable freq + step, paced 10 Hz TX, 3-byte big-endian payload.                                            |
-| SubGhzJammer  | CW (carrier) / Noise (LCG-random TX) / Sweep (saw-tooth ±500 kHz) / Protocol / Reactive. First three live; last two stubbed for preamble-IRQ wiring. |
-| RollJam       | Idle → Jamming → Captured → Replayed → Idle. Real carrier toggle + capture/replay; tight rolling-code timing TBD.                                    |
+| App                     | What it does                                                                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sub-GHz Scan**        | RSSI sweep across 4 ISM bands (315 / 433 / 868 / 915). 60 bins, peak highlight, ^/v changes band, Enter pause/resume. Smart dwell (5 samples/bin); auto-tune doubles dwell on quiet bins, halves on hot ones. |
+| **Sub-GHz Capt/Replay** | Tab cycles Read ↔ Saved. Read records to `/sub/<freq>_<ts>.sub` (Flipper format), 30s safety stop, 4096-edge cap. Saved is a file picker → load → transmit via edge-toggle async TX.                          |
+| **Sub-GHz Brute**       | 24-bit fixed-code dictionary walker. Configurable freq + step. Pace 100 ms (10 ms in Faraday Mode).                                                                                                           |
+| **Sub-GHz Jam**         | CW / Noise / Sweep / Protocol / Reactive. Protocol/Reactive register the packet IRQ and only fire CW when a target preamble is heard — much stealthier than continuous CW.                                    |
+| **RollJam**             | Idle → Jamming → Captured → Replayed → Idle. Real carrier toggle + capture/replay; tight rolling-code timing pending hardware validation.                                                                     |
 
-### 2.4 GHz (nRF24) — Category::Bluetooth
+### 2.4 GHz (nRF24)
 
-| App         | What it does                                                                                                                                                         |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nrf24Scan   | 126-channel activity heatmap with decay. 10 ch/tick.                                                                                                                 |
-| Nrf24Jammer | Channel flood (single-channel carrier) / Hop jam (cycles 0..125 per tick) / Target MAC (stubbed).                                                                    |
-| Mousejack   | Channel-walk scan (seeded with Logitech Unifying address) → target list → paced HID-payload inject. Promiscuous-mode requires low-level register poke not yet wired. |
+| App           | What it does                                                                                                                                                                                                                                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mousejack** | Channel-walk scan (seeded with Logitech Unifying address) → target list → paced HID-payload inject. Tab toggles to **Generic Scan** mode (the absorbed Nrf24Scan path: 126-channel heatmap with decay). Promiscuous mode pokes register 0x09 directly + reads back; surfaces failure if the chip refuses. Inject pace 50 ms (2 ms in Faraday Mode). |
+| **NRF24 Jam** | Channel flood, hop jam, target MAC. ^/v changes channel.                                                                                                                                                                                                                                                                                            |
 
-## File formats
+### Cross-band
 
-### `.sub` — Flipper-compatible RAW
+| App              | What it does                                                                                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hydra Status** | Cap presence + per-radio telemetry (freq, channel, RX/TX bytes). Faraday Mode state shown here too.                                                                                                            |
+| **RF Chaos**     | Lab-only orchestrator. Random-target firing across BLE / nRF24 / CC1101 / WiFi-monitor for 1–60 min at intensity 1–10. Refuses to arm without Faraday Mode. Logs (ms, target, channel) to `/rfchaos/<ts>.log`. |
 
-`include/yui/proto/SubFile.hpp` writes and reads the Flipper Zero
-sub-GHz capture format:
+## Edge-toggle async TX
+
+`Cc1101Radio::transmit_raw_edges()` bit-bangs GDO0 directly with absolute-deadline timing using `esp_timer_get_time()` so cumulative jitter doesn't drift. For edges >50 µs we coarse-delay first, then tight-spin the last 20 µs to the deadline. Worst-edge slip is tracked and exposed via `last_raw_tx_jitter_us()` — under 10 µs is Flipper-perfect for typical 433 MHz fixed-code remotes; above 25 µs starts to risk rolling-code timing windows.
+
+## Packet/preamble IRQ
+
+`ICc1101::on_packet_irq(callback, ctx)` registers a GDO0 GPIO ISR. Used by SubGhzJammer's Protocol/Reactive modes today; available for tighter RollJam timing in the future. Native fake exposes `simulate_packet_irq()` so the path is testable without a wire.
+
+## .sub file format (Flipper-compatible)
+
+`include/yui/proto/SubFile.hpp` reads and writes:
 
 ```
 Filetype: Flipper SubGhz RAW File
@@ -102,47 +97,27 @@ Protocol: RAW
 RAW_Data: 320 -130 196 -118 152 -86 ...
 ```
 
-Captures saved by `SubGhzCaptureApp` drop into the Flipper community
-signal library as-is, and signals downloaded from there feed
-`SubGhzReplayApp` directly.
+Captures saved by Yui drop into the Flipper community signal library as-is, and signals downloaded from there feed Replay directly.
 
-`SubPreset` covers `Ook650Async`, `Ook270Async`, `FskDev238Async`,
-`FskDev476Async`, `Custom`. Reader is allocation-friendly (callback
-per timing); writer takes a span + `SubHeader`.
+`SubPreset` covers `Ook650Async`, `Ook270Async`, `FskDev238Async`, `FskDev476Async`, `Custom`.
 
 ## Pentesting boundaries
 
-The Cardputer ADV with the Hydra is a Flipper-class device. Yui does
-not implement region locks or TX power limits — the device is
-expected to live in a Faraday cage for testing, per the operator's
-own infrastructure.
+The Cardputer ADV with the Hydra is a Flipper-class device. Yui does not implement region locks or TX power limits — the device is expected to live in a Faraday cage for testing.
 
-If you flash it onto a Cardputer that's not in a contained
-environment, **don't operate the jammer / brute / inject apps over
-the air.** The HAL will happily transmit; the radios don't ask
-permission. That is the operator's responsibility.
+If you flash it onto hardware that isn't in a contained environment, **don't operate the jammer / brute / inject apps over the air.** The HAL will transmit; the radios don't ask permission. That's the operator's call. Pair with **Faraday Mode** (Settings) so the strip is conditional on a controlled RF environment.
 
-## Phase log (where this came from)
+## Phase log
 
-- **Phase 3** — `ICc1101` / `INrf24` interfaces, RadioLib-backed
-  ESP32 impls, native fakes, `HydraSpiBus`, `.sub` format, boot
-  probe in `main.cpp`. (commit `276aecc`)
-- **Phase 4** — 9 RF apps wired into the launcher; 3 fully working,
-  6 cap-detection scaffolds. (commit `394b323`)
-- **Phase 4.5** — Replay + Brute fully wired, Jammer Noise + Sweep
-  modes. (commit `429eb02`)
-- **Phase 4.6** — Mousejack scan/inject + RollJam state machine
-  drive real radio ops. (commit `70b25d9`)
+- **Phase 3** (`276aecc`) — `ICc1101` / `INrf24` interfaces, RadioLib-backed ESP32 impls, native fakes, `HydraSpiBus`, `.sub` format, boot probe.
+- **Phase 4** (`394b323`) — 9 RF apps in the launcher; 3 fully working, 6 cap-detection scaffolds.
+- **Phase 4.5** (`429eb02`) — Replay + Brute fully wired, Jammer Noise + Sweep modes.
+- **Phase 4.6** (`70b25d9`) — Mousejack scan/inject + RollJam state machine drive real radio ops.
+- **Phase 5 (Lab Mode)** — promiscuous-mode RPD read-back, edge-toggle TX with `esp_timer` + jitter trace, packet-IRQ HAL → Protocol/Reactive jammer modes, smart dwell + auto-tune for SubGhzScan.
 
-## Future work (waiting on hardware-test signal)
+## Still pending hardware validation
 
-- **Promiscuous-mode nRF24 sniff** — needed for Mousejack against
-  arbitrary Logitech dongles. Requires direct register write
-  outside RadioLib's public API.
-- **Edge-toggle async sub-GHz TX** — for Flipper-perfect rolling-
-  code replay. Needs GDO0 toggling in tight loops.
-- **Preamble-detect IRQs** — unlocks Jammer Protocol / Reactive
-  modes and tighter RollJam timing.
-- **`SubGhzScanApp` smarter dwell** — currently 1 sample per tick;
-  hardware test will tell us whether longer dwell catches more
-  bursts.
+- Mousejack against arbitrary Logitech dongles in promiscuous mode (the register poke is shipped, the latch behavior needs a wire to confirm).
+- Flipper-perfect rolling-code replay timing across more remote vendors (the edge-toggle path is shipped + jitter-traced; field signal needed).
+- Protocol/Reactive jammer trigger latency under real preamble-detect IRQ.
+- SubGhzScan auto-tune dwell calibration against a known-noisy band.
