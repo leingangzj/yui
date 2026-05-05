@@ -1,26 +1,26 @@
 #pragma once
-// DeauthApp — unified deauth runner. Two backends pick the transport:
+// DeauthApp — one app, two backends. `b` toggles between them.
 //
-//   Backend::Pineapple — issue a deauth command to a paired WiFi
-//     Pineapple via its HTTP API. The Pineapple's radio does the
-//     work; the Cardputer drives. Single-shot per Fn+Enter.
+//   Pineapple   issues a deauth via the Pineapple's HTTP API. Pineapple
+//               does the radio work; the Cardputer drives. One frame
+//               per Fn+Enter.
 //
-//   Backend::Native — TX 802.11 deauth frames directly from the
-//     Cardputer's onboard radio via IWifiMonitor::tx_raw. Uses the
-//     patched-libnet80211 path on ESP32 (zmuldefs override of
-//     ieee80211_freedom_output) — the same hack Bruce / ESP32-
-//     Marauder use. Continuous TX while firing_ is true.
+//   Native      transmits 802.11 deauth from the Cardputer's onboard
+//               radio via IWifiMonitor::tx_raw. Uses the zmuldefs
+//               override of ieee80211_freedom_inside_cb — same trick
+//               Bruce and ESP32-Marauder use. Continuous TX while
+//               firing.
 //
-// LEGAL: TXing deauth frames against networks you do not own /
-// do not have written authorization to test is a violation of
-// FCC Part 15 in the US and equivalent laws elsewhere. App ships
-// disarmed; user must Tab to arm and Fn+Enter to fire.
+// Ships disarmed. Tab arms, Fn+Enter fires. Use only on networks you
+// own or are authorized to test — TX of deauth frames against parties
+// who haven't consented is a federal crime in the US (FCC Part 15) and
+// equivalent elsewhere.
 //
 // Keys:
-//   b           — toggle backend (only when not firing)
-//   Tab         — arm / disarm
-//   Up / Down   — channel
-//   Fn+Enter    — fire (PA: one-shot, Native: toggle continuous TX)
+//   b           toggle backend (only when not firing)
+//   Tab         arm / disarm
+//   Up / Down   channel
+//   Fn+Enter    fire (Pineapple: one-shot, Native: toggle continuous TX)
 #include "yui/app/App.hpp"
 #include "yui/hal/IStorage.hpp"
 #include "yui/hal/IWifiMonitor.hpp"

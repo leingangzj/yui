@@ -1,14 +1,16 @@
 #pragma once
-// BleSpamApp — cycles through "nuisance" BLE advertisement payloads:
-// Apple proximity / Samsung Easy Setup / Google Fast Pair-style
-// announcements. Off by default; requires Fn+Enter to enable. Useful
-// for demos in a controlled environment to demonstrate why BLE
-// adv-spam is annoying for nearby devices.
+// BleSpamApp — cycles three nuisance BLE adv payloads (Apple proximity,
+// Samsung Easy Setup, Google Fast Pair). Off by default; Fn+Enter
+// enables. Useful for demoing why BLE adv-spam is annoying for nearby
+// devices.
 //
-// LEGAL/ETHICAL: this is technically benign (passive advertising) but
-// disrupts nearby BT pairing UX and can be considered nuisance use of
-// the airwaves. Use sparingly, never in public, never around someone
-// else's pairing-in-progress.
+// Technically benign (passive advertising) but disrupts nearby BT
+// pairing UX. Use only in your own space, never around someone else's
+// pairing-in-progress.
+//
+// Phase 5.2 added an optional second-rail nRF24 path via set_nrf24_rail.
+// Tab cycles Rail (Both / NimBLE / Nrf24) when not running. Default is
+// Nimble-only when the nRF24 rail isn't wired.
 #include "yui/app/App.hpp"
 #include "yui/hal/IBleAdvertiser.hpp"
 #include "yui/hal/IBleRawTx.hpp"

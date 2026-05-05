@@ -1,19 +1,17 @@
 #pragma once
-// SelfTestApp — programmatic Phase 0 hardware bring-up. Replaces the
-// 14-step paper checklist (tools/bringup-checklist.md) with one app
-// that probes every required peripheral and renders a pass/fail row
-// per probe with a short diagnostic message.
+// SelfTestApp — programmatic 14-step bring-up. Replaces the paper
+// checklist (tools/bringup-checklist.md): one app probes every required
+// peripheral and renders pass/skip/fail per probe with a one-line
+// diagnostic.
 //
-// Design intent: an operator flashing a board for the first time
-// opens this app, presses Enter once, and sees the same outcome
-// they'd get walking the checklist by hand — but in ~5 seconds and
-// with no visual ambiguity. Useful for production-test flashing
-// (BootSelfTest in 5.x), and useful at the bench for "is this board
-// alive at all?" before opening any individual app.
+// Operator opens the app, presses Enter once, gets the same outcome the
+// checklist would give them in ~5 seconds. Useful for production-test
+// flashing (Boot SelfTest in Settings runs all probes before the
+// launcher) and at the bench for "is this board alive at all?" before
+// opening any individual app.
 //
-// Each probe is a thin wrapper around a single HAL call. Probes
-// never crash on missing hardware — they catch the "not present"
-// case and report Skip rather than Fail.
+// Each probe is a thin wrapper around a single HAL call. Missing
+// hardware returns Skip rather than Fail.
 #include "yui/app/App.hpp"
 #include "yui/hal/Hal.hpp"
 #include "yui/hal/IBleAdvertiser.hpp"

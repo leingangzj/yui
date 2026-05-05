@@ -1,13 +1,11 @@
 #pragma once
-// SubGhzCaptureReplayApp — capture-and-replay in a single Flipper-style
-// app. Tab swaps between Read (live capture from CC1101) and Saved
-// (browse + transmit .sub files from /sub/ on the SD).
+// SubGhzCaptureReplayApp — Flipper-style capture-and-replay in one app.
+// Tab swaps Read (live capture from CC1101) ↔ Saved (browse + transmit
+// .sub files from /sub/ on the SD).
 //
 // Same hardware (CC1101 via ICc1101), same file format (.sub via
-// proto::SubFile), same modulation defaults (OOK 650 async). The two
-// halves of the workflow used to be separate apps; this is one entry
-// in the launcher that owns both halves of the operator's mental model:
-// "I want to record a remote and play it back."
+// proto::SubFile), same defaults (OOK 650 async). Used to be two apps;
+// merged in 4.13.2 since record-then-replay is one workflow.
 
 #include "yui/app/App.hpp"
 #include "yui/hal/ICc1101.hpp"

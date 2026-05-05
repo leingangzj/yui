@@ -1,12 +1,11 @@
 #pragma once
-// WifiBeaconFloodApp — broadcast a rotating list of SSIDs as fake APs.
-// Uses IWifiMonitor::tx_raw with beacon frames built by Dot11. Each
-// SSID gets its own deterministic BSSID derived from the SSID string,
-// so nearby clients see a stable list rather than churning.
+// WifiBeaconFloodApp — broadcasts a rotating list of SSIDs as fake APs.
+// Uses IWifiMonitor::tx_raw with beacon frames built by proto::Dot11.
+// Each SSID gets a deterministic BSSID derived from the SSID string,
+// so nearby clients see a stable list rather than churning every frame.
 //
-// LEGAL: this transmits 802.11 management frames, which is a
-// regulated activity in some jurisdictions. Use only on RF spectrum
-// you control / in a test environment / on your own property.
+// Transmits 802.11 management frames — regulated in some jurisdictions.
+// Use only on RF spectrum you control or in a controlled test env.
 #include "yui/app/App.hpp"
 #include "yui/hal/IWifiMonitor.hpp"
 #include "yui/proto/Dot11.hpp"

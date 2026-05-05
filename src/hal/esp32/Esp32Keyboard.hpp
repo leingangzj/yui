@@ -22,8 +22,9 @@ public:
   // user starts wondering why nothing types.
   bool initialized() const { return initialized_; }
 
-  // Optional: when wired, the remote viewer's key inbox is drained before
-  // each I²C poll, so browser keystrokes are first-class.
+  // Optional: when wired, the remote viewer's key inbox is drained
+  // before each I²C poll so browser keystrokes get the same treatment
+  // as physical keys.
   void set_remote(IRemote* r) { remote_ = r; }
 
   bool poll(KeyEvent& out) override {

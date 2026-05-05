@@ -1,19 +1,20 @@
 #pragma once
-// BleJammerApp — saturate the local 2.4 GHz BLE adv channels (37/38/39)
-// with rapid back-to-back advertisements. Different from BleSpamApp
-// which cycles _meaningful_ nuisance payloads at a slow cadence: this
-// one fires dummy packets as fast as the radio will let it, with the
-// goal of disrupting nearby BLE pairing / discovery.
+// BleJammerApp — saturates the BLE adv channels (37/38/39) with rapid
+// back-to-back advertisements. Different from BleSpamApp, which cycles
+// meaningful nuisance payloads slowly: this one fires dummy packets as
+// fast as the radio will let it, with the goal of disrupting nearby
+// BLE pairing.
 //
-// LEGAL/ETHICAL: actual radio jamming (continuous-wave RF that
-// physically suppresses other devices) is illegal nearly everywhere.
-// This app does NOT do that — it just submits BLE adv packets at
-// max rate. Effect on neighbors is similar to a noisy environment,
-// not a regulated jammer. Use sparingly and never around medical
-// equipment, hearing aids, etc.
+// This is not regulated radio jamming (no continuous-wave RF that
+// physically suppresses other transmitters). It's just rate-saturated
+// BLE adv. Effect on neighbors is similar to a noisy environment.
+// Use sparingly, never around medical equipment.
 //
-// Off by default. Fn+Enter to enable. Auto-disables after kAutoOffMs
+// Off by default. Fn+Enter enables. Auto-shutoff after kAutoOffMs
 // (default 30s) so you can't accidentally leave it running.
+//
+// Phase 5.2 added an optional second-rail nRF24 path via set_nrf24_rail.
+// Tab cycles Rail (Both / NimBLE / Nrf24) when not running.
 #include "yui/app/App.hpp"
 #include "yui/hal/IBleAdvertiser.hpp"
 #include "yui/hal/IBleRawTx.hpp"

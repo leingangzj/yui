@@ -1,19 +1,16 @@
 #pragma once
-// RogueApApp — unified rogue-AP runner. Tab cycles three modes that
-// all serve the same operator intent ("be a hostile AP") with
-// different attack semantics:
+// RogueApApp — three rogue-AP modes behind one app, Tab cycles:
 //
-//   EvilTwin  — Pineapple PineAP rogue-AP toggle + SSID pool wipe
-//   Karma     — Pineapple Karma probe-responder toggle
-//   Captive   — Local SoftAP + DNS hijack + HTML phishing capture
+//   EvilTwin  Pineapple PineAP rogue-AP toggle + SSID pool wipe
+//   Karma     Pineapple Karma probe-responder toggle
+//   Captive   Local SoftAP + DNS hijack + HTML phishing capture
 //
-// EvilTwin/Karma drive a remote Pineapple over HTTP; Captive runs a
-// SoftAP on the Cardputer's onboard radio. Switching modes leaves any
-// previously running Captive SoftAP shut down cleanly.
+// EvilTwin and Karma drive a remote Pineapple over HTTP. Captive runs
+// a SoftAP on the Cardputer's onboard radio. Switching modes shuts
+// down any running Captive SoftAP cleanly.
 //
-// LEGAL: USE ONLY ON NETWORKS / DEVICES YOU OWN OR HAVE WRITTEN
-// AUTHORIZATION TO TEST. Held-key confirmation (Fn+Enter) for any
-// action that arms / enables a mode.
+// Use only on networks you own or are authorized to test. Held-key
+// (Fn+Enter) for any action that arms a mode.
 #include "yui/app/App.hpp"
 #include "yui/hal/IFs.hpp"
 #include "yui/hal/IStorage.hpp"
