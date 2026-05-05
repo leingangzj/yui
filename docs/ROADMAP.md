@@ -199,6 +199,49 @@ sweep that followed.
 **Native tests:** 362/362 passing. **Footprint:** flash trim
 ~3000 LOC removed; binary still well under 8 MB.
 
+## Phase 4.13 — App consolidation (PLANNED, lands as v1.1.1)
+
+Audit of the 42 registered apps surfaced 8 launcher slots
+where two-or-three apps share an operator workflow. Consolidate
+into single apps with mode toggles. Pure refactor — no new
+capability, no test loss (tests follow the merged apps), better
+operator UX.
+
+**Result:** 42 → 34 launcher entries.
+
+| Step   | Today                                                        | Merged into                                                                  | Effort |
+| ------ | ------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------ |
+| 4.13.1 | `WifiDeauthApp` (Pineapple) + `WifiNativeDeauthApp` (S3)     | One `DeauthApp` with **Backend: Pineapple / Native** toggle                  | 1 hr   |
+| 4.13.2 | `SubGhzCaptureApp` + `SubGhzReplayApp`                       | One `SubGhzCaptureReplayApp` with **Read / Saved** modes (Flipper-style UX)  | 2 hr   |
+| 4.13.3 | `PineappleApp` + `PineappleReconApp` + `HandshakeBrowserApp` | One `PineappleApp` with **Dashboard / Recon / Handshakes** tabs              | 2 hr   |
+| 4.13.4 | `EvilTwinApp` + `KarmaApp` + `CaptivePortalApp`              | One `RogueApApp` with three modes (clone-AP / probe-answer / SoftAP-capture) | 2 hr   |
+| 4.13.5 | `Nrf24ScanApp` (standalone)                                  | Subsumed into `MousejackApp` as a **Generic Scan** mode                      | 1 hr   |
+| 4.13.6 | `ThemeApp` (top-level)                                       | Folded into `SettingsApp` as a submenu                                       | 1 hr   |
+
+**Total effort:** ~2 evenings.
+
+### Explicitly NOT consolidated
+
+- **Sub-GHz family** (Scan / Brute / Jammer + merged CaptureReplay)
+  — different mental models; survey vs. attack vs. workflow.
+- **BLE family** (Spam / Jammer / GATT / Scan) — distinct operations.
+- **Ham radio suite** (Kenwood / APRS / GPS / RemoteHead / AprsMessage)
+  — already coherent, each has one job.
+- **A "MegaScanApp"** that unifies Sub-GHz + nRF24 + WiFi + BLE
+  scans — Bruce/Marauder do this and it's awful to navigate.
+  Per-band UX is right for this category.
+
+### Candidates kept under review (not in 4.13 scope)
+
+- `KoigotchiApp` — off-mission post-prune, but personality.
+- `CalcApp` — RPN calc; field-handy when computing offsets,
+  marginal otherwise.
+- `ClockApp` — phone-replaceable, but pairs with the NTP+GPS
+  infra and useful for stamped offline log review.
+
+If all three are later cut: 34 → 31 apps. Decision deferred
+until after 4.13 lands and the launcher density reads cleanly.
+
 ## v1.2 — Lab Mode (PLANNED)
 
 Operator works exclusively in a Faraday-shielded lab. Goal:
